@@ -3,19 +3,43 @@
   "services": {
     "send_message": {
       "name": "Отправить сообщение",
-      "description": "Отправить текстовое сообщение в чат(ы) Max. Укажите entity_id и/или config_entry_id с chat_id или user_id."
+      "description": "Отправить текстовое сообщение в чат(ы) Max. Укажите entity_id и/или config_entry_id с chat_id или user_id.",
+      "fields": {
+        "notify": {
+          "name": "Уведомлять",
+          "description": "Если выключено — отправить без уведомления получателей (тихо)."
+        }
+      }
     },
     "send_photo": {
       "name": "Отправить фото",
-      "description": "Отправить фото в чат(ы) Max. Файл: локальный путь или URL изображения. Укажите entity_id и/или config_entry_id с chat_id или user_id."
+      "description": "Отправить фото в чат(ы) Max. Файл: локальный путь или URL изображения. Укажите entity_id и/или config_entry_id с chat_id или user_id.",
+      "fields": {
+        "notify": {
+          "name": "Уведомлять",
+          "description": "Если выключено — отправить без уведомления получателей (тихо)."
+        }
+      }
     },
     "send_document": {
       "name": "Отправить документ",
-      "description": "Отправить файл как документ в чат(ы) Max. Файл: локальный путь или URL. Может сохранить качество по сравнению с отправкой фото."
+      "description": "Отправить файл как документ в чат(ы) Max. Файл: локальный путь или URL. Может сохранить качество по сравнению с отправкой фото.",
+      "fields": {
+        "notify": {
+          "name": "Уведомлять",
+          "description": "Если выключено — отправить без уведомления получателей (тихо)."
+        }
+      }
     },
     "send_video": {
       "name": "Отправить видео",
-      "description": "Отправить видео в чат(ы) Max. Файл: локальный путь или URL (mp4, mov, webm, mkv). Укажите entity_id и/или config_entry_id с chat_id или user_id."
+      "description": "Отправить видео в чат(ы) Max. Файл: локальный путь или URL (mp4, mov, webm, mkv). Укажите entity_id и/или config_entry_id с chat_id или user_id.",
+      "fields": {
+        "notify": {
+          "name": "Уведомлять",
+          "description": "Если выключено — отправить без уведомления получателей (тихо)."
+        }
+      }
     }
   },
   "invalid_notify_entity": "Недопустимая сущность Max Notify: {entity_id}",

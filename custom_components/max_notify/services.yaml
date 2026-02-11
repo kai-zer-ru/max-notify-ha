@@ -17,6 +17,11 @@ send_message:
       example: "Заголовок"
       selector:
         text:
+    # notify:
+    #   default: true
+    #   selector:
+    #     boolean:
+    #   description: "If false, send without notifying recipients (silent)."
     advanced:
       collapsed: true
       fields:
@@ -43,6 +48,11 @@ send_photo:
     caption:
       selector:
         text:
+    # notify:
+    #   default: true
+    #   selector:
+    #     boolean:
+    #   description: "If false, send without notifying recipients (silent)."
     entity_id:
       selector:
         entity:
@@ -75,6 +85,11 @@ send_video:
     caption:
       selector:
         text:
+    # notify:
+    #   default: true
+    #   selector:
+    #     boolean:
+    #   description: "If false, send without notifying recipients (silent)."
     entity_id:
       selector:
         entity:
@@ -107,6 +122,11 @@ send_document:
     caption:
       selector:
         text:
+    # notify:
+    #   default: true
+    #   selector:
+    #     boolean:
+    #   description: "If false, send without notifying recipients (silent)."
     entity_id:
       selector:
         entity:

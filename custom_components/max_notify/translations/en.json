@@ -3,19 +3,43 @@
   "services": {
     "send_message": {
       "name": "Send message",
-      "description": "Send a text message to Max chat(s). Use entity_id and/or config_entry_id with chat_id or user_id."
+      "description": "Send a text message to Max chat(s). Use entity_id and/or config_entry_id with chat_id or user_id.",
+      "fields": {
+        "notify": {
+          "name": "Notify",
+          "description": "If disabled, send without notifying recipients (silent)."
+        }
+      }
     },
     "send_photo": {
       "name": "Send photo",
-      "description": "Send a photo to Max chat(s). File: local path or image URL. Use entity_id and/or config_entry_id with chat_id or user_id."
+      "description": "Send a photo to Max chat(s). File: local path or image URL. Use entity_id and/or config_entry_id with chat_id or user_id.",
+      "fields": {
+        "notify": {
+          "name": "Notify",
+          "description": "If disabled, send without notifying recipients (silent)."
+        }
+      }
     },
     "send_document": {
       "name": "Send document",
-      "description": "Send a file as document to Max chat(s). File: local path or URL. May preserve quality vs. send_photo."
+      "description": "Send a file as document to Max chat(s). File: local path or URL. May preserve quality vs. send_photo.",
+      "fields": {
+        "notify": {
+          "name": "Notify",
+          "description": "If disabled, send without notifying recipients (silent)."
+        }
+      }
     },
     "send_video": {
       "name": "Send video",
-      "description": "Send a video to Max chat(s). File: local path or URL (mp4, mov, webm, mkv). Use entity_id and/or config_entry_id with chat_id or user_id."
+      "description": "Send a video to Max chat(s). File: local path or URL (mp4, mov, webm, mkv). Use entity_id and/or config_entry_id with chat_id or user_id.",
+      "fields": {
+        "notify": {
+          "name": "Notify",
+          "description": "If disabled, send without notifying recipients (silent)."
+        }
+      }
     }
   },
   "invalid_notify_entity": "Invalid Max Notify entity: {entity_id}",

@@ -228,6 +228,7 @@ async def upload_image_and_send(
     file_path_or_url: str,
     caption: str | None = None,
     as_document: bool = False,
+    notify: bool = True,
 ) -> None:
     """Upload image/file to Max (POST /uploads) and send (POST /messages)."""
     token = entry.data.get(CONF_ACCESS_TOKEN)
@@ -348,6 +349,9 @@ async def upload_image_and_send(
     }
     if msg_format != "text":
         payload["format"] = msg_format
+    # Отключено: Max не отключает push/звук по notify: false.
+    # if not notify:
+    #     payload["notify"] = False
     await _post_message_with_retry(
         session, msg_url, headers, payload, FILE_READY_RETRY_DELAYS, "Photo"
     )
@@ -359,6 +363,7 @@ async def upload_video_and_send(
     recipient: dict[str, Any],
     file_path_or_url: str,
     caption: str | None = None,
+    notify: bool = True,
 ) -> None:
     """Upload video to Max (POST /uploads?type=video) and send (POST /messages)."""
     token = entry.data.get(CONF_ACCESS_TOKEN)
@@ -469,6 +474,9 @@ async def upload_video_and_send(
     }
     if msg_format != "text":
         payload["format"] = msg_format
+    # Отключено: Max не отключает push/звук по notify: false.
+    # if not notify:
+    #     payload["notify"] = False
     await _post_message_with_retry(
         session, msg_url, headers, payload, VIDEO_READY_RETRY_DELAYS, "Video"
     )
@@ -548,6 +556,10 @@ class MaxNotifyEntity(NotifyEntity):
         payload = {"text": text}
         if msg_format != "text":
             payload["format"] = msg_format
+        # Отключено: Max API принимает notify: false, но клиент всё равно присылает push/звук.
+        # notify_param = self.hass.data.get(DOMAIN, {}).get("_notify_param", True)
+        # if not notify_param:
+        #     payload["notify"] = False
 
         if uid is not None and int(uid) != 0:
             resolved = await _resolve_dialog_chat_id(self.hass, token, int(uid))

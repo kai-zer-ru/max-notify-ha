@@ -64,6 +64,7 @@ SERVICE_SEND_MESSAGE_SCHEMA = vol.Schema(
     {
         vol.Required("message"): cv.string,
         vol.Optional("title"): cv.string,
+        vol.Optional("notify", default=True): cv.boolean,
         vol.Optional(ATTR_ENTITY_ID): vol.All(cv.ensure_list, [cv.entity_id]),
         vol.Optional(CONF_CONFIG_ENTRY_ID): cv.string,
         vol.Optional(CONF_CHAT_ID): vol.Any(vol.Coerce(int), vol.All(cv.ensure_list, [vol.Coerce(int)])),
@@ -75,6 +76,7 @@ SERVICE_SEND_PHOTO_SCHEMA = vol.Schema(
     {
         vol.Required("file"): cv.string,
         vol.Optional("caption"): cv.string,
+        vol.Optional("notify", default=True): cv.boolean,
         vol.Optional(ATTR_ENTITY_ID): vol.All(cv.ensure_list, [cv.entity_id]),
         vol.Optional(CONF_CONFIG_ENTRY_ID): cv.string,
         vol.Optional(CONF_CHAT_ID): vol.Any(vol.Coerce(int), vol.All(cv.ensure_list, [vol.Coerce(int)])),
@@ -86,6 +88,7 @@ SERVICE_SEND_DOCUMENT_SCHEMA = vol.Schema(
     {
         vol.Required("file"): cv.string,
         vol.Optional("caption"): cv.string,
+        vol.Optional("notify", default=True): cv.boolean,
         vol.Optional(ATTR_ENTITY_ID): vol.All(cv.ensure_list, [cv.entity_id]),
         vol.Optional(CONF_CONFIG_ENTRY_ID): cv.string,
         vol.Optional(CONF_CHAT_ID): vol.Any(vol.Coerce(int), vol.All(cv.ensure_list, [vol.Coerce(int)])),
@@ -97,6 +100,7 @@ SERVICE_SEND_VIDEO_SCHEMA = vol.Schema(
     {
         vol.Required("file"): cv.string,
         vol.Optional("caption"): cv.string,
+        vol.Optional("notify", default=True): cv.boolean,
         vol.Optional(ATTR_ENTITY_ID): vol.All(cv.ensure_list, [cv.entity_id]),
         vol.Optional(CONF_CONFIG_ENTRY_ID): cv.string,
         vol.Optional(CONF_CHAT_ID): vol.Any(vol.Coerce(int), vol.All(cv.ensure_list, [vol.Coerce(int)])),
@@ -233,6 +237,12 @@ async def async_send_message_handler(service: ServiceCall) -> None:
     if not resolved:
         return
 
+    # Отключено: Max API не отключает push/звук при notify: false.
+    # notify_param = data.get("notify", True)
+    # if DOMAIN not in hass.data:
+    #     hass.data[DOMAIN] = {}
+    # hass.data[DOMAIN]["_notify_param"] = notify_param
+
     service_data: dict[str, Any] = {
         "message": message,
         ATTR_ENTITY_ID: resolved,
@@ -247,6 +257,8 @@ async def async_send_message_handler(service: ServiceCall) -> None:
         blocking=True,
         context=service.context,
     )
+    # finally:
+    #     hass.data.get(DOMAIN, {}).pop("_notify_param", None)
 
 
 async def _send_photo_or_document(
@@ -291,7 +303,13 @@ async def _send_photo_or_document(
         if not subentry:
             continue
         await upload_image_and_send(
-            hass, entry, dict(subentry.data), file_path_or_url, caption, as_document=as_document
+            hass,
+            entry,
+            dict(subentry.data),
+            file_path_or_url,
+            caption,
+            as_document=as_document,
+            # notify=data.get("notify", True),  # отключено: Max не отключает push/звук
         )
 
 
@@ -346,7 +364,12 @@ async def _send_video(
         if not subentry:
             continue
         await upload_video_and_send(
-            hass, entry, dict(subentry.data), file_path_or_url, caption
+            hass,
+            entry,
+            dict(subentry.data),
+            file_path_or_url,
+            caption,
+            # notify=data.get("notify", True),  # отключено: Max не отключает push/звук
         )
 
 
