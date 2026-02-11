@@ -27,6 +27,7 @@ from .const import (
     CHATS_PAGE_SIZE,
     CONF_ACCESS_TOKEN,
     CONF_CHAT_ID,
+    CONF_MESSAGE_FORMAT,
     CONF_USER_ID,
     DOMAIN,
     FILE_UPLOAD_DELAY,
@@ -340,10 +341,13 @@ async def upload_image_and_send(
 
     await asyncio.sleep(FILE_UPLOAD_DELAY)
 
+    msg_format = entry.data.get(CONF_MESSAGE_FORMAT, "text")
     payload = {
         "text": (caption or "")[:MAX_MESSAGE_LENGTH],
         "attachments": [{"type": "file" if as_document else "image", "payload": attachment_payload}],
     }
+    if msg_format != "text":
+        payload["format"] = msg_format
     await _post_message_with_retry(
         session, msg_url, headers, payload, FILE_READY_RETRY_DELAYS, "Photo"
     )
@@ -458,10 +462,13 @@ async def upload_video_and_send(
     attachment_payload = {"token": video_token}
     await asyncio.sleep(VIDEO_PROCESSING_DELAY)
 
+    msg_format = entry.data.get(CONF_MESSAGE_FORMAT, "text")
     payload = {
         "text": (caption or "")[:MAX_MESSAGE_LENGTH],
         "attachments": [{"type": "video", "payload": attachment_payload}],
     }
+    if msg_format != "text":
+        payload["format"] = msg_format
     await _post_message_with_retry(
         session, msg_url, headers, payload, VIDEO_READY_RETRY_DELAYS, "Video"
     )
@@ -537,6 +544,11 @@ class MaxNotifyEntity(NotifyEntity):
 
         uid = self._recipient.get(CONF_USER_ID)
         cid = self._recipient.get(CONF_CHAT_ID)
+        msg_format = self._entry.data.get(CONF_MESSAGE_FORMAT, "text")
+        payload = {"text": text}
+        if msg_format != "text":
+            payload["format"] = msg_format
+
         if uid is not None and int(uid) != 0:
             resolved = await _resolve_dialog_chat_id(self.hass, token, int(uid))
             if resolved is not None:
@@ -544,10 +556,8 @@ class MaxNotifyEntity(NotifyEntity):
                 url = f"{API_BASE_URL}{API_PATH_MESSAGES}?chat_id={cid}&v={API_VERSION}"
             else:
                 url = f"{API_BASE_URL}{API_PATH_MESSAGES}?user_id={int(uid)}&v={API_VERSION}"
-            payload = {"text": text}
         elif cid is not None and int(cid) != 0:
             url = f"{API_BASE_URL}{API_PATH_MESSAGES}?chat_id={int(cid)}&v={API_VERSION}"
-            payload = {"text": text}
         else:
             _LOGGER.error(
                 "Config must have non-zero user_id or chat_id (user_id=%s, chat_id=%s)",

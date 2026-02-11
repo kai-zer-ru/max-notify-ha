@@ -3,22 +3,36 @@
     "step": {
       "user": {
         "title": "Max Notify: Bot token",
-        "description": "Enter the bot access token (from the Integration section of the MAX partner platform).",
+        "description": "Enter the bot access token and choose message format.",
         "data": {
-          "access_token": "Access token"
+          "access_token": "Access token",
+          "message_format": "Message format"
         },
         "data_description": {
-          "access_token": "Bot token from MAX for developers"
+          "access_token": "Bot token from MAX for developers",
+          "message_format": "Plain text, Markdown or HTML (API format parameter)."
         }
       },
       "recipient": {
         "title": "Add chat",
-        "description": "Enter one ID. Positive — personal chat, negative — group.",
+        "description": "Enter one ID. Positive \u2014 personal chat, negative \u2014 group.",
         "data": {
           "recipient_id": "Recipient ID"
         },
         "data_description": {
-          "recipient_id": "Positive number — personal chat (User ID), negative — group (Chat ID)."
+          "recipient_id": "Positive number \u2014 personal chat (User ID), negative \u2014 group (Chat ID)."
+        }
+      },
+      "reconfigure": {
+        "title": "Reconfigure Max Notify",
+        "description": "Change API token (leave empty to keep current) and message format.",
+        "data": {
+          "access_token": "New API token (optional)",
+          "message_format": "Message format"
+        },
+        "data_description": {
+          "access_token": "Leave empty to keep the current token",
+          "message_format": "Plain text, Markdown or HTML."
         }
       }
     },
@@ -27,10 +41,27 @@
       "invalid_auth": "Invalid token. Check the token in the MAX platform Integration section.",
       "cannot_connect": "Failed to connect to Max API. Check your network and try again.",
       "unknown": "An unknown error occurred",
-      "invalid_id_format": "Enter an integer (positive — personal chat, negative — group)"
+      "invalid_id_format": "Enter an integer (positive \u2014 personal chat, negative \u2014 group)"
     },
     "abort": {
-      "already_configured": "This configuration is already added"
+      "already_configured": "This configuration is already added",
+      "reconfigure_successful": "Reconfiguration successful"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Max Notify settings",
+        "description": "Change API token (leave empty to keep current) and message format.",
+        "data": {
+          "access_token": "New API token (optional)",
+          "message_format": "Message format"
+        },
+        "data_description": {
+          "access_token": "Leave empty to keep the current token",
+          "message_format": "Plain text, Markdown or HTML."
+        }
+      }
     }
   },
   "config_subentries": {
@@ -40,7 +71,7 @@
       },
       "entry_type": "Chat ID",
       "error": {
-        "invalid_id_format": "Enter an integer (positive — personal chat, negative — group)"
+        "invalid_id_format": "Enter an integer (positive \u2014 personal chat, negative \u2014 group)"
       },
       "initiate_flow": {
         "user": "Add chat"
@@ -51,9 +82,9 @@
             "recipient_id": "Recipient ID"
           },
           "data_description": {
-            "recipient_id": "Positive number — personal chat (User ID), negative — group (Chat ID)."
+            "recipient_id": "Positive number \u2014 personal chat (User ID), negative \u2014 group (Chat ID)."
           },
-          "description": "Enter one ID. Positive — personal chat, negative — group.",
+          "description": "Enter one ID. Positive \u2014 personal chat, negative \u2014 group.",
           "title": "Add chat"
         }
       }

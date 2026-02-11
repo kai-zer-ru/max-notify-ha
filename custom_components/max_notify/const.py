@@ -9,6 +9,7 @@ SERVICE_SEND_VIDEO = "send_video"
 CONF_CONFIG_ENTRY_ID = "config_entry_id"
 
 CONF_ACCESS_TOKEN = "access_token"
+CONF_MESSAGE_FORMAT = "message_format"
 CONF_RECIPIENT_TYPE = "recipient_type"
 CONF_USER_ID = "user_id"
 CONF_CHAT_ID = "chat_id"

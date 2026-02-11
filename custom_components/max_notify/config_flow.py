@@ -10,8 +10,10 @@ import aiohttp
 import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.config_entries import (
+    ConfigEntry,
     ConfigSubentryData,
     ConfigSubentryFlow,
+    OptionsFlow,
     SubentryFlowResult,
 )
 from homeassistant.core import HomeAssistant, callback
@@ -25,6 +27,7 @@ from .const import (
     API_VERSION,
     CONF_ACCESS_TOKEN,
     CONF_CHAT_ID,
+    CONF_MESSAGE_FORMAT,
     CONF_RECIPIENT_ID,
     CONF_RECIPIENT_TYPE,
     CONF_USER_ID,
@@ -73,12 +76,14 @@ class MaxNotifyConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     def __init__(self) -> None:
         """Initialize config flow."""
         self._token: str | None = None
+        self._message_format: str = "text"
 
     async def async_step_user(self, user_input: dict[str, Any] | None = None) -> FlowResult:
-        """Handle the initial step (token)."""
+        """Handle the initial step (token and message format)."""
         _LOGGER.debug("async_step_user: user_input=%s", "present" if user_input is not None else "None")
         if user_input is not None:
             self._token = user_input[CONF_ACCESS_TOKEN].strip()
+            self._message_format = user_input.get(CONF_MESSAGE_FORMAT, "text")
             _LOGGER.debug("Token submitted: len=%s", len(self._token) if self._token else 0)
             if not self._token:
                 return self.async_show_form(
@@ -130,7 +135,10 @@ class MaxNotifyConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     }
                     result = self.async_create_entry(
                         title="Max Notify",
-                        data={CONF_ACCESS_TOKEN: self._token},
+                        data={
+                            CONF_ACCESS_TOKEN: self._token,
+                            CONF_MESSAGE_FORMAT: self._message_format,
+                        },
                     )
                     result["subentries"] = [subentry]
                     register_send_message_service(self.hass)
@@ -155,9 +163,138 @@ class MaxNotifyConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             vol.Schema(
                 {
                     vol.Required(CONF_ACCESS_TOKEN): str,
+                    vol.Optional(CONF_MESSAGE_FORMAT, default="text"): vol.In(
+                        ["text", "markdown", "html"]
+                    ),
                 }
             ),
-            {CONF_ACCESS_TOKEN: self._token or ""},
+            {
+                CONF_ACCESS_TOKEN: self._token or "",
+                CONF_MESSAGE_FORMAT: self._message_format,
+            },
+        )
+
+    async def async_step_reconfigure(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Reconfigure: change API token (optional) and message format."""
+        entry = self.hass.config_entries.async_get_entry(self.context["entry_id"])
+        if entry is None:
+            return self.async_abort(reason="unknown")
+
+        if user_input is not None:
+            new_data = dict(entry.data)
+            token_input = (user_input.get(CONF_ACCESS_TOKEN) or "").strip()
+            if token_input:
+                err = await _validate_token(self.hass, token_input)
+                if err:
+                    return self.async_show_form(
+                        step_id="reconfigure",
+                        data_schema=self._schema_reconfigure(entry, user_input),
+                        errors={"base": err},
+                    )
+                new_data[CONF_ACCESS_TOKEN] = token_input
+            new_data[CONF_MESSAGE_FORMAT] = user_input.get(CONF_MESSAGE_FORMAT, "text")
+            self.hass.config_entries.async_update_entry(entry, data=new_data)
+            await self.hass.config_entries.async_reload(entry.entry_id)
+            return self.async_abort(reason="reconfigure_successful")
+
+        return self.async_show_form(
+            step_id="reconfigure",
+            data_schema=self._schema_reconfigure(entry),
+        )
+
+    def _schema_reconfigure(
+        self,
+        entry: config_entries.ConfigEntry,
+        user_input: dict[str, Any] | None = None,
+    ):
+        """Schema for reconfigure: optional token (empty = keep), format from entry or user_input."""
+        if user_input is not None:
+            suggested = {
+                CONF_ACCESS_TOKEN: user_input.get(CONF_ACCESS_TOKEN, ""),
+                CONF_MESSAGE_FORMAT: user_input.get(CONF_MESSAGE_FORMAT, "text"),
+            }
+        else:
+            suggested = {
+                CONF_ACCESS_TOKEN: "",
+                CONF_MESSAGE_FORMAT: entry.data.get(CONF_MESSAGE_FORMAT, "text"),
+            }
+        return self.add_suggested_values_to_schema(
+            vol.Schema(
+                {
+                    vol.Optional(CONF_ACCESS_TOKEN, default=""): str,
+                    vol.Optional(CONF_MESSAGE_FORMAT, default="text"): vol.In(
+                        ["text", "markdown", "html"]
+                    ),
+                }
+            ),
+            suggested,
+        )
+
+    @staticmethod
+    @callback
+    def async_get_options_flow(entry: ConfigEntry) -> MaxNotifyOptionsFlow:
+        """Return options flow handler (gear icon — same as reconfigure)."""
+        return MaxNotifyOptionsFlow()
+
+
+class MaxNotifyOptionsFlow(OptionsFlow):
+    """Options flow: change API token (optional) and message format. Opened via gear icon."""
+
+    async def async_step_init(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Show form and on submit update entry.data and reload."""
+        entry = self.config_entry
+        if user_input is not None:
+            new_data = dict(entry.data)
+            token_input = (user_input.get(CONF_ACCESS_TOKEN) or "").strip()
+            if token_input:
+                err = await _validate_token(self.hass, token_input)
+                if err:
+                    return self.async_show_form(
+                        step_id="init",
+                        data_schema=self._schema(entry, user_input),
+                        errors={"base": err},
+                    )
+                new_data[CONF_ACCESS_TOKEN] = token_input
+            new_data[CONF_MESSAGE_FORMAT] = user_input.get(CONF_MESSAGE_FORMAT, "text")
+            self.hass.config_entries.async_update_entry(entry, data=new_data)
+            await self.hass.config_entries.async_reload(entry.entry_id)
+            return self.async_create_entry(data={})
+
+        return self.async_show_form(
+            step_id="init",
+            data_schema=self._schema(entry),
+        )
+
+    def _schema(
+        self,
+        entry: ConfigEntry,
+        user_input: dict[str, Any] | None = None,
+    ):
+        """Same as reconfigure: optional token, format from entry or user_input."""
+        if user_input is not None:
+            suggested = {
+                CONF_ACCESS_TOKEN: user_input.get(CONF_ACCESS_TOKEN, ""),
+                CONF_MESSAGE_FORMAT: user_input.get(CONF_MESSAGE_FORMAT, "text"),
+            }
+        else:
+            suggested = {
+                CONF_ACCESS_TOKEN: "",
+                CONF_MESSAGE_FORMAT: entry.data.get(CONF_MESSAGE_FORMAT, "text"),
+            }
+        return self.add_suggested_values_to_schema(
+            vol.Schema(
+                {
+                    vol.Optional(CONF_ACCESS_TOKEN, default=""): str,
+                    vol.Optional(CONF_MESSAGE_FORMAT, default="text"): vol.In(
+                        ["text", "markdown", "html"]
+                    ),
+                }
+            ),
+            suggested,
         )
 
 

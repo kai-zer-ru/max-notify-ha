@@ -27,9 +27,13 @@
     "step": {
       "user": {
         "title": "Max Notify: токен бота",
-        "description": "Введите токен доступа бота (из раздела Интеграция платформы MAX для партнёров).",
+        "description": "Введите токен доступа бота и выберите формат сообщений.",
         "data": {
-          "access_token": "Токен доступа"
+          "access_token": "Токен доступа",
+          "message_format": "Формат сообщений"
+        },
+        "data_description": {
+          "message_format": "Текст, Markdown или HTML (параметр format в API)."
         }
       },
       "recipient": {
@@ -41,6 +45,18 @@
         "data_description": {
           "recipient_id": "Положительное число — личный чат (User ID), отрицательное — группа (Chat ID)."
         }
+      },
+      "reconfigure": {
+        "title": "Изменить настройки Max Notify",
+        "description": "Новый API-ключ (оставьте пустым, чтобы оставить текущий) и формат сообщений.",
+        "data": {
+          "access_token": "Новый API-ключ (необязательно)",
+          "message_format": "Формат сообщений"
+        },
+        "data_description": {
+          "access_token": "Оставьте пустым, чтобы не менять токен",
+          "message_format": "Текст, Markdown или HTML."
+        }
       }
     },
     "error": {
@@ -51,7 +67,24 @@
       "invalid_id_format": "Введите целое число (положительное — личный чат, отрицательное — группа)."
     },
     "abort": {
-      "already_configured": "Эта конфигурация уже добавлена"
+      "already_configured": "Эта конфигурация уже добавлена",
+      "reconfigure_successful": "Настройки обновлены"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Настройки Max Notify",
+        "description": "Новый API-ключ (оставьте пустым, чтобы оставить текущий) и формат сообщений.",
+        "data": {
+          "access_token": "Новый API-ключ (необязательно)",
+          "message_format": "Формат сообщений"
+        },
+        "data_description": {
+          "access_token": "Оставьте пустым, чтобы не менять токен",
+          "message_format": "Текст, Markdown или HTML."
+        }
+      }
     }
   },
   "config_subentries": {
