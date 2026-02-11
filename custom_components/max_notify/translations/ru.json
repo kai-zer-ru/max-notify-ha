@@ -1,0 +1,83 @@
+{
+  "title": "Max Notify",
+  "services": {
+    "send_message": {
+      "name": "Отправить сообщение",
+      "description": "Отправить текстовое сообщение в чат(ы) Max. Укажите entity_id и/или config_entry_id с chat_id или user_id."
+    },
+    "send_photo": {
+      "name": "Отправить фото",
+      "description": "Отправить фото в чат(ы) Max. Файл: локальный путь или URL изображения. Укажите entity_id и/или config_entry_id с chat_id или user_id."
+    },
+    "send_document": {
+      "name": "Отправить документ",
+      "description": "Отправить файл как документ в чат(ы) Max. Файл: локальный путь или URL. Может сохранить качество по сравнению с отправкой фото."
+    },
+    "send_video": {
+      "name": "Отправить видео",
+      "description": "Отправить видео в чат(ы) Max. Файл: локальный путь или URL (mp4, mov, webm, mkv). Укажите entity_id и/или config_entry_id с chat_id или user_id."
+    }
+  },
+  "invalid_notify_entity": "Недопустимая сущность Max Notify: {entity_id}",
+  "missing_target": "Укажите entity_id или config_entry_id с chat_id/user_id.",
+  "invalid_config_entry": "Недопустимая запись конфигурации: {config_entry_id}",
+  "missing_config_entry_id": "Найдено несколько интеграций Max Notify; укажите config_entry_id.",
+  "no_matching_entities": "Нет подходящих сущностей уведомлений для интеграции {config_entry_id}.",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Max Notify: токен бота",
+        "description": "Введите токен доступа бота (из раздела Интеграция платформы MAX для партнёров).",
+        "data": {
+          "access_token": "Токен доступа"
+        }
+      },
+      "recipient": {
+        "title": "Добавить чат",
+        "description": "Укажите один ID. Положительное — личный чат, отрицательное — группа.",
+        "data": {
+          "recipient_id": "ID получателя"
+        },
+        "data_description": {
+          "recipient_id": "Положительное число — личный чат (User ID), отрицательное — группа (Chat ID)."
+        }
+      }
+    },
+    "error": {
+      "invalid_token": "Токен не может быть пустым",
+      "invalid_auth": "Неверный токен. Проверьте токен в разделе Интеграция платформы MAX.",
+      "cannot_connect": "Не удалось подключиться к API Max. Проверьте сеть и повторите.",
+      "unknown": "Произошла неизвестная ошибка",
+      "invalid_id_format": "Введите целое число (положительное — личный чат, отрицательное — группа)."
+    },
+    "abort": {
+      "already_configured": "Эта конфигурация уже добавлена"
+    }
+  },
+  "config_subentries": {
+    "recipient": {
+      "abort": {
+        "already_configured": "Этот ID уже добавлен"
+      },
+      "entry_type": "ID чата",
+      "error": {
+        "invalid_id_format": "Введите целое число (положительное — личный чат, отрицательное — группа)"
+      },
+      "initiate_flow": {
+        "user": "Добавить чат"
+      },
+      "step": {
+        "user": {
+          "data": {
+            "recipient_id": "ID получателя"
+          },
+          "data_description": {
+            "recipient_id": "Положительное число — личный чат (User ID), отрицательное — группа (Chat ID)."
+          },
+          "description": "Укажите один ID. Положительное — личный чат, отрицательное — группа.",
+          "title": "Добавить чат"
+        }
+      }
+    }
+  }
+}

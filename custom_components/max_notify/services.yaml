@@ -1,0 +1,130 @@
+# Описание служб интеграции Max Notify (имя и описание — в translations)
+send_message:
+  fields:
+    entity_id:
+      selector:
+        entity:
+          filter:
+            domain: notify
+            integration: max_notify
+          multiple: true
+          reorder: true
+    message:
+      required: true
+      selector:
+        text:
+    title:
+      example: "Заголовок"
+      selector:
+        text:
+    advanced:
+      collapsed: true
+      fields:
+        config_entry_id:
+          selector:
+            config_entry:
+              integration: max_notify
+        chat_id:
+          example: "-12345 или 12345"
+          selector:
+            text:
+        user_id:
+          example: "3391555"
+          selector:
+            text:
+
+send_photo:
+  fields:
+    file:
+      required: true
+      description: "Local path (/config/..., /media/...) or image URL (http/https)"
+      selector:
+        text:
+    caption:
+      selector:
+        text:
+    entity_id:
+      selector:
+        entity:
+          filter:
+            domain: notify
+            integration: max_notify
+          multiple: true
+          reorder: true
+    advanced:
+      collapsed: true
+      fields:
+        config_entry_id:
+          selector:
+            config_entry:
+              integration: max_notify
+        chat_id:
+          selector:
+            text:
+        user_id:
+          selector:
+            text:
+
+send_video:
+  fields:
+    file:
+      required: true
+      description: "Local path (/config/..., /media/...) or video URL (mp4, mov, webm, mkv)"
+      selector:
+        text:
+    caption:
+      selector:
+        text:
+    entity_id:
+      selector:
+        entity:
+          filter:
+            domain: notify
+            integration: max_notify
+          multiple: true
+          reorder: true
+    advanced:
+      collapsed: true
+      fields:
+        config_entry_id:
+          selector:
+            config_entry:
+              integration: max_notify
+        chat_id:
+          selector:
+            text:
+        user_id:
+          selector:
+            text:
+
+send_document:
+  fields:
+    file:
+      required: true
+      description: "Local path or file URL — sent as document (file) in Max"
+      selector:
+        text:
+    caption:
+      selector:
+        text:
+    entity_id:
+      selector:
+        entity:
+          filter:
+            domain: notify
+            integration: max_notify
+          multiple: true
+          reorder: true
+    advanced:
+      collapsed: true
+      fields:
+        config_entry_id:
+          selector:
+            config_entry:
+              integration: max_notify
+        chat_id:
+          selector:
+            text:
+        user_id:
+          selector:
+            text:

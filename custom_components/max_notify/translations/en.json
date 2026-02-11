@@ -1,0 +1,83 @@
+{
+  "title": "Max Notify",
+  "services": {
+    "send_message": {
+      "name": "Send message",
+      "description": "Send a text message to Max chat(s). Use entity_id and/or config_entry_id with chat_id or user_id."
+    },
+    "send_photo": {
+      "name": "Send photo",
+      "description": "Send a photo to Max chat(s). File: local path or image URL. Use entity_id and/or config_entry_id with chat_id or user_id."
+    },
+    "send_document": {
+      "name": "Send document",
+      "description": "Send a file as document to Max chat(s). File: local path or URL. May preserve quality vs. send_photo."
+    },
+    "send_video": {
+      "name": "Send video",
+      "description": "Send a video to Max chat(s). File: local path or URL (mp4, mov, webm, mkv). Use entity_id and/or config_entry_id with chat_id or user_id."
+    }
+  },
+  "invalid_notify_entity": "Invalid Max Notify entity: {entity_id}",
+  "missing_target": "Specify entity_id or config_entry_id with chat_id/user_id.",
+  "invalid_config_entry": "Invalid config entry: {config_entry_id}",
+  "missing_config_entry_id": "Multiple Max Notify integrations found; specify config_entry_id.",
+  "no_matching_entities": "No matching notify entities for integration {config_entry_id}.",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Max Notify: Bot token",
+        "description": "Enter the bot access token (from the Integration section of the MAX partner platform).",
+        "data": {
+          "access_token": "Access token"
+        }
+      },
+      "recipient": {
+        "title": "Add chat",
+        "description": "Enter one ID. Positive — personal chat, negative — group.",
+        "data": {
+          "recipient_id": "Recipient ID"
+        },
+        "data_description": {
+          "recipient_id": "Positive number — personal chat (User ID), negative — group (Chat ID)."
+        }
+      }
+    },
+    "error": {
+      "invalid_token": "Token cannot be empty",
+      "invalid_auth": "Invalid token. Check the token in the MAX platform Integration section.",
+      "cannot_connect": "Failed to connect to Max API. Check your network and try again.",
+      "unknown": "An unknown error occurred",
+      "invalid_id_format": "Enter an integer (positive — personal chat, negative — group)"
+    },
+    "abort": {
+      "already_configured": "This configuration is already added"
+    }
+  },
+  "config_subentries": {
+    "recipient": {
+      "abort": {
+        "already_configured": "This ID is already added"
+      },
+      "entry_type": "Chat ID",
+      "error": {
+        "invalid_id_format": "Enter an integer (positive — personal chat, negative — group)"
+      },
+      "initiate_flow": {
+        "user": "Add chat"
+      },
+      "step": {
+        "user": {
+          "data": {
+            "recipient_id": "Recipient ID"
+          },
+          "data_description": {
+            "recipient_id": "Positive number — personal chat (User ID), negative — group (Chat ID)."
+          },
+          "description": "Enter one ID. Positive — personal chat, negative — group.",
+          "title": "Add chat"
+        }
+      }
+    }
+  }
+}

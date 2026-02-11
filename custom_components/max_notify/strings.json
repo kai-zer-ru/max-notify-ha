@@ -1,0 +1,62 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Max Notify: Bot token",
+        "description": "Enter the bot access token (from the Integration section of the MAX partner platform).",
+        "data": {
+          "access_token": "Access token"
+        },
+        "data_description": {
+          "access_token": "Bot token from MAX for developers"
+        }
+      },
+      "recipient": {
+        "title": "Add chat",
+        "description": "Enter one ID. Positive — personal chat, negative — group.",
+        "data": {
+          "recipient_id": "Recipient ID"
+        },
+        "data_description": {
+          "recipient_id": "Positive number — personal chat (User ID), negative — group (Chat ID)."
+        }
+      }
+    },
+    "error": {
+      "invalid_token": "Token cannot be empty",
+      "invalid_auth": "Invalid token. Check the token in the MAX platform Integration section.",
+      "cannot_connect": "Failed to connect to Max API. Check your network and try again.",
+      "unknown": "An unknown error occurred",
+      "invalid_id_format": "Enter an integer (positive — personal chat, negative — group)"
+    },
+    "abort": {
+      "already_configured": "This configuration is already added"
+    }
+  },
+  "config_subentries": {
+    "recipient": {
+      "abort": {
+        "already_configured": "This ID is already added"
+      },
+      "entry_type": "Chat ID",
+      "error": {
+        "invalid_id_format": "Enter an integer (positive — personal chat, negative — group)"
+      },
+      "initiate_flow": {
+        "user": "Add chat"
+      },
+      "step": {
+        "user": {
+          "data": {
+            "recipient_id": "Recipient ID"
+          },
+          "data_description": {
+            "recipient_id": "Positive number — personal chat (User ID), negative — group (Chat ID)."
+          },
+          "description": "Enter one ID. Positive — personal chat, negative — group.",
+          "title": "Add chat"
+        }
+      }
+    }
+  }
+}
