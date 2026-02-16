@@ -5,8 +5,6 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-import voluptuous as vol
-
 from homeassistant.config_entries import ConfigEntry, ConfigSubentry
 from homeassistant.const import ATTR_ENTITY_ID
 from homeassistant.core import HomeAssistant, ServiceCall
@@ -14,14 +12,22 @@ from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import config_validation as cv, entity_registry as er
 
 from .const import (
+    CONF_BUTTONS,
     CONF_CHAT_ID,
     CONF_CONFIG_ENTRY_ID,
+    CONF_SEND_KEYBOARD,
     CONF_USER_ID,
     DOMAIN,
     SERVICE_SEND_MESSAGE,
     SERVICE_SEND_PHOTO,
     SERVICE_SEND_DOCUMENT,
     SERVICE_SEND_VIDEO,
+)
+from .schemas import (
+    SERVICE_SEND_MESSAGE_SCHEMA,
+    SERVICE_SEND_PHOTO_SCHEMA,
+    SERVICE_SEND_DOCUMENT_SCHEMA,
+    SERVICE_SEND_VIDEO_SCHEMA,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -58,55 +64,6 @@ def register_send_message_service(hass: HomeAssistant) -> None:
         DOMAIN, SERVICE_SEND_MESSAGE, DOMAIN, SERVICE_SEND_PHOTO,
         DOMAIN, SERVICE_SEND_DOCUMENT, DOMAIN, SERVICE_SEND_VIDEO,
     )
-
-
-SERVICE_SEND_MESSAGE_SCHEMA = vol.Schema(
-    {
-        vol.Required("message"): cv.string,
-        vol.Optional("title"): cv.string,
-        vol.Optional("notify", default=True): cv.boolean,
-        vol.Optional(ATTR_ENTITY_ID): vol.All(cv.ensure_list, [cv.entity_id]),
-        vol.Optional(CONF_CONFIG_ENTRY_ID): cv.string,
-        vol.Optional(CONF_CHAT_ID): vol.Any(vol.Coerce(int), vol.All(cv.ensure_list, [vol.Coerce(int)])),
-        vol.Optional(CONF_USER_ID): vol.Any(vol.Coerce(int), vol.All(cv.ensure_list, [vol.Coerce(int)])),
-    }
-)
-
-SERVICE_SEND_PHOTO_SCHEMA = vol.Schema(
-    {
-        vol.Required("file"): cv.string,
-        vol.Optional("caption"): cv.string,
-        vol.Optional("notify", default=True): cv.boolean,
-        vol.Optional(ATTR_ENTITY_ID): vol.All(cv.ensure_list, [cv.entity_id]),
-        vol.Optional(CONF_CONFIG_ENTRY_ID): cv.string,
-        vol.Optional(CONF_CHAT_ID): vol.Any(vol.Coerce(int), vol.All(cv.ensure_list, [vol.Coerce(int)])),
-        vol.Optional(CONF_USER_ID): vol.Any(vol.Coerce(int), vol.All(cv.ensure_list, [vol.Coerce(int)])),
-    }
-)
-
-SERVICE_SEND_DOCUMENT_SCHEMA = vol.Schema(
-    {
-        vol.Required("file"): cv.string,
-        vol.Optional("caption"): cv.string,
-        vol.Optional("notify", default=True): cv.boolean,
-        vol.Optional(ATTR_ENTITY_ID): vol.All(cv.ensure_list, [cv.entity_id]),
-        vol.Optional(CONF_CONFIG_ENTRY_ID): cv.string,
-        vol.Optional(CONF_CHAT_ID): vol.Any(vol.Coerce(int), vol.All(cv.ensure_list, [vol.Coerce(int)])),
-        vol.Optional(CONF_USER_ID): vol.Any(vol.Coerce(int), vol.All(cv.ensure_list, [vol.Coerce(int)])),
-    }
-)
-
-SERVICE_SEND_VIDEO_SCHEMA = vol.Schema(
-    {
-        vol.Required("file"): cv.string,
-        vol.Optional("caption"): cv.string,
-        vol.Optional("notify", default=True): cv.boolean,
-        vol.Optional(ATTR_ENTITY_ID): vol.All(cv.ensure_list, [cv.entity_id]),
-        vol.Optional(CONF_CONFIG_ENTRY_ID): cv.string,
-        vol.Optional(CONF_CHAT_ID): vol.Any(vol.Coerce(int), vol.All(cv.ensure_list, [vol.Coerce(int)])),
-        vol.Optional(CONF_USER_ID): vol.Any(vol.Coerce(int), vol.All(cv.ensure_list, [vol.Coerce(int)])),
-    }
-)
 
 
 def _normalize_target_ids(value: int | list[int]) -> list[int]:
@@ -212,12 +169,33 @@ def _resolve_entity_ids(
     return entity_ids_out
 
 
+def _get_entry_for_send(
+    hass: HomeAssistant,
+    config_entry_id: str | None,
+    chat_ids: list[int] | None,
+    user_ids: list[int] | None,
+) -> ConfigEntry | None:
+    """Resolve config entry (from id or single entry)."""
+    entry: ConfigEntry | None = (
+        hass.config_entries.async_get_entry(config_entry_id) if config_entry_id else None
+    )
+    if not entry or entry.domain != DOMAIN:
+        if config_entry_id:
+            return None
+        entries = hass.config_entries.async_entries(DOMAIN)
+        if len(entries) == 1:
+            return entries[0]
+        return None
+    return entry
+
+
 async def async_send_message_handler(service: ServiceCall) -> None:
-    """Handle max_notify.send_message: resolve targets and call notify.send_message."""
+    """Handle max_notify.send_message: resolve targets and call notify.send_message or send with buttons."""
     hass = service.hass
     data = service.data
     message = data["message"]
     title = data.get("title")
+    buttons = data.get("buttons")
     entity_ids = data.get(ATTR_ENTITY_ID)
     config_entry_id = data.get(CONF_CONFIG_ENTRY_ID)
     chat_id = data.get(CONF_CHAT_ID)
@@ -225,6 +203,31 @@ async def async_send_message_handler(service: ServiceCall) -> None:
 
     chat_ids = _normalize_target_ids(chat_id) if chat_id is not None else None
     user_ids = _normalize_target_ids(user_id) if user_id is not None else None
+
+    # Отправка с inline-кнопками: только по config_entry_id + chat_id/user_id (без entity_id)
+    if buttons:
+        entry = _get_entry_for_send(hass, config_entry_id, chat_ids, user_ids)
+        if not entry:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="invalid_config_entry",
+                translation_placeholders={"config_entry_id": config_entry_id or ""},
+            )
+        recipients: list[dict[str, Any]] = []
+        for cid in chat_ids or []:
+            recipients.append({CONF_CHAT_ID: cid})
+        for uid in user_ids or []:
+            recipients.append({CONF_USER_ID: uid})
+        if not recipients:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="missing_target",
+            )
+        from .notify import send_message_with_buttons
+
+        for recipient in recipients:
+            await send_message_with_buttons(hass, entry, recipient, message, buttons, title=title)
+        return
 
     resolved = _resolve_entity_ids(
         hass,
@@ -237,15 +240,59 @@ async def async_send_message_handler(service: ServiceCall) -> None:
     if not resolved:
         return
 
-    # Отключено: Max API не отключает push/звук при notify: false.
-    # notify_param = data.get("notify", True)
-    # if DOMAIN not in hass.data:
-    #     hass.data[DOMAIN] = {}
-    # hass.data[DOMAIN]["_notify_param"] = notify_param
+    send_keyboard = data.get(CONF_SEND_KEYBOARD, True)
+    reg = er.async_get(hass)
+    from .helpers import normalize_buttons
+    from .notify import send_message_with_buttons
+
+    with_keyboard: list[str] = []
+    without_keyboard: list[str] = []
+    if send_keyboard and not buttons:
+        for eid in resolved:
+            entity_entry = reg.async_get(eid)
+            if not entity_entry or not entity_entry.config_entry_id or not entity_entry.config_subentry_id:
+                without_keyboard.append(eid)
+                continue
+            entry = hass.config_entries.async_get_entry(entity_entry.config_entry_id)
+            if not entry or entry.domain != DOMAIN:
+                without_keyboard.append(eid)
+                continue
+            raw = (entry.options or {}).get(CONF_BUTTONS)
+            if raw and isinstance(raw, list) and len(raw) > 0:
+                entry_buttons = normalize_buttons(raw)
+                if entry_buttons:
+                    with_keyboard.append(eid)
+                else:
+                    without_keyboard.append(eid)
+            else:
+                without_keyboard.append(eid)
+    else:
+        without_keyboard = list(resolved)
+
+    for eid in with_keyboard:
+        entity_entry = reg.async_get(eid)
+        if not entity_entry or not entity_entry.config_entry_id or not entity_entry.config_subentry_id:
+            continue
+        entry = hass.config_entries.async_get_entry(entity_entry.config_entry_id)
+        if not entry or entry.domain != DOMAIN:
+            continue
+        subentries = getattr(entry, "subentries", None) or {}
+        subentry = subentries.get(entity_entry.config_subentry_id)
+        if not subentry:
+            continue
+        raw = (entry.options or {}).get(CONF_BUTTONS)
+        entry_buttons = normalize_buttons(raw) if raw else []
+        if entry_buttons:
+            await send_message_with_buttons(
+                hass, entry, dict(subentry.data), message, entry_buttons, title=title
+            )
+
+    if not without_keyboard:
+        return
 
     service_data: dict[str, Any] = {
         "message": message,
-        ATTR_ENTITY_ID: resolved,
+        ATTR_ENTITY_ID: without_keyboard,
     }
     if title is not None:
         service_data["title"] = title
@@ -257,8 +304,6 @@ async def async_send_message_handler(service: ServiceCall) -> None:
         blocking=True,
         context=service.context,
     )
-    # finally:
-    #     hass.data.get(DOMAIN, {}).pop("_notify_param", None)
 
 
 async def _send_photo_or_document(

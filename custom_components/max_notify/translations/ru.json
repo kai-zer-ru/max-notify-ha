@@ -3,41 +3,153 @@
   "services": {
     "send_message": {
       "name": "Отправить сообщение",
-      "description": "Отправить текстовое сообщение в чат(ы) Max. Укажите entity_id и/или config_entry_id с chat_id или user_id.",
+      "description": "Отправить текстовое сообщение в чат(ы) Max. Выберите сущность уведомления и/или интеграцию с chat_id или user_id.",
       "fields": {
+        "entity_id": {
+          "name": "Сущность уведомления",
+          "description": "Сущность Max Notify (чат) для отправки. Можно выбрать несколько."
+        },
+        "message": {
+          "name": "Сообщение",
+          "description": "Текст сообщения для отправки."
+        },
+        "title": {
+          "name": "Заголовок",
+          "description": "Необязательный заголовок сообщения."
+        },
+        "send_keyboard": {
+          "name": "Отправлять клавиатуру",
+          "description": "Если включено (по умолчанию) — прикреплять к сообщению клавиатуру с кнопками из настроек интеграции."
+        },
+        "config_entry_id": {
+          "name": "Интеграция",
+          "description": "Интеграция Max Notify для отправки по chat_id/user_id (если интеграций несколько)."
+        },
+        "chat_id": {
+          "name": "ID чата",
+          "description": "ID чата: положительный — личный чат (User ID), отрицательный — группа. Используется, если не выбрана сущность."
+        },
+        "user_id": {
+          "name": "ID пользователя",
+          "description": "ID пользователя для личного чата (альтернатива положительному chat_id)."
+        },
         "notify": {
           "name": "Уведомлять",
           "description": "Если выключено — отправить без уведомления получателей (тихо)."
+        },
+        "advanced": {
+          "name": "Дополнительно"
         }
       }
     },
     "send_photo": {
       "name": "Отправить фото",
-      "description": "Отправить фото в чат(ы) Max. Файл: локальный путь или URL изображения. Укажите entity_id и/или config_entry_id с chat_id или user_id.",
+      "description": "Отправить фото в чат(ы) Max. Файл: локальный путь или URL изображения.",
       "fields": {
+        "file": {
+          "name": "Файл",
+          "description": "Локальный путь (/config/..., /media/...) или URL изображения (http/https)."
+        },
+        "caption": {
+          "name": "Подпись",
+          "description": "Необязательная подпись к фото."
+        },
+        "entity_id": {
+          "name": "Сущность уведомления",
+          "description": "Сущность Max Notify для отправки. Можно выбрать несколько."
+        },
+        "config_entry_id": {
+          "name": "Интеграция",
+          "description": "Интеграция Max Notify при отправке по chat_id/user_id."
+        },
+        "chat_id": {
+          "name": "ID чата",
+          "description": "ID чата: положительный — личный, отрицательный — группа."
+        },
+        "user_id": {
+          "name": "ID пользователя",
+          "description": "ID пользователя для личного чата."
+        },
         "notify": {
           "name": "Уведомлять",
           "description": "Если выключено — отправить без уведомления получателей (тихо)."
+        },
+        "advanced": {
+          "name": "Дополнительно"
         }
       }
     },
     "send_document": {
       "name": "Отправить документ",
-      "description": "Отправить файл как документ в чат(ы) Max. Файл: локальный путь или URL. Может сохранить качество по сравнению с отправкой фото.",
+      "description": "Отправить файл как документ в чат(ы) Max. Может сохранить качество по сравнению с фото.",
       "fields": {
+        "file": {
+          "name": "Файл",
+          "description": "Локальный путь или URL файла — отправляется как документ в Max."
+        },
+        "caption": {
+          "name": "Подпись",
+          "description": "Необязательная подпись к документу."
+        },
+        "entity_id": {
+          "name": "Сущность уведомления",
+          "description": "Сущность Max Notify для отправки."
+        },
+        "config_entry_id": {
+          "name": "Интеграция",
+          "description": "Интеграция Max Notify при отправке по chat_id/user_id."
+        },
+        "chat_id": {
+          "name": "ID чата",
+          "description": "ID чата: положительный — личный, отрицательный — группа."
+        },
+        "user_id": {
+          "name": "ID пользователя",
+          "description": "ID пользователя для личного чата."
+        },
         "notify": {
           "name": "Уведомлять",
           "description": "Если выключено — отправить без уведомления получателей (тихо)."
+        },
+        "advanced": {
+          "name": "Дополнительно"
         }
       }
     },
     "send_video": {
       "name": "Отправить видео",
-      "description": "Отправить видео в чат(ы) Max. Файл: локальный путь или URL (mp4, mov, webm, mkv). Укажите entity_id и/или config_entry_id с chat_id или user_id.",
+      "description": "Отправить видео в чат(ы) Max. Файл: локальный путь или URL (mp4, mov, webm, mkv).",
       "fields": {
+        "file": {
+          "name": "Файл",
+          "description": "Локальный путь или URL видео (mp4, mov, webm, mkv)."
+        },
+        "caption": {
+          "name": "Подпись",
+          "description": "Необязательная подпись к видео."
+        },
+        "entity_id": {
+          "name": "Сущность уведомления",
+          "description": "Сущность Max Notify для отправки."
+        },
+        "config_entry_id": {
+          "name": "Интеграция",
+          "description": "Интеграция Max Notify при отправке по chat_id/user_id."
+        },
+        "chat_id": {
+          "name": "ID чата",
+          "description": "ID чата: положительный — личный, отрицательный — группа."
+        },
+        "user_id": {
+          "name": "ID пользователя",
+          "description": "ID пользователя для личного чата."
+        },
         "notify": {
           "name": "Уведомлять",
           "description": "Если выключено — отправить без уведомления получателей (тихо)."
+        },
+        "advanced": {
+          "name": "Дополнительно"
         }
       }
     }
@@ -48,16 +160,103 @@
   "missing_config_entry_id": "Найдено несколько интеграций Max Notify; укажите config_entry_id.",
   "no_matching_entities": "Нет подходящих сущностей уведомлений для интеграции {config_entry_id}.",
   "config": {
+    "receive_mode_title": {
+      "send_only": "отправка",
+      "polling": "Long Polling",
+      "webhook": "Webhook"
+    },
     "step": {
       "user": {
         "title": "Max Notify: токен бота",
-        "description": "Введите токен доступа бота и выберите формат сообщений.",
+        "description": "Введите токен доступа бота, формат сообщений и режим приёма. При «Только отправка» дополнительные поля не нужны.",
         "data": {
           "access_token": "Токен доступа",
-          "message_format": "Формат сообщений"
+          "message_format": "Формат сообщений",
+          "receive_mode": "Режим приёма"
         },
         "data_description": {
-          "message_format": "Текст, Markdown или HTML (параметр format в API)."
+          "access_token": "Токен бота из раздела «Для разработчиков» в MAX.",
+          "message_format": "Текст, Markdown или HTML (параметр format в API).",
+          "receive_mode": "Только отправка — без приёма; Long Polling или Webhook — приём команд и нажатий кнопок."
+        },
+        "options": {
+          "message_format": {
+            "text": "Текст",
+            "markdown": "Markdown",
+            "html": "HTML"
+          },
+          "receive_mode": {
+            "send_only": "Только отправка",
+            "polling": "Long Polling",
+            "webhook": "Webhook"
+          }
+        }
+      },
+      "receive_options": {
+        "title": "Настройки приёма",
+        "description": "Режим: {receive_mode}. Укажите секрет webhook при необходимости. Далее можно добавить или удалить кнопки клавиатуры.",
+        "data": {
+          "webhook_secret": "Секрет webhook (необязательно)"
+        },
+        "data_description": {
+          "webhook_secret": "5–256 символов; Max пришлёт в заголовке X-Max-Bot-Api-Secret."
+        }
+      },
+      "receive_options_menu": {
+        "title": "Кнопки клавиатуры",
+        "description": "Текущие кнопки: {buttons_list}. Выберите действие и нажмите «Отправить».",
+        "data": {
+          "action": "Действие"
+        },
+        "menu_options": {
+          "add_button": "Добавить кнопку",
+          "remove_button": "Удалить кнопку",
+          "next": "Продолжить"
+        }
+      },
+      "add_button": {
+        "title": "Добавить кнопку",
+        "description": "Тип, подпись и (для callback) payload. Текущие: {buttons_list}",
+        "data": {
+          "button_row": "Ряд",
+          "button_type": "Тип",
+          "button_text": "Подпись на кнопке",
+          "button_payload": "Payload (только callback)"
+        },
+        "data_description": {
+          "button_row": "Ряд для добавления кнопки",
+          "button_type": "callback или message",
+          "button_text": "Текст на кнопке",
+          "button_payload": "Для кнопок callback: это значение приходит в событии max_notify_received в поле callback_data. Используйте его в триггерах автоматизаций для идентификации кнопки (например: light_on, light_off, scene_kitchen)."
+        },
+        "options": {
+          "button_type": {
+            "callback": "Callback",
+            "message": "Сообщение"
+          }
+        },
+        "menu_options": {
+          "0": "Ряд 1",
+          "1": "Ряд 2",
+          "2": "Ряд 3",
+          "3": "Ряд 4",
+          "4": "Ряд 5",
+          "5": "Ряд 6",
+          "6": "Ряд 7",
+          "7": "Ряд 8",
+          "8": "Ряд 9",
+          "9": "Ряд 10",
+          "new": "Новый ряд"
+        }
+      },
+      "remove_button": {
+        "title": "Удалить кнопку",
+        "description": "Выберите кнопку для удаления. Текущие: {buttons_list}",
+        "data": {
+          "button_to_remove": "Кнопка для удаления"
+        },
+        "data_description": {
+          "button_to_remove": ""
         }
       },
       "recipient": {
@@ -88,7 +287,9 @@
       "invalid_auth": "Неверный токен. Проверьте токен в разделе Интеграция платформы MAX.",
       "cannot_connect": "Не удалось подключиться к API Max. Проверьте сеть и повторите.",
       "unknown": "Произошла неизвестная ошибка",
-      "invalid_id_format": "Введите целое число (положительное — личный чат, отрицательное — группа)."
+      "invalid_id_format": "Введите целое число (положительное — личный чат, отрицательное — группа).",
+      "invalid_command_name": "Введите имя команды (без слэша).",
+      "invalid_button_text": "Введите подпись на кнопке."
     },
     "abort": {
       "already_configured": "Эта конфигурация уже добавлена",
@@ -99,14 +300,114 @@
     "step": {
       "init": {
         "title": "Настройки Max Notify",
-        "description": "Новый API-ключ (оставьте пустым, чтобы оставить текущий) и формат сообщений.",
+        "description": "Токен (оставьте пустым, чтобы не менять), формат сообщений и режим приёма. При Webhook URL: {webhook_url}. При Polling/Webhook на следующем шаге можно добавлять, редактировать и удалять кнопки клавиатуры (как при добавлении чатов).",
         "data": {
           "access_token": "Новый API-ключ (необязательно)",
-          "message_format": "Формат сообщений"
+          "message_format": "Формат сообщений",
+          "receive_mode": "Режим приёма",
+          "webhook_secret": "Секрет webhook (необязательно)"
         },
         "data_description": {
           "access_token": "Оставьте пустым, чтобы не менять токен",
-          "message_format": "Текст, Markdown или HTML."
+          "message_format": "Текст, Markdown или HTML",
+          "receive_mode": "Только отправка, Long Polling или Webhook",
+          "webhook_secret": "5–256 символов; Max пришлёт в заголовке X-Max-Bot-Api-Secret"
+        },
+        "options": {
+          "message_format": {
+            "text": "Текст",
+            "markdown": "Markdown",
+            "html": "HTML"
+          },
+          "receive_mode": {
+            "send_only": "Только отправка",
+            "polling": "Long Polling",
+            "webhook": "Webhook"
+          }
+        }
+      },
+      "buttons_menu": {
+        "title": "Кнопки клавиатуры",
+        "description": "Текущие кнопки: {buttons_list}. Добавляйте, редактируйте или удаляйте кнопки, затем нажмите «Завершить».",
+        "data": {
+          "action": "Действие"
+        },
+        "menu_options": {
+          "opt_add_button": "Добавить кнопку",
+          "opt_edit_button": "Редактировать кнопку",
+          "opt_remove_button": "Удалить кнопку",
+          "opt_next": "Завершить"
+        }
+      },
+      "opt_add_button": {
+        "title": "Добавить кнопку",
+        "description": "Тип, подпись и (для callback) payload. Текущие: {buttons_list}",
+        "data": {
+          "button_row": "Ряд",
+          "button_type": "Тип",
+          "button_text": "Подпись на кнопке",
+          "button_payload": "Payload (только callback)"
+        },
+        "data_description": {
+          "button_row": "Ряд для добавления кнопки",
+          "button_type": "callback или message",
+          "button_text": "Текст на кнопке",
+          "button_payload": "Для кнопок callback: это значение приходит в событии max_notify_received в поле callback_data. Используйте его в триггерах автоматизаций для идентификации кнопки (например: light_on, light_off, scene_kitchen)."
+        },
+        "options": {
+          "button_type": {
+            "callback": "Callback",
+            "message": "Сообщение"
+          }
+        },
+        "menu_options": {
+          "0": "Ряд 1",
+          "1": "Ряд 2",
+          "2": "Ряд 3",
+          "3": "Ряд 4",
+          "4": "Ряд 5",
+          "5": "Ряд 6",
+          "6": "Ряд 7",
+          "7": "Ряд 8",
+          "8": "Ряд 9",
+          "9": "Ряд 10",
+          "new": "Новый ряд"
+        }
+      },
+      "opt_edit_button": {
+        "title": "Редактировать кнопку",
+        "description": "Выберите кнопку для редактирования. Текущие: {buttons_list}",
+        "data": {
+          "button_to_edit": "Кнопка для редактирования"
+        },
+        "data_description": {
+          "button_to_edit": "Выберите кнопку, которую хотите изменить"
+        }
+      },
+      "opt_edit_button_edit": {
+        "title": "Редактировать кнопку",
+        "description": "Измените ряд, тип, подпись или payload. Текущие: {buttons_list}",
+        "data": {
+          "button_row": "Ряд",
+          "button_type": "Тип",
+          "button_text": "Подпись на кнопке",
+          "button_payload": "Payload (только callback)"
+        },
+        "data_description": {
+          "button_row": "Ряд для размещения кнопки",
+          "button_type": "callback или message",
+          "button_text": "Текст на кнопке",
+          "button_payload": "Для кнопок callback: это значение приходит в событии max_notify_received в поле callback_data. Используйте его в триггерах автоматизаций для идентификации кнопки (например: light_on, light_off, scene_kitchen)."
+        }
+      },
+      "opt_remove_button": {
+        "title": "Удалить кнопку",
+        "description": "Выберите кнопку для удаления. Текущие: {buttons_list}",
+        "data": {
+          "button_to_remove": "Кнопка для удаления"
+        },
+        "data_description": {
+          "button_to_remove": ""
         }
       }
     }

@@ -10,7 +10,7 @@
   "integration_type": "service",
   "iot_class": "cloud_polling",
   "requirements": [],
-  "version": "1.1.1",
+  "version": "1.2.0",
   "minimum_ha_version": "2026.2.0",
   "issue_tracker": "https://github.com/kai-zer-ru/max-notify-ha/issues"
 }

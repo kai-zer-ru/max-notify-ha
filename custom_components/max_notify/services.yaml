@@ -25,6 +25,10 @@ send_message:
     advanced:
       collapsed: true
       fields:
+        send_keyboard:
+          default: true
+          selector:
+            boolean:
         config_entry_id:
           selector:
             config_entry:

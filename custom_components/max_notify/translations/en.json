@@ -3,41 +3,153 @@
   "services": {
     "send_message": {
       "name": "Send message",
-      "description": "Send a text message to Max chat(s). Use entity_id and/or config_entry_id with chat_id or user_id.",
+      "description": "Send a text message to Max chat(s). Choose notify entity and/or integration with chat/user ID.",
       "fields": {
+        "entity_id": {
+          "name": "Notify entity",
+          "description": "Max Notify notify entity (chat) to send to. You can select multiple."
+        },
+        "message": {
+          "name": "Message",
+          "description": "Text of the message to send."
+        },
+        "title": {
+          "name": "Title",
+          "description": "Optional message title/heading."
+        },
+        "send_keyboard": {
+          "name": "Send keyboard",
+          "description": "If enabled (default), attach the keyboard with buttons from integration options to the message."
+        },
+        "config_entry_id": {
+          "name": "Integration",
+          "description": "Max Notify integration to use when sending by chat_id/user_id (if several integrations exist)."
+        },
+        "chat_id": {
+          "name": "Chat ID",
+          "description": "Chat ID: positive — personal chat (User ID), negative — group. Use when not selecting entity_id."
+        },
+        "user_id": {
+          "name": "User ID",
+          "description": "User ID for personal chat (alternative to chat_id with positive number)."
+        },
         "notify": {
           "name": "Notify",
           "description": "If disabled, send without notifying recipients (silent)."
+        },
+        "advanced": {
+          "name": "Advanced"
         }
       }
     },
     "send_photo": {
       "name": "Send photo",
-      "description": "Send a photo to Max chat(s). File: local path or image URL. Use entity_id and/or config_entry_id with chat_id or user_id.",
+      "description": "Send a photo to Max chat(s). File: local path or image URL.",
       "fields": {
+        "file": {
+          "name": "File",
+          "description": "Local path (/config/..., /media/...) or image URL (http/https)."
+        },
+        "caption": {
+          "name": "Caption",
+          "description": "Optional caption for the photo."
+        },
+        "entity_id": {
+          "name": "Notify entity",
+          "description": "Max Notify notify entity to send to. You can select multiple."
+        },
+        "config_entry_id": {
+          "name": "Integration",
+          "description": "Max Notify integration when sending by chat_id/user_id."
+        },
+        "chat_id": {
+          "name": "Chat ID",
+          "description": "Chat ID: positive — personal, negative — group."
+        },
+        "user_id": {
+          "name": "User ID",
+          "description": "User ID for personal chat."
+        },
         "notify": {
           "name": "Notify",
           "description": "If disabled, send without notifying recipients (silent)."
+        },
+        "advanced": {
+          "name": "Advanced"
         }
       }
     },
     "send_document": {
       "name": "Send document",
-      "description": "Send a file as document to Max chat(s). File: local path or URL. May preserve quality vs. send_photo.",
+      "description": "Send a file as document to Max chat(s). May preserve quality vs. send_photo.",
       "fields": {
+        "file": {
+          "name": "File",
+          "description": "Local path or file URL — sent as document in Max."
+        },
+        "caption": {
+          "name": "Caption",
+          "description": "Optional caption for the document."
+        },
+        "entity_id": {
+          "name": "Notify entity",
+          "description": "Max Notify notify entity to send to."
+        },
+        "config_entry_id": {
+          "name": "Integration",
+          "description": "Max Notify integration when sending by chat_id/user_id."
+        },
+        "chat_id": {
+          "name": "Chat ID",
+          "description": "Chat ID: positive — personal, negative — group."
+        },
+        "user_id": {
+          "name": "User ID",
+          "description": "User ID for personal chat."
+        },
         "notify": {
           "name": "Notify",
           "description": "If disabled, send without notifying recipients (silent)."
+        },
+        "advanced": {
+          "name": "Advanced"
         }
       }
     },
     "send_video": {
       "name": "Send video",
-      "description": "Send a video to Max chat(s). File: local path or URL (mp4, mov, webm, mkv). Use entity_id and/or config_entry_id with chat_id or user_id.",
+      "description": "Send a video to Max chat(s). File: local path or URL (mp4, mov, webm, mkv).",
       "fields": {
+        "file": {
+          "name": "File",
+          "description": "Local path or video URL (mp4, mov, webm, mkv)."
+        },
+        "caption": {
+          "name": "Caption",
+          "description": "Optional caption for the video."
+        },
+        "entity_id": {
+          "name": "Notify entity",
+          "description": "Max Notify notify entity to send to."
+        },
+        "config_entry_id": {
+          "name": "Integration",
+          "description": "Max Notify integration when sending by chat_id/user_id."
+        },
+        "chat_id": {
+          "name": "Chat ID",
+          "description": "Chat ID: positive — personal, negative — group."
+        },
+        "user_id": {
+          "name": "User ID",
+          "description": "User ID for personal chat."
+        },
         "notify": {
           "name": "Notify",
           "description": "If disabled, send without notifying recipients (silent)."
+        },
+        "advanced": {
+          "name": "Advanced"
         }
       }
     }
@@ -48,16 +160,103 @@
   "missing_config_entry_id": "Multiple Max Notify integrations found; specify config_entry_id.",
   "no_matching_entities": "No matching notify entities for integration {config_entry_id}.",
   "config": {
+    "receive_mode_title": {
+      "send_only": "Send only",
+      "polling": "Long Polling",
+      "webhook": "Webhook"
+    },
     "step": {
       "user": {
         "title": "Max Notify: Bot token",
-        "description": "Enter the bot access token and choose message format.",
+        "description": "Enter the bot access token, message format, and receive mode. For «Send only» no extra fields are needed.",
         "data": {
           "access_token": "Access token",
-          "message_format": "Message format"
+          "message_format": "Message format",
+          "receive_mode": "Receive mode"
         },
         "data_description": {
-          "message_format": "Plain text, Markdown or HTML (API format parameter)."
+          "access_token": "Bot token from MAX for developers",
+          "message_format": "Plain text, Markdown or HTML (API format parameter).",
+          "receive_mode": "Send only — no receiving; Long Polling or Webhook — receive commands and button presses."
+        },
+        "options": {
+          "message_format": {
+            "text": "Text",
+            "markdown": "Markdown",
+            "html": "HTML"
+          },
+          "receive_mode": {
+            "send_only": "Send only",
+            "polling": "Long Polling",
+            "webhook": "Webhook"
+          }
+        }
+      },
+      "receive_options": {
+        "title": "Receive settings",
+        "description": "Mode: {receive_mode}. Enter webhook secret if needed. Then add or remove keyboard buttons on the next step.",
+        "data": {
+          "webhook_secret": "Webhook secret (optional)"
+        },
+        "data_description": {
+          "webhook_secret": "5–256 characters; Max will send it in X-Max-Bot-Api-Secret header."
+        }
+      },
+      "receive_options_menu": {
+        "title": "Keyboard buttons",
+        "description": "Current buttons: {buttons_list}. Choose an action and tap Submit.",
+        "data": {
+          "action": "Action"
+        },
+        "menu_options": {
+          "add_button": "Add button",
+          "remove_button": "Remove button",
+          "next": "Continue"
+        }
+      },
+      "add_button": {
+        "title": "Add button",
+        "description": "Button type, label and (for callback) payload. Current: {buttons_list}",
+        "data": {
+          "button_row": "Row",
+          "button_type": "Type",
+          "button_text": "Button label",
+          "button_payload": "Payload (callback only)"
+        },
+        "data_description": {
+          "button_row": "Row to add the button to",
+          "button_type": "callback or message",
+          "button_text": "Label on the button",
+          "button_payload": "For callback buttons: this value is sent in the event max_notify_received as callback_data. Use it in automation triggers to identify the button (e.g. light_on, light_off, scene_kitchen)."
+        },
+        "options": {
+          "button_type": {
+            "callback": "Callback",
+            "message": "Message"
+          }
+        },
+        "menu_options": {
+          "0": "Row 1",
+          "1": "Row 2",
+          "2": "Row 3",
+          "3": "Row 4",
+          "4": "Row 5",
+          "5": "Row 6",
+          "6": "Row 7",
+          "7": "Row 8",
+          "8": "Row 9",
+          "9": "Row 10",
+          "new": "New row"
+        }
+      },
+      "remove_button": {
+        "title": "Remove button",
+        "description": "Choose button to remove. Current: {buttons_list}",
+        "data": {
+          "button_to_remove": "Button to remove"
+        },
+        "data_description": {
+          "button_to_remove": ""
         }
       },
       "recipient": {
@@ -88,7 +287,9 @@
       "invalid_auth": "Invalid token. Check the token in the MAX platform Integration section.",
       "cannot_connect": "Failed to connect to Max API. Check your network and try again.",
       "unknown": "An unknown error occurred",
-      "invalid_id_format": "Enter an integer (positive — personal chat, negative — group)"
+      "invalid_id_format": "Enter an integer (positive — personal chat, negative — group)",
+      "invalid_command_name": "Enter a command name (no slash).",
+      "invalid_button_text": "Enter a button label."
     },
     "abort": {
       "already_configured": "This configuration is already added",
@@ -99,14 +300,114 @@
     "step": {
       "init": {
         "title": "Max Notify settings",
-        "description": "Change API token (leave empty to keep current) and message format.",
+        "description": "Token (leave empty to keep), message format, and receive mode. For Webhook, URL: {webhook_url}. With Polling/Webhook you can add, edit and remove keyboard buttons on the next step (like adding chats).",
         "data": {
           "access_token": "New API token (optional)",
-          "message_format": "Message format"
+          "message_format": "Message format",
+          "receive_mode": "Receive mode",
+          "webhook_secret": "Webhook secret (optional)"
         },
         "data_description": {
           "access_token": "Leave empty to keep the current token",
-          "message_format": "Plain text, Markdown or HTML."
+          "message_format": "Plain text, Markdown or HTML",
+          "receive_mode": "Send only, Long Polling (no internet exposure), or Webhook",
+          "webhook_secret": "5–256 characters; Max will send it in X-Max-Bot-Api-Secret header"
+        },
+        "options": {
+          "message_format": {
+            "text": "Text",
+            "markdown": "Markdown",
+            "html": "HTML"
+          },
+          "receive_mode": {
+            "send_only": "Send only",
+            "polling": "Long Polling",
+            "webhook": "Webhook"
+          }
+        }
+      },
+      "buttons_menu": {
+        "title": "Keyboard buttons",
+        "description": "Current buttons: {buttons_list}. Add, edit or remove buttons, then Finish.",
+        "data": {
+          "action": "Action"
+        },
+        "menu_options": {
+          "opt_add_button": "Add button",
+          "opt_edit_button": "Edit button",
+          "opt_remove_button": "Remove button",
+          "opt_next": "Finish"
+        }
+      },
+      "opt_add_button": {
+        "title": "Add button",
+        "description": "Button type, label and (for callback) payload. Current: {buttons_list}",
+        "data": {
+          "button_row": "Row",
+          "button_type": "Type",
+          "button_text": "Button label",
+          "button_payload": "Payload (callback only)"
+        },
+        "data_description": {
+          "button_row": "Row to add the button to",
+          "button_type": "callback or message",
+          "button_text": "Label on the button",
+          "button_payload": "For callback buttons: this value is sent in the event max_notify_received as callback_data. Use it in automation triggers to identify the button (e.g. light_on, light_off, scene_kitchen)."
+        },
+        "options": {
+          "button_type": {
+            "callback": "Callback",
+            "message": "Message"
+          }
+        },
+        "menu_options": {
+          "0": "Row 1",
+          "1": "Row 2",
+          "2": "Row 3",
+          "3": "Row 4",
+          "4": "Row 5",
+          "5": "Row 6",
+          "6": "Row 7",
+          "7": "Row 8",
+          "8": "Row 9",
+          "9": "Row 10",
+          "new": "New row"
+        }
+      },
+      "opt_edit_button": {
+        "title": "Edit button",
+        "description": "Choose button to edit. Current: {buttons_list}",
+        "data": {
+          "button_to_edit": "Button to edit"
+        },
+        "data_description": {
+          "button_to_edit": "Select the button you want to change"
+        }
+      },
+      "opt_edit_button_edit": {
+        "title": "Edit button",
+        "description": "Change row, type, label or payload. Current: {buttons_list}",
+        "data": {
+          "button_row": "Row",
+          "button_type": "Type",
+          "button_text": "Button label",
+          "button_payload": "Payload (callback only)"
+        },
+        "data_description": {
+          "button_row": "Row to place the button in",
+          "button_type": "callback or message",
+          "button_text": "Label on the button",
+          "button_payload": "For callback buttons: this value is sent in the event max_notify_received as callback_data. Use it in automation triggers to identify the button (e.g. light_on, light_off, scene_kitchen)."
+        }
+      },
+      "opt_remove_button": {
+        "title": "Remove button",
+        "description": "Choose button to remove. Current: {buttons_list}",
+        "data": {
+          "button_to_remove": "Button to remove"
+        },
+        "data_description": {
+          "button_to_remove": ""
         }
       }
     }

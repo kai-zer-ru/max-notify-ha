@@ -11,8 +11,19 @@ from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.debounce import Debouncer
 from homeassistant.helpers.typing import ConfigType
 
-from .const import DOMAIN
+from .const import (
+    CONF_RECEIVE_MODE,
+    DOMAIN,
+    RECEIVE_MODE_POLLING,
+    RECEIVE_MODE_WEBHOOK,
+)
 from .services import register_send_message_service
+from .updates import start_polling, stop_polling
+from .webhook import (
+    MaxNotifyWebhookView,
+    register_webhook,
+    unregister_webhook,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -42,10 +53,17 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     return True
 
 
+def _ensure_webhook_view_registered(hass: HomeAssistant) -> None:
+    """Register webhook view once (idempotent)."""
+    if getattr(_ensure_webhook_view_registered, "_registered", False):
+        return
+    hass.http.register_view(MaxNotifyWebhookView())
+    _ensure_webhook_view_registered._registered = True
+
+
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Max Notify from a config entry."""
     _LOGGER.debug("async_setup_entry: entry_id=%s title=%s", entry.entry_id, entry.title)
-    # Регистрация в следующем тике: реестр служб может быть не готов во время setup.
     hass.async_create_task(_async_register_service_once(hass))
     if DOMAIN not in hass.data:
         hass.data[DOMAIN] = {}
@@ -60,6 +78,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             function=lambda: _reload_entry(hass, entry_id),
         )
     entry.add_update_listener(_async_update_listener)
+
+    receive_mode = (entry.options or {}).get(CONF_RECEIVE_MODE, "send_only")
+    if receive_mode == RECEIVE_MODE_POLLING:
+        start_polling(hass, entry)
+    elif receive_mode == RECEIVE_MODE_WEBHOOK:
+        _ensure_webhook_view_registered(hass)
+        await register_webhook(hass, entry)
+
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     _LOGGER.debug("async_setup_entry: forward done for entry_id=%s", entry.entry_id)
     return True
@@ -83,6 +109,11 @@ async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> Non
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
     _LOGGER.debug("async_unload_entry: entry_id=%s", entry.entry_id)
+    receive_mode = (entry.options or {}).get(CONF_RECEIVE_MODE, "send_only")
+    if receive_mode == RECEIVE_MODE_POLLING:
+        stop_polling(hass, entry)
+    elif receive_mode == RECEIVE_MODE_WEBHOOK:
+        await unregister_webhook(hass, entry)
     debouncers = hass.data.get(DOMAIN, {})
     if entry.entry_id in debouncers:
         debouncers[entry.entry_id].async_shutdown()

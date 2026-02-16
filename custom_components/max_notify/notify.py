@@ -221,6 +221,70 @@ async def _post_message_with_retry(
     return False
 
 
+def _normalize_buttons_for_api(buttons: list[list[dict[str, Any]]]) -> list[list[dict[str, Any]]]:
+    """Convert service buttons to Max API format (type, text, payload for callback)."""
+    out: list[list[dict[str, Any]]] = []
+    for row in buttons:
+        api_row: list[dict[str, Any]] = []
+        for btn in row:
+            if not isinstance(btn, dict):
+                continue
+            b = {"type": btn.get("type", "callback"), "text": str(btn.get("text", ""))}
+            if b["type"] == "callback" and btn.get("payload") is not None:
+                b["payload"] = str(btn["payload"])
+            api_row.append(b)
+        if api_row:
+            out.append(api_row)
+    return out
+
+
+async def send_message_with_buttons(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    recipient: dict[str, Any],
+    message: str,
+    buttons: list[list[dict[str, Any]]],
+    title: str | None = None,
+) -> None:
+    """Send a message with inline keyboard to Max (POST /messages with attachments)."""
+    token = entry.data.get(CONF_ACCESS_TOKEN)
+    if not token:
+        _LOGGER.error("No access token in config entry")
+        return
+    result = await _get_message_url_and_recipient(hass, token, recipient)
+    if not result:
+        _LOGGER.error("Could not resolve recipient for message with buttons")
+        return
+    msg_url, _ = result
+
+    text = f"{title}\n{message}" if title else message
+    if len(text) > MAX_MESSAGE_LENGTH:
+        _LOGGER.warning("Message truncated from %d to %d characters", len(text), MAX_MESSAGE_LENGTH)
+        text = text[:MAX_MESSAGE_LENGTH]
+
+    msg_format = entry.data.get(CONF_MESSAGE_FORMAT, "text")
+    payload: dict[str, Any] = {"text": text}
+    if msg_format != "text":
+        payload["format"] = msg_format
+    payload["attachments"] = [
+        {
+            "type": "inline_keyboard",
+            "payload": {"buttons": _normalize_buttons_for_api(buttons)},
+        }
+    ]
+
+    headers = {"Authorization": token}
+    session = async_get_clientsession(hass)
+    await _post_message_with_retry(
+        session,
+        msg_url,
+        headers,
+        payload,
+        (),
+        "message_with_buttons",
+    )
+
+
 async def upload_image_and_send(
     hass: HomeAssistant,
     entry: ConfigEntry,
