@@ -93,7 +93,10 @@ def _resolve_entity_ids(
         user_ids,
     )
 
-    if entity_ids:
+    # Если переданы chat_ids / user_ids (включая recipient_id, распарсенный выше),
+    # они имеют приоритет над entity_ids и используются как явный таргет.
+    # entity_ids используются только когда дополнительных ID нет.
+    if entity_ids and not (chat_ids or user_ids):
         reg = er.async_get(hass)
         out = []
         for eid in entity_ids:
@@ -272,6 +275,24 @@ async def async_send_message_handler(service: ServiceCall) -> None:
 
         for recipient in recipients:
             await send_message_with_buttons(hass, entry, recipient, message, buttons, title=title)
+        return
+
+    # Явно указанные chat_ids/user_ids (включая recipient_id) имеют приоритет над entity_id
+    # и позволяют отправить сообщение напрямую по ID, даже если для них нет subentry/сущности notify.
+    if (chat_ids or user_ids) and not buttons:
+        entry = _get_entry_for_send(hass, config_entry_id, chat_ids, user_ids)
+        if not entry:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="invalid_config_entry",
+                translation_placeholders={"config_entry_id": config_entry_id or ""},
+            )
+        from .notify import send_plain_message
+
+        for cid in chat_ids or []:
+            await send_plain_message(hass, entry, {CONF_CHAT_ID: cid}, message, title=title)
+        for uid in user_ids or []:
+            await send_plain_message(hass, entry, {CONF_USER_ID: uid}, message, title=title)
         return
 
     resolved = _resolve_entity_ids(

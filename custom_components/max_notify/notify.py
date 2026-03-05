@@ -14,6 +14,7 @@ from homeassistant.components.notify import NotifyEntity
 from homeassistant.config_entries import ConfigEntry, ConfigSubentry
 from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -282,6 +283,53 @@ async def send_message_with_buttons(
         payload,
         (),
         "message_with_buttons",
+    )
+
+
+async def send_plain_message(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    recipient: dict[str, Any],
+    message: str,
+    title: str | None = None,
+) -> None:
+    """Send a plain text message (without inline keyboard) directly to chat_id/user_id."""
+    token = entry.data.get(CONF_ACCESS_TOKEN)
+    if not token:
+        _LOGGER.error("No access token in config entry")
+        return
+    result = await _get_message_url_and_recipient(hass, token, recipient)
+    if not result:
+        _LOGGER.error("Could not resolve recipient for plain message")
+        raise ServiceValidationError(
+            translation_domain=DOMAIN,
+            translation_key="plain_recipient_not_resolved",
+        )
+    msg_url, _ = result
+
+    text = f"{title}\n{message}" if title else message
+    if len(text) > MAX_MESSAGE_LENGTH:
+        _LOGGER.warning(
+            "Message truncated from %d to %d characters",
+            len(text),
+            MAX_MESSAGE_LENGTH,
+        )
+        text = text[:MAX_MESSAGE_LENGTH]
+
+    msg_format = entry.data.get(CONF_MESSAGE_FORMAT, "text")
+    payload: dict[str, Any] = {"text": text}
+    if msg_format != "text":
+        payload["format"] = msg_format
+
+    headers = {"Authorization": token}
+    session = async_get_clientsession(hass)
+    await _post_message_with_retry(
+        session,
+        msg_url,
+        headers,
+        payload,
+        (),
+        "plain_message",
     )
 
 

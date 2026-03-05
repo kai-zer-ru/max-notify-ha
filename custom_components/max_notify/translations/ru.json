@@ -171,10 +171,31 @@
     }
   },
   "invalid_notify_entity": "Недопустимая сущность Max Notify: {entity_id}",
-  "missing_target": "Укажите entity_id или config_entry_id с chat_id/user_id.",
+  "missing_target": "Укажите entity_id или config_entry_id с recipient_id, chat_id или user_id.",
   "invalid_config_entry": "Недопустимая запись конфигурации: {config_entry_id}",
   "missing_config_entry_id": "Найдено несколько интеграций Max Notify; укажите config_entry_id.",
   "no_matching_entities": "Нет подходящих сущностей уведомлений для интеграции {config_entry_id}.",
+  "plain_recipient_not_resolved": "Не удалось определить получателя для прямой отправки. Проверьте recipient_id, chat_id/user_id и настройки интеграции.",
+  "exceptions": {
+    "invalid_notify_entity": {
+      "message": "Недопустимая сущность Max Notify: {entity_id}"
+    },
+    "missing_target": {
+      "message": "Укажите entity_id или config_entry_id с recipient_id, chat_id или user_id."
+    },
+    "invalid_config_entry": {
+      "message": "Недопустимая запись конфигурации: {config_entry_id}"
+    },
+    "missing_config_entry_id": {
+      "message": "Найдено несколько интеграций Max Notify; укажите config_entry_id."
+    },
+    "no_matching_entities": {
+      "message": "Нет подходящих сущностей уведомлений для интеграции {config_entry_id}."
+    },
+    "plain_recipient_not_resolved": {
+      "message": "Не удалось определить получателя для прямой отправки. Проверьте recipient_id, chat_id/user_id и настройки интеграции."
+    }
+  },
   "config": {
     "receive_mode_title": {
       "send_only": "отправка",
