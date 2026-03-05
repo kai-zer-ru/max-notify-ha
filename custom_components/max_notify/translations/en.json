@@ -25,6 +25,10 @@
           "name": "Integration",
           "description": "Max Notify integration to use when sending by chat_id/user_id (if several integrations exist)."
         },
+        "recipient_id": {
+          "name": "Recipient ID",
+          "description": "Universal recipient ID: positive — personal chat (User ID), negative — group (Chat ID)."
+        },
         "chat_id": {
           "name": "Chat ID (deprecated)",
           "description": "Deprecated: prefer using recipient_id for both personal chats and groups. Chat ID: positive — personal chat (User ID), negative — group."
