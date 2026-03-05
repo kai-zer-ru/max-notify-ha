@@ -13,10 +13,12 @@ send_message:
       required: true
       selector:
         text:
+          multiline: true
     title:
       example: "Заголовок"
       selector:
         text:
+          multiline: true
     # notify:
     #   default: true
     #   selector:
@@ -57,6 +59,7 @@ send_photo:
     caption:
       selector:
         text:
+          multiline: true
     # notify:
     #   default: true
     #   selector:
@@ -98,6 +101,7 @@ send_video:
     caption:
       selector:
         text:
+          multiline: true
     # notify:
     #   default: true
     #   selector:
@@ -139,6 +143,7 @@ send_document:
     caption:
       selector:
         text:
+          multiline: true
     # notify:
     #   default: true
     #   selector:
