@@ -10,6 +10,7 @@ from homeassistant.helpers import config_validation as cv
 from .const import (
     CONF_CHAT_ID,
     CONF_CONFIG_ENTRY_ID,
+    CONF_COUNT_REQUESTS,
     CONF_RECIPIENT_ID,
     CONF_SEND_KEYBOARD,
     CONF_USER_ID,
@@ -52,6 +53,7 @@ SERVICE_SEND_PHOTO_SCHEMA = vol.Schema(
         vol.Optional(CONF_RECIPIENT_ID): vol.Any(vol.Coerce(int), vol.All(cv.ensure_list, [vol.Coerce(int)])),
         vol.Optional(CONF_CHAT_ID): vol.Any(vol.Coerce(int), vol.All(cv.ensure_list, [vol.Coerce(int)])),
         vol.Optional(CONF_USER_ID): vol.Any(vol.Coerce(int), vol.All(cv.ensure_list, [vol.Coerce(int)])),
+        vol.Optional(CONF_COUNT_REQUESTS): vol.All(vol.Coerce(int), vol.Range(min=1)),
     }
 )
 
@@ -65,6 +67,7 @@ SERVICE_SEND_DOCUMENT_SCHEMA = vol.Schema(
         vol.Optional(CONF_RECIPIENT_ID): vol.Any(vol.Coerce(int), vol.All(cv.ensure_list, [vol.Coerce(int)])),
         vol.Optional(CONF_CHAT_ID): vol.Any(vol.Coerce(int), vol.All(cv.ensure_list, [vol.Coerce(int)])),
         vol.Optional(CONF_USER_ID): vol.Any(vol.Coerce(int), vol.All(cv.ensure_list, [vol.Coerce(int)])),
+        vol.Optional(CONF_COUNT_REQUESTS): vol.All(vol.Coerce(int), vol.Range(min=1)),
     }
 )
 
@@ -78,5 +81,6 @@ SERVICE_SEND_VIDEO_SCHEMA = vol.Schema(
         vol.Optional(CONF_RECIPIENT_ID): vol.Any(vol.Coerce(int), vol.All(cv.ensure_list, [vol.Coerce(int)])),
         vol.Optional(CONF_CHAT_ID): vol.Any(vol.Coerce(int), vol.All(cv.ensure_list, [vol.Coerce(int)])),
         vol.Optional(CONF_USER_ID): vol.Any(vol.Coerce(int), vol.All(cv.ensure_list, [vol.Coerce(int)])),
+        vol.Optional(CONF_COUNT_REQUESTS): vol.All(vol.Coerce(int), vol.Range(min=1)),
     }
 )

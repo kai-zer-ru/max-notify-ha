@@ -191,9 +191,12 @@ async def _post_message_with_retry(
     payload: dict[str, Any],
     retry_delays: tuple[int, ...],
     log_label: str,
+    count_requests: int | None = None,
 ) -> bool:
     last_error: str | None = None
-    for attempt in range(len(retry_delays) + 1):
+    if count_requests is None:
+        count_requests = len(retry_delays) + 1
+    for attempt in range(count_requests):
         try:
             async with session.post(
                 url,
@@ -207,8 +210,12 @@ async def _post_message_with_retry(
                     return True
                 if resp.status == 400 and "attachment.not.ready" in body:
                     last_error = body
-                    if attempt < len(retry_delays):
-                        delay = retry_delays[attempt]
+                    if attempt < count_requests - 1:
+                        delay = (
+                            retry_delays[attempt]
+                            if attempt < len(retry_delays)
+                            else retry_delays[-1]
+                        )
                         _LOGGER.debug("%s not ready, retry in %ss (attempt %s)", log_label, delay, attempt + 2)
                         await asyncio.sleep(delay)
                         continue
@@ -340,6 +347,7 @@ async def upload_image_and_send(
     file_path_or_url: str,
     caption: str | None = None,
     as_document: bool = False,
+    count_requests: int | None = None,
     notify: bool = True,
 ) -> None:
     """Upload image/file to Max (POST /uploads) and send (POST /messages)."""
@@ -465,7 +473,7 @@ async def upload_image_and_send(
     # if not notify:
     #     payload["notify"] = False
     await _post_message_with_retry(
-        session, msg_url, headers, payload, FILE_READY_RETRY_DELAYS, "Photo"
+        session, msg_url, headers, payload, FILE_READY_RETRY_DELAYS, "Photo", count_requests
     )
 
 
@@ -475,6 +483,7 @@ async def upload_video_and_send(
     recipient: dict[str, Any],
     file_path_or_url: str,
     caption: str | None = None,
+    count_requests: int | None = None,
     notify: bool = True,
 ) -> None:
     """Upload video to Max (POST /uploads?type=video) and send (POST /messages)."""
@@ -590,7 +599,7 @@ async def upload_video_and_send(
     # if not notify:
     #     payload["notify"] = False
     await _post_message_with_retry(
-        session, msg_url, headers, payload, VIDEO_READY_RETRY_DELAYS, "Video"
+        session, msg_url, headers, payload, VIDEO_READY_RETRY_DELAYS, "Video", count_requests
     )
 
 

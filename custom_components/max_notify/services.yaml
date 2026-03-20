@@ -90,6 +90,16 @@ send_photo:
         user_id:
           selector:
             text:
+        count_requests:
+          name: Count requests
+          description: >
+            How many times to POST the message while waiting for attachment processing
+            (attachment.not.ready). Increase for large files.
+          selector:
+            number:
+              min: 1
+              max: 60
+              mode: box
 
 send_video:
   fields:
@@ -132,6 +142,16 @@ send_video:
         user_id:
           selector:
             text:
+        count_requests:
+          name: Count requests
+          description: >
+            How many times to POST the message while waiting for attachment processing
+            (attachment.not.ready). Increase for large videos.
+          selector:
+            number:
+              min: 1
+              max: 60
+              mode: box
 
 send_document:
   fields:
@@ -174,3 +194,13 @@ send_document:
         user_id:
           selector:
             text:
+        count_requests:
+          name: Count requests
+          description: >
+            How many times to POST the message while waiting for attachment processing
+            (attachment.not.ready). Increase for large files.
+          selector:
+            number:
+              min: 1
+              max: 60
+              mode: box

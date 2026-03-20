@@ -14,6 +14,7 @@ CONF_RECIPIENT_TYPE = "recipient_type"
 CONF_USER_ID = "user_id"
 CONF_CHAT_ID = "chat_id"
 CONF_RECIPIENT_ID = "recipient_id"
+CONF_COUNT_REQUESTS = "count_requests"
 
 SUBENTRY_TYPE_RECIPIENT = "recipient"
 RECIPIENT_TYPE_USER = "user"

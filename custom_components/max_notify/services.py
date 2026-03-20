@@ -22,7 +22,7 @@ from .const import (
     SERVICE_SEND_MESSAGE,
     SERVICE_SEND_PHOTO,
     SERVICE_SEND_DOCUMENT,
-    SERVICE_SEND_VIDEO,
+    SERVICE_SEND_VIDEO, CONF_COUNT_REQUESTS,
 )
 from .schemas import (
     SERVICE_SEND_MESSAGE_SCHEMA,
@@ -379,6 +379,7 @@ async def _send_photo_or_document(
 ) -> None:
     file_path_or_url = data["file"].strip()
     caption = data.get("caption")
+    count_requests = data.get(CONF_COUNT_REQUESTS)
     entity_ids = data.get(ATTR_ENTITY_ID)
     config_entry_id = data.get(CONF_CONFIG_ENTRY_ID)
     chat_id = data.get(CONF_CHAT_ID)
@@ -411,7 +412,7 @@ async def _send_photo_or_document(
 
     _LOGGER.debug(
         "_send_photo_or_document: as_document=%s, file=%s, caption_present=%s, "
-        "entity_ids=%s, config_entry_id=%s, chat_ids=%s, user_ids=%s",
+        "entity_ids=%s, config_entry_id=%s, chat_ids=%s, user_ids=%s, count_requests=%s",
         as_document,
         file_path_or_url,
         bool(caption),
@@ -419,6 +420,7 @@ async def _send_photo_or_document(
         config_entry_id,
         chat_ids,
         user_ids,
+        count_requests,
     )
 
     resolved = _resolve_entity_ids(
@@ -454,6 +456,7 @@ async def _send_photo_or_document(
             file_path_or_url,
             caption,
             as_document=as_document,
+            count_requests=count_requests,
             # notify=data.get("notify", True),  # отключено: Max не отключает push/звук
         )
 
@@ -479,6 +482,7 @@ async def _send_video(
     chat_id = data.get(CONF_CHAT_ID)
     user_id = data.get(CONF_USER_ID)
     recipient_id = data.get(CONF_RECIPIENT_ID)
+    count_requests = data.get(CONF_COUNT_REQUESTS)
 
     chat_ids = _normalize_target_ids(chat_id) if chat_id is not None else None
     user_ids = _normalize_target_ids(user_id) if user_id is not None else None
@@ -506,13 +510,14 @@ async def _send_video(
 
     _LOGGER.debug(
         "_send_video: file=%s, caption_present=%s, entity_ids=%s, "
-        "config_entry_id=%s, chat_ids=%s, user_ids=%s",
+        "config_entry_id=%s, chat_ids=%s, user_ids=%s, count_requests=%s",
         file_path_or_url,
         bool(caption),
         entity_ids,
         config_entry_id,
         chat_ids,
         user_ids,
+        count_requests,
     )
 
     resolved = _resolve_entity_ids(
@@ -547,6 +552,7 @@ async def _send_video(
             dict(subentry.data),
             file_path_or_url,
             caption,
+            count_requests,
             # notify=data.get("notify", True),  # отключено: Max не отключает push/звук
         )
 

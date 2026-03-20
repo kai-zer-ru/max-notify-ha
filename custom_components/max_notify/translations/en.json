@@ -78,6 +78,10 @@
           "name": "User ID",
           "description": "User ID for personal chat."
         },
+        "count_requests": {
+          "name": "Count requests",
+          "description": "How many times to POST the message while waiting for attachment processing (attachment.not.ready). Increase for large files."
+        },
         "notify": {
           "name": "Notify",
           "description": "If disabled, send without notifying recipients (silent)."
@@ -119,6 +123,10 @@
           "name": "User ID",
           "description": "User ID for personal chat."
         },
+        "count_requests": {
+          "name": "Count requests",
+          "description": "How many times to POST the message while waiting for attachment processing (attachment.not.ready). Increase for large files."
+        },
         "notify": {
           "name": "Notify",
           "description": "If disabled, send without notifying recipients (silent)."
@@ -159,6 +167,10 @@
         "user_id": {
           "name": "User ID",
           "description": "User ID for personal chat."
+        },
+        "count_requests": {
+          "name": "Count requests",
+          "description": "How many times to POST the message while waiting for attachment processing (attachment.not.ready). Increase for large videos."
         },
         "notify": {
           "name": "Notify",

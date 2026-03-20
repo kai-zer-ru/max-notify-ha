@@ -183,14 +183,15 @@ data:
 | `file` | Путь (`/config/...`, `/media/...`) или URL изображения |
 | `caption` | Подпись |
 | `entity_id` / доп. | Как у send_message |
+| `count_requests` | Число попыток POST при ожидании обработки вложения (`attachment.not.ready`). Увеличьте для больших файлов (по умолчанию — 4). |
 
 ### max_notify.send_document
 
-Файл по пути или URL отправляется как документ. Параметры: `file`, `caption`, `entity_id` (или config_entry_id + chat_id/user_id).
+Файл по пути или URL отправляется как документ. Параметры: `file`, `caption`, `entity_id` (или config_entry_id + chat_id/user_id), **`count_requests`** — число попыток при ожидании обработки вложения (для больших файлов).
 
 ### max_notify.send_video
 
-Форматы: mp4, mov, webm, mkv. Параметры: `file`, `caption`, `entity_id` (или доп.).
+Форматы: mp4, mov, webm, mkv. Параметры: `file`, `caption`, `entity_id` (или доп.), **`count_requests`** — число попыток при ожидании обработки вложения (для больших видео).
 
 Отправка через сущность: в сценариях и автоматизациях — действие **Уведомление** → выбор сущности Max Notify.
 
