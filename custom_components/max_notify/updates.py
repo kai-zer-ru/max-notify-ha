@@ -27,6 +27,7 @@ from .const import (
     POLLING_TIMEOUT,
     UPDATE_TYPES_RECEIVE,
 )
+from .message_state import set_last_incoming_message_id
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -87,6 +88,7 @@ def _extract_event_data(entry: ConfigEntry, update: dict[str, Any]) -> dict[str,
 
     # Body text (message_created)
     body = message.get("body") or {}
+    message_id = _extract_message_id(update, message, body)
     text = None
     if isinstance(body.get("text"), str):
         text = body["text"].strip()
@@ -126,7 +128,8 @@ def _extract_event_data(entry: ConfigEntry, update: dict[str, Any]) -> dict[str,
         "command": command,
         "args": args,
         "callback_data": callback_data,
-        "message_id": message.get("message_id"),
+        "message_id": message_id,
+        "raw_update": update,
     }
     # Drop None values so automation triggers can use optional fields
     return {k: v for k, v in event_data.items() if v is not None}
@@ -177,6 +180,45 @@ def _get_callback_payload(
     return str(raw)
 
 
+def _extract_message_id(
+    update: dict[str, Any],
+    message: dict[str, Any],
+    body: dict[str, Any],
+) -> str | None:
+    """Extract message id from update in different API shapes."""
+    candidates = (
+        message.get("message_id"),
+        message.get("messageId"),
+        message.get("id"),
+        message.get("mid"),
+        body.get("message_id") if isinstance(body, dict) else None,
+        body.get("messageId") if isinstance(body, dict) else None,
+        body.get("id") if isinstance(body, dict) else None,
+        body.get("mid") if isinstance(body, dict) else None,
+        update.get("message_id"),
+        update.get("messageId"),
+    )
+    for candidate in candidates:
+        normalized = _normalize_message_id(candidate)
+        if normalized:
+            return normalized
+    return None
+
+
+def _normalize_message_id(value: Any) -> str | None:
+    """Normalize message ID: strip spaces and optional leading 'mid' prefix."""
+    if value is None:
+        return None
+    mid = str(value).strip()
+    if not mid:
+        return None
+    if mid.lower().startswith("mid"):
+        tail = mid[3:].lstrip(" _:-.")
+        if tail:
+            return tail
+    return mid
+
+
 def _should_fire_command_event(entry: ConfigEntry, command: str | None, update_type: str) -> bool:
     """If entry has buttons, fire for all. Else if legacy commands allowlist, only those (message_created). Callbacks always fire."""
     opts = entry.options or {}
@@ -215,7 +257,8 @@ def _update_dedup_key(update: dict[str, Any]) -> str:
     if uid is not None:
         return str(uid)
     msg = update.get("message") or {}
-    msg_id = msg.get("message_id")
+    body = msg.get("body") or {}
+    msg_id = _extract_message_id(update, msg, body)
     utype = update.get("update_type") or ""
     if utype == "message_callback":
         cb = update.get("callback")
@@ -271,11 +314,17 @@ async def async_process_update(
                 raw = json.dumps(update, ensure_ascii=False, default=str)
             except Exception:
                 raw = repr(update)
-            if len(raw) > 4000:
-                raw = raw[:4000] + "..."
-            _LOGGER.debug("Raw update from Max: %s", raw)
+            _LOGGER.debug("Raw update from Max (full): %s", raw)
 
         event_data = _extract_event_data(entry, update)
+        try:
+            set_last_incoming_message_id(
+                hass,
+                entry.entry_id,
+                event_data.get("message_id"),
+            )
+        except Exception as e:
+            _LOGGER.debug("Failed to update last incoming message ID: %s", e)
         update_type = event_data.get("update_type") or ""
         chat_id = event_data.get("chat_id")
         user_id = event_data.get("user_id")
@@ -393,7 +442,21 @@ def start_polling(hass: HomeAssistant, entry: ConfigEntry) -> asyncio.Task[None]
     entry_id = entry.entry_id
     if entry_id in tasks:
         return tasks[entry_id]
-    task = hass.async_create_task(_polling_loop(hass, entry))
+    # Run polling as a background task so bootstrap does not wait for it.
+    if hasattr(hass, "async_create_background_task"):
+        try:
+            task = hass.async_create_background_task(
+                _polling_loop(hass, entry),
+                f"{DOMAIN}_polling_{entry_id}",
+            )
+        except TypeError:
+            # Compatibility with older/newer HA signatures.
+            task = hass.async_create_background_task(
+                _polling_loop(hass, entry),
+                DOMAIN,
+            )
+    else:
+        task = hass.loop.create_task(_polling_loop(hass, entry))
     tasks[entry_id] = task
     return task
 

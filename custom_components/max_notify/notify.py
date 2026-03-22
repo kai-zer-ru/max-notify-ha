@@ -6,7 +6,7 @@ import asyncio
 import json
 import logging
 import os
-from typing import Any
+from typing import Any, Callable
 from urllib.parse import unquote, urlparse
 
 import aiohttp
@@ -38,6 +38,7 @@ from .const import (
     VIDEO_PROCESSING_DELAY,
     VIDEO_READY_RETRY_DELAYS,
 )
+from .message_state import set_last_outgoing_message_id
 from .services import register_send_message_service
 
 _LOGGER = logging.getLogger(__name__)
@@ -192,6 +193,7 @@ async def _post_message_with_retry(
     retry_delays: tuple[int, ...],
     log_label: str,
     count_requests: int | None = None,
+    on_success: Callable[[str], None] | None = None,
 ) -> bool:
     last_error: str | None = None
     if count_requests is None:
@@ -206,6 +208,8 @@ async def _post_message_with_retry(
             ) as resp:
                 body = await resp.text()
                 if resp.status < 400:
+                    if on_success is not None:
+                        on_success(body)
                     _LOGGER.info("%s sent successfully (status=%s)", log_label, resp.status)
                     return True
                 if resp.status == 400 and "attachment.not.ready" in body:
@@ -229,6 +233,110 @@ async def _post_message_with_retry(
     return False
 
 
+async def delete_message(
+    hass: HomeAssistant, entry: ConfigEntry, message_id: str
+) -> bool:
+    """Delete a message via Max API DELETE /messages."""
+    token = entry.data.get(CONF_ACCESS_TOKEN)
+    if not token:
+        _LOGGER.error("No access token in config entry")
+        return False
+    mid = _message_id_candidates(message_id)
+    if not mid:
+        _LOGGER.error("delete_message: empty message_id")
+        return False
+    headers = {"Authorization": token}
+    session = async_get_clientsession(hass)
+    url = f"{API_BASE_URL}{API_PATH_MESSAGES}?message_id={mid}&v={API_VERSION}"
+    try:
+        async with session.delete(
+            url, headers=headers, timeout=aiohttp.ClientTimeout(total=15)
+        ) as resp:
+            body = await resp.text()
+            if resp.status < 400:
+                _LOGGER.info("Message %s deleted successfully", mid)
+                return True
+            _LOGGER.error(
+                "Max API delete message failed: status=%s body=%s",
+                resp.status,
+                body[:300],
+            )
+            return False
+    except aiohttp.ClientError as e:
+        _LOGGER.error("Max API delete message request failed: %s", e)
+        return False
+
+
+async def edit_message(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    message_id: str,
+    text: str | None = None,
+    buttons: list[list[dict[str, Any]]] | None = None,
+    remove_buttons: bool = False,
+    format: str | None = None,
+) -> bool:
+    """Edit a message via Max API PUT /messages. text/buttons can be None to keep current."""
+    token = entry.data.get(CONF_ACCESS_TOKEN)
+    if not token:
+        _LOGGER.error("No access token in config entry")
+        return False
+    mid = _message_id_candidates(message_id)
+    if not mid:
+        _LOGGER.error("edit_message: empty message_id")
+        return False
+    headers = {"Authorization": token, "Content-Type": "application/json"}
+    payload: dict[str, Any] = {}
+    if text is not None:
+        payload["text"] = (
+            text[:MAX_MESSAGE_LENGTH] if len(text) > MAX_MESSAGE_LENGTH else text
+        )
+    msg_format = format or entry.data.get(CONF_MESSAGE_FORMAT, "text")
+    if text is not None and msg_format != "text":
+        payload["format"] = msg_format
+    if remove_buttons:
+        payload["attachments"] = []
+    elif buttons is not None:
+        payload["attachments"] = [
+            {
+                "type": "inline_keyboard",
+                "payload": {"buttons": _normalize_buttons_for_api(buttons)},
+            }
+        ]
+    if not payload:
+        _LOGGER.warning("edit_message: no changes specified")
+        return False
+    session = async_get_clientsession(hass)
+    url = f"{API_BASE_URL}{API_PATH_MESSAGES}?message_id={mid}&v={API_VERSION}"
+    try:
+        async with session.put(
+            url, json=payload, headers=headers, timeout=aiohttp.ClientTimeout(total=15)
+        ) as resp:
+            body = await resp.text()
+            if resp.status < 400:
+                _LOGGER.info("Message %s edited successfully", mid)
+                return True
+            _LOGGER.error(
+                "Max API edit message failed: status=%s body=%s",
+                resp.status,
+                body[:300],
+            )
+            return False
+    except aiohttp.ClientError as e:
+        _LOGGER.error("Max API edit message request failed: %s", e)
+        return False
+
+
+def _message_id_candidates(message_id: str) -> str | None:
+    """Normalize message_id to `mid.*` format, or return None."""
+    raw = str(message_id).strip()
+    if not raw:
+        return None
+    if raw.lower().startswith("mid."):
+        return raw
+    return f"mid.{raw}"
+
+
 def _normalize_buttons_for_api(buttons: list[list[dict[str, Any]]]) -> list[list[dict[str, Any]]]:
     """Convert service buttons to Max API format (type, text, payload for callback)."""
     out: list[list[dict[str, Any]]] = []
@@ -244,6 +352,121 @@ def _normalize_buttons_for_api(buttons: list[list[dict[str, Any]]]) -> list[list
         if api_row:
             out.append(api_row)
     return out
+
+
+def _extract_message_id_from_response(body: str) -> str | None:
+    """Extract message_id from Max API /messages response."""
+    if not body:
+        return None
+    try:
+        data = json.loads(body)
+    except (TypeError, ValueError):
+        return None
+    if isinstance(data, dict):
+        # Common forms:
+        # {"message_id": "..."}
+        # {"messageId": "..."}
+        # {"message": {"message_id": "..."}}
+        # {"messages": [{"message_id": "..."}]}
+        direct = data.get("message_id") or data.get("messageId")
+        if direct is not None:
+            normalized = _normalize_message_id(direct)
+            if normalized:
+                return normalized
+
+        message = data.get("message")
+        if isinstance(message, dict):
+            mid = message.get("message_id") or message.get("messageId")
+            if mid is not None:
+                normalized = _normalize_message_id(mid)
+                if normalized:
+                    return normalized
+
+        messages = data.get("messages")
+        if isinstance(messages, list):
+            for item in messages:
+                if isinstance(item, dict):
+                    mid = item.get("message_id") or item.get("messageId")
+                    if mid is not None:
+                        normalized = _normalize_message_id(mid)
+                        if normalized:
+                            return normalized
+                    # Common nested shape: {"message": {"body": {"mid": "mid...."}}}
+                    message_obj = item.get("message")
+                    if isinstance(message_obj, dict):
+                        body_obj = message_obj.get("body")
+                        if isinstance(body_obj, dict):
+                            nested_mid = (
+                                body_obj.get("mid")
+                                or body_obj.get("message_id")
+                                or body_obj.get("messageId")
+                            )
+                            normalized = _normalize_message_id(nested_mid)
+                            if normalized:
+                                return normalized
+
+        # Common shape from Max callbacks/messages:
+        # {"message": {"body": {"mid": "mid...."}}}
+        if isinstance(message, dict):
+            body_obj = message.get("body")
+            if isinstance(body_obj, dict):
+                nested_mid = (
+                    body_obj.get("mid")
+                    or body_obj.get("message_id")
+                    or body_obj.get("messageId")
+                )
+                normalized = _normalize_message_id(nested_mid)
+                if normalized:
+                    return normalized
+
+        # Additional wrappers occasionally used by APIs/proxies:
+        # {"result": {"message": {"body": {"mid": "mid...."}}}}
+        result_obj = data.get("result")
+        if isinstance(result_obj, dict):
+            message_obj = result_obj.get("message")
+            if isinstance(message_obj, dict):
+                body_obj = message_obj.get("body")
+                if isinstance(body_obj, dict):
+                    nested_mid = (
+                        body_obj.get("mid")
+                        or body_obj.get("message_id")
+                        or body_obj.get("messageId")
+                    )
+                    normalized = _normalize_message_id(nested_mid)
+                    if normalized:
+                        return normalized
+    return None
+
+
+def _normalize_message_id(value: Any) -> str | None:
+    """Normalize message ID: strip spaces and optional leading 'mid' prefix."""
+    if value is None:
+        return None
+    mid = str(value).strip()
+    if not mid:
+        return None
+    if mid.lower().startswith("mid"):
+        tail = mid[3:].lstrip(" _:-.")
+        if tail:
+            return tail
+    return mid
+
+
+def _store_outgoing_message_id_from_response(
+    hass: HomeAssistant,
+    entry_id: str,
+    body: str,
+    source: str,
+) -> None:
+    """Extract message_id from response and store it for sensors."""
+    message_id = _extract_message_id_from_response(body)
+    if message_id:
+        try:
+            set_last_outgoing_message_id(hass, entry_id, message_id)
+        except Exception as e:
+            _LOGGER.debug("Failed to update last outgoing message ID: %s", e)
+    else:
+        _LOGGER.debug("%s: message_id not found in response body: %s", source, (body or "")[:500])
 
 
 async def send_message_with_buttons(
@@ -283,6 +506,12 @@ async def send_message_with_buttons(
 
     headers = {"Authorization": token}
     session = async_get_clientsession(hass)
+
+    def _on_success(body: str) -> None:
+        _store_outgoing_message_id_from_response(
+            hass, entry.entry_id, body, "send_message_with_buttons"
+        )
+
     await _post_message_with_retry(
         session,
         msg_url,
@@ -290,6 +519,7 @@ async def send_message_with_buttons(
         payload,
         (),
         "message_with_buttons",
+        on_success=_on_success,
     )
 
 
@@ -330,6 +560,12 @@ async def send_plain_message(
 
     headers = {"Authorization": token}
     session = async_get_clientsession(hass)
+
+    def _on_success(body: str) -> None:
+        _store_outgoing_message_id_from_response(
+            hass, entry.entry_id, body, "send_plain_message"
+        )
+
     await _post_message_with_retry(
         session,
         msg_url,
@@ -337,6 +573,7 @@ async def send_plain_message(
         payload,
         (),
         "plain_message",
+        on_success=_on_success,
     )
 
 
@@ -347,6 +584,7 @@ async def upload_image_and_send(
     file_path_or_url: str,
     caption: str | None = None,
     as_document: bool = False,
+    buttons: list[list[dict[str, Any]]] | None = None,
     count_requests: int | None = None,
     notify: bool = True,
 ) -> None:
@@ -463,17 +701,39 @@ async def upload_image_and_send(
     await asyncio.sleep(FILE_UPLOAD_DELAY)
 
     msg_format = entry.data.get(CONF_MESSAGE_FORMAT, "text")
+    attachments: list[dict[str, Any]] = [
+        {"type": "file" if as_document else "image", "payload": attachment_payload}
+    ]
+    if buttons:
+        attachments.append(
+            {
+                "type": "inline_keyboard",
+                "payload": {"buttons": _normalize_buttons_for_api(buttons)},
+            }
+        )
     payload = {
         "text": (caption or "")[:MAX_MESSAGE_LENGTH],
-        "attachments": [{"type": "file" if as_document else "image", "payload": attachment_payload}],
+        "attachments": attachments,
     }
     if msg_format != "text":
         payload["format"] = msg_format
     # Отключено: Max не отключает push/звук по notify: false.
     # if not notify:
     #     payload["notify"] = False
+    def _on_success(body: str) -> None:
+        _store_outgoing_message_id_from_response(
+            hass, entry.entry_id, body, "upload_image_and_send"
+        )
+
     await _post_message_with_retry(
-        session, msg_url, headers, payload, FILE_READY_RETRY_DELAYS, "Photo", count_requests
+        session,
+        msg_url,
+        headers,
+        payload,
+        FILE_READY_RETRY_DELAYS,
+        "Photo",
+        count_requests,
+        on_success=_on_success,
     )
 
 
@@ -483,6 +743,7 @@ async def upload_video_and_send(
     recipient: dict[str, Any],
     file_path_or_url: str,
     caption: str | None = None,
+    buttons: list[list[dict[str, Any]]] | None = None,
     count_requests: int | None = None,
     notify: bool = True,
 ) -> None:
@@ -589,17 +850,37 @@ async def upload_video_and_send(
     await asyncio.sleep(VIDEO_PROCESSING_DELAY)
 
     msg_format = entry.data.get(CONF_MESSAGE_FORMAT, "text")
+    attachments: list[dict[str, Any]] = [{"type": "video", "payload": attachment_payload}]
+    if buttons:
+        attachments.append(
+            {
+                "type": "inline_keyboard",
+                "payload": {"buttons": _normalize_buttons_for_api(buttons)},
+            }
+        )
     payload = {
         "text": (caption or "")[:MAX_MESSAGE_LENGTH],
-        "attachments": [{"type": "video", "payload": attachment_payload}],
+        "attachments": attachments,
     }
     if msg_format != "text":
         payload["format"] = msg_format
     # Отключено: Max не отключает push/звук по notify: false.
     # if not notify:
     #     payload["notify"] = False
+    def _on_success(body: str) -> None:
+        _store_outgoing_message_id_from_response(
+            hass, entry.entry_id, body, "upload_video_and_send"
+        )
+
     await _post_message_with_retry(
-        session, msg_url, headers, payload, VIDEO_READY_RETRY_DELAYS, "Video", count_requests
+        session,
+        msg_url,
+        headers,
+        payload,
+        VIDEO_READY_RETRY_DELAYS,
+        "Video",
+        count_requests,
+        on_success=_on_success,
     )
 
 
@@ -745,6 +1026,12 @@ class MaxNotifyEntity(NotifyEntity):
                             )
                         return
                     _LOGGER.info("Message sent successfully (status=%s)", resp.status)
+                    _store_outgoing_message_id_from_response(
+                        self.hass,
+                        self._entry.entry_id,
+                        body,
+                        "MaxNotifyEntity.async_send_message",
+                    )
                     _LOGGER.debug("Max send finished successfully on attempt %s/5", attempt)
                     return
             except aiohttp.ClientError as e:

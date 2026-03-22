@@ -157,6 +157,9 @@ data:
 
 ## Сервисы
 
+Полный набор готовых YAML-примеров для всех сервисов (вручную и из `max_notify_received`) вынесен в отдельный файл:  
+[`AUTOMATIONS.md`](AUTOMATIONS.md)
+
 ### max_notify.send_message
 
 | Параметр | Описание |
@@ -166,7 +169,7 @@ data:
 | `entity_id` | Сущности notify Max Notify (или в «Дополнительно»: `config_entry_id` + `recipient_id`) |
 | `recipient_id` | Универсальный ID получателя: положительный — User ID (личный), отрицательный — Chat ID (группа) |
 | `send_keyboard` | При `true` (по умолчанию) к сообщению прикрепляется клавиатура из настроек интеграции |
-| `buttons` | Inline-кнопки под сообщением (список рядов кнопок); при использовании — `config_entry_id` и `chat_id`/`user_id` |
+| `buttons` | Дополнительные inline-кнопки (список рядов). Объединяются с настроенной клавиатурой при `send_keyboard=true`; можно указывать вместе с `entity_id` или `config_entry_id` + `recipient_id` |
 
 ```yaml
 service: max_notify.send_message
@@ -194,6 +197,41 @@ data:
 Форматы: mp4, mov, webm, mkv. Параметры: `file`, `caption`, `entity_id` (или доп.), **`count_requests`** — число попыток при ожидании обработки вложения (для больших видео).
 
 Отправка через сущность: в сценариях и автоматизациях — действие **Уведомление** → выбор сущности Max Notify.
+
+### max_notify.delete_message
+
+Удаляет сообщение по ID (только сообщения младше 24 часов). `message_id` доступен в событии `max_notify_received`.
+
+| Параметр | Описание |
+|----------|----------|
+| `message_id` | ID сообщения (обязательно), напр. `{{ trigger.event.data.message_id }}` |
+| `config_entry_id` | Интеграция (если несколько) |
+
+### max_notify.edit_message
+
+Редактирует текст и/или кнопки сообщения (только младше 24 часов).
+
+| Параметр | Описание |
+|----------|----------|
+| `message_id` | ID сообщения (обязательно) |
+| `text` | Новый текст (опционально) |
+| `buttons` | Inline-клавиатура: список рядов `{type, text, payload?}`; заменяет текущие кнопки |
+| `remove_buttons` | Удалить все кнопки |
+| `format` | Формат текста: text, markdown, html |
+| `config_entry_id` | Интеграция (если несколько) |
+
+```yaml
+# Удалить сообщение
+service: max_notify.delete_message
+data:
+  message_id: "{{ trigger.event.data.message_id }}"
+
+# Редактировать текст
+service: max_notify.edit_message
+data:
+  message_id: "{{ trigger.event.data.message_id }}"
+  text: "Обновлённый текст"
+```
 
 ---
 

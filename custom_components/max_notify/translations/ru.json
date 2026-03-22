@@ -37,6 +37,10 @@
           "name": "ID пользователя (устарело)",
           "description": "Устарело: вместо этого используйте recipient_id. ID пользователя для личного чата (альтернатива положительному chat_id)."
         },
+        "buttons": {
+          "name": "Кнопки",
+          "description": "Пользовательские inline-кнопки только для этого вызова. Если поле задано, отправляются ТОЛЬКО эти кнопки (клавиатура из настроек интеграции игнорируется). Поддерживаемые форматы: словарь (Text -> payload) или список объектов (text, payload)."
+        },
         "notify": {
           "name": "Уведомлять",
           "description": "Если выключено — отправить без уведомления получателей (тихо)."
@@ -81,6 +85,10 @@
         "count_requests": {
           "name": "Число попыток",
           "description": "Сколько раз отправлять POST-запрос, ожидая обработку вложения (attachment.not.ready). Увеличьте для больших файлов."
+        },
+        "buttons": {
+          "name": "Кнопки",
+          "description": "Пользовательские inline-кнопки для этого вызова. Поддерживаемые форматы: словарь (Text -> payload) или список объектов (text, payload)."
         },
         "notify": {
           "name": "Уведомлять",
@@ -127,6 +135,10 @@
           "name": "Число попыток",
           "description": "Сколько раз отправлять POST-запрос, ожидая обработку вложения (attachment.not.ready). Увеличьте для больших файлов."
         },
+        "buttons": {
+          "name": "Кнопки",
+          "description": "Пользовательские inline-кнопки для этого вызова. Поддерживаемые форматы: словарь (Text -> payload) или список объектов (text, payload)."
+        },
         "notify": {
           "name": "Уведомлять",
           "description": "Если выключено — отправить без уведомления получателей (тихо)."
@@ -172,6 +184,10 @@
           "name": "Число попыток",
           "description": "Сколько раз отправлять POST-запрос, ожидая обработку вложения (attachment.not.ready). Увеличьте для больших видео."
         },
+        "buttons": {
+          "name": "Кнопки",
+          "description": "Пользовательские inline-кнопки для этого вызова. Поддерживаемые форматы: словарь (Text -> payload) или список объектов (text, payload)."
+        },
         "notify": {
           "name": "Уведомлять",
           "description": "Если выключено — отправить без уведомления получателей (тихо)."
@@ -180,9 +196,86 @@
           "name": "Дополнительно"
         }
       }
+    },
+    "delete_message": {
+      "name": "Удалить сообщение",
+      "description": "Удаляет сообщение в Max по ID. Используйте message_id из события max_notify_received. Сообщения старше 24 часов удалить нельзя.",
+      "fields": {
+        "message_id": {
+          "name": "ID сообщения",
+          "description": "ID сообщения для удаления (например, trigger.event.data.message_id)."
+        },
+        "entity_id": {
+          "name": "Сущность уведомления",
+          "description": "Сущность Max Notify. Можно использовать вместо config_entry_id."
+        },
+        "recipient_id": {
+          "name": "ID получателя",
+          "description": "Универсальный ID получателя: положительный — личный чат (User ID), отрицательный — группа (Chat ID)."
+        },
+        "chat_id": {
+          "name": "ID чата",
+          "description": "ID чата: положительный — личный, отрицательный — группа."
+        },
+        "user_id": {
+          "name": "ID пользователя",
+          "description": "ID пользователя для личного чата."
+        },
+        "config_entry_id": {
+          "name": "Интеграция",
+          "description": "Интеграция Max Notify для использования (обязательно при нескольких)."
+        }
+      }
+    },
+    "edit_message": {
+      "name": "Редактировать сообщение",
+      "description": "Редактирует сообщение в Max: текст, кнопки. Сообщения старше 24 часов редактировать нельзя.",
+      "fields": {
+        "message_id": {
+          "name": "ID сообщения",
+          "description": "ID сообщения для редактирования (например, trigger.event.data.message_id)."
+        },
+        "text": {
+          "name": "Текст",
+          "description": "Новый текст сообщения. Опустите, чтобы не менять."
+        },
+        "buttons": {
+          "name": "Кнопки",
+          "description": "Пользовательские inline-кнопки. Заменяют текущие кнопки. Поддерживаемые форматы: словарь (Text -> payload), список объектов (text, payload) или список рядов."
+        },
+        "remove_buttons": {
+          "name": "Удалить кнопки",
+          "description": "Если true — убрать все inline-кнопки."
+        },
+        "format": {
+          "name": "Формат",
+          "description": "Формат текста: text, markdown или html."
+        },
+        "entity_id": {
+          "name": "Сущность уведомления",
+          "description": "Сущность Max Notify. Можно использовать вместо config_entry_id."
+        },
+        "recipient_id": {
+          "name": "ID получателя",
+          "description": "Универсальный ID получателя: положительный — личный чат (User ID), отрицательный — группа (Chat ID)."
+        },
+        "chat_id": {
+          "name": "ID чата",
+          "description": "ID чата: положительный — личный, отрицательный — группа."
+        },
+        "user_id": {
+          "name": "ID пользователя",
+          "description": "ID пользователя для личного чата."
+        },
+        "config_entry_id": {
+          "name": "Интеграция",
+          "description": "Интеграция Max Notify для использования (обязательно при нескольких)."
+        }
+      }
     }
   },
   "invalid_notify_entity": "Недопустимая сущность Max Notify: {entity_id}",
+  "invalid_message_id": "ID сообщения не может быть пустым.",
   "missing_target": "Укажите entity_id или config_entry_id с recipient_id, chat_id или user_id.",
   "invalid_config_entry": "Недопустимая запись конфигурации: {config_entry_id}",
   "missing_config_entry_id": "Найдено несколько интеграций Max Notify; укажите config_entry_id.",
@@ -191,6 +284,9 @@
   "exceptions": {
     "invalid_notify_entity": {
       "message": "Недопустимая сущность Max Notify: {entity_id}"
+    },
+    "invalid_message_id": {
+      "message": "ID сообщения не может быть пустым."
     },
     "missing_target": {
       "message": "Укажите entity_id или config_entry_id с recipient_id, chat_id или user_id."

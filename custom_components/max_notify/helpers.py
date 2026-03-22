@@ -86,6 +86,55 @@ def normalize_buttons(raw: list[Any] | None) -> list[list[dict[str, Any]]]:
     return result
 
 
+def normalize_service_buttons(raw: Any) -> list[list[dict[str, Any]]]:
+    """Normalize service buttons from multiple formats to list-of-rows.
+
+    Supported formats:
+    1) {"Button 1": "payload1", "Button 2": "payload2"}
+    2) [{"text": "Button 1", "payload": "payload1"}, ...]
+    3) [[{"type": "...", "text": "...", "payload": "..."}], ...] (native format)
+    """
+    if raw is None:
+        return []
+
+    # Format 1: dict label -> payload
+    if isinstance(raw, dict):
+        row: list[dict[str, Any]] = []
+        for text, payload in raw.items():
+            t = str(text).strip()
+            if not t:
+                continue
+            btn: dict[str, Any] = {"type": "callback", "text": t}
+            if payload is not None:
+                btn["payload"] = str(payload).strip()
+            row.append(btn)
+        return [row] if row else []
+
+    # Format 3: already rows
+    if isinstance(raw, list) and raw and all(isinstance(r, list) for r in raw):
+        return normalize_buttons(raw)
+
+    # Format 2: flat list of button dicts -> one row
+    if isinstance(raw, list):
+        row: list[dict[str, Any]] = []
+        for item in raw:
+            if not isinstance(item, dict):
+                continue
+            t = str(item.get("text") or "").strip()
+            if not t:
+                continue
+            btype = str(item.get("type") or "callback").strip().lower()
+            if btype not in ("callback", "message"):
+                btype = "callback"
+            btn: dict[str, Any] = {"type": btype, "text": t}
+            if btype == "callback" and item.get("payload") is not None:
+                btn["payload"] = str(item["payload"]).strip()
+            row.append(btn)
+        return [row] if row else []
+
+    return []
+
+
 def buttons_display_str(buttons: list[list[dict[str, Any]]] | None) -> str:
     """Format buttons list for display (e.g. in description placeholder)."""
     if not buttons:

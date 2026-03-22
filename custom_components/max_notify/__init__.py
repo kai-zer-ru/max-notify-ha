@@ -30,7 +30,7 @@ _LOGGER = logging.getLogger(__name__)
 # Только config entry (без YAML). Служба регистрируется в async_setup и при загрузке entry/platform.
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
-PLATFORMS: list[Platform] = [Platform.NOTIFY]
+PLATFORMS: list[Platform] = [Platform.NOTIFY, Platform.SENSOR]
 
 
 def _ensure_service_registered(hass: HomeAssistant) -> None:
@@ -91,7 +91,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         _ensure_webhook_view_registered(hass)
         await register_webhook(hass, entry)
 
-    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    await hass.config_entries.async_forward_entry_setups(entry, [Platform.NOTIFY])
+    try:
+        await hass.config_entries.async_forward_entry_setups(entry, [Platform.SENSOR])
+    except Exception as e:
+        _LOGGER.warning("Failed to set up sensor platform for entry_id=%s: %s", entry.entry_id, e)
     _LOGGER.debug("async_setup_entry: forward done for entry_id=%s", entry.entry_id)
     return True
 

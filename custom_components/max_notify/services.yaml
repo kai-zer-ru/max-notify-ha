@@ -48,6 +48,12 @@ send_message:
           example: "3391555"
           selector:
             text:
+        buttons:
+          example: >
+            {"Button 1":"button_1","Button 2":"button_2"} или
+            [{"text":"Button 1","payload":"button_1"},{"text":"Button 2","payload":"button_2"}]
+          selector:
+            object:
 
 send_photo:
   fields:
@@ -100,6 +106,12 @@ send_photo:
               min: 1
               max: 60
               mode: box
+        buttons:
+          example: >
+            {"Button 1":"button_1","Button 2":"button_2"} или
+            [{"text":"Button 1","payload":"button_1"},{"text":"Button 2","payload":"button_2"}]
+          selector:
+            object:
 
 send_video:
   fields:
@@ -152,6 +164,12 @@ send_video:
               min: 1
               max: 60
               mode: box
+        buttons:
+          example: >
+            {"Button 1":"button_1","Button 2":"button_2"} или
+            [{"text":"Button 1","payload":"button_1"},{"text":"Button 2","payload":"button_2"}]
+          selector:
+            object:
 
 send_document:
   fields:
@@ -204,3 +222,86 @@ send_document:
               min: 1
               max: 60
               mode: box
+        buttons:
+          example: >
+            {"Button 1":"button_1","Button 2":"button_2"} или
+            [{"text":"Button 1","payload":"button_1"},{"text":"Button 2","payload":"button_2"}]
+          selector:
+            object:
+
+delete_message:
+  fields:
+    message_id:
+      required: true
+      selector:
+        text:
+    entity_id:
+      selector:
+        entity:
+          filter:
+            domain: notify
+            integration: max_notify
+          multiple: true
+          reorder: true
+    recipient_id:
+      selector:
+        text:
+    chat_id:
+      selector:
+        text:
+    user_id:
+      selector:
+        text:
+    config_entry_id:
+      selector:
+        config_entry:
+          integration: max_notify
+
+edit_message:
+  fields:
+    message_id:
+      required: true
+      selector:
+        text:
+    text:
+      selector:
+        text:
+          multiline: true
+    buttons:
+      example: >
+        {"Button 1":"button_1","Button 2":"button_2"} или
+        [{"text":"Button 1","payload":"button_1"},{"text":"Button 2","payload":"button_2"}]
+      selector:
+        object:
+    remove_buttons:
+      default: false
+      selector:
+        boolean:
+    format:
+      selector:
+        select:
+          options:
+            - text
+            - markdown
+            - html
+    entity_id:
+      selector:
+        entity:
+          filter:
+            domain: notify
+            integration: max_notify
+          multiple: true
+          reorder: true
+    recipient_id:
+      selector:
+        text:
+    chat_id:
+      selector:
+        text:
+    user_id:
+      selector:
+        text:
+    config_entry_id:
+      selector:
+        config_entry:
+          integration: max_notify
