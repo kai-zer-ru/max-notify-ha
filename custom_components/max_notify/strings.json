@@ -18,7 +18,11 @@
         },
         "send_keyboard": {
           "name": "Send keyboard",
-          "description": "If enabled (default), attach the keyboard with buttons from integration options to the message."
+          "description": "When enabled (default), the integration default inline keyboard is used if you omit Buttons or leave it empty; non-empty Buttons replace it. When disabled, only non-empty Buttons from this call are attached."
+        },
+        "buttons": {
+          "name": "Buttons",
+          "description": "Custom inline buttons. Formats: object map (Text -> payload) or list of objects (text, payload). Interaction with the default keyboard is controlled by Send keyboard."
         },
         "config_entry_id": {
           "name": "Integration",
@@ -51,6 +55,14 @@
         "config_entry_id": { "name": "Integration", "description": "Max Notify integration when sending by chat_id/user_id." },
         "chat_id": { "name": "Chat ID", "description": "Chat ID: positive — personal, negative — group." },
         "user_id": { "name": "User ID", "description": "User ID for personal chat." },
+        "send_keyboard": {
+          "name": "Send keyboard",
+          "description": "When enabled (default), the integration default inline keyboard is used if you omit Buttons or leave it empty; non-empty Buttons replace it. When disabled, only non-empty Buttons from this call are attached."
+        },
+        "buttons": {
+          "name": "Buttons",
+          "description": "Custom inline buttons. Formats: object map (Text -> payload) or list of objects (text, payload). Interaction with the default keyboard is controlled by Send keyboard."
+        },
         "notify": { "name": "Notify", "description": "If disabled, send without notifying recipients (silent)." },
         "advanced": { "name": "Advanced" }
       }
@@ -65,6 +77,14 @@
         "config_entry_id": { "name": "Integration", "description": "Max Notify integration when sending by chat_id/user_id." },
         "chat_id": { "name": "Chat ID", "description": "Chat ID: positive — personal, negative — group." },
         "user_id": { "name": "User ID", "description": "User ID for personal chat." },
+        "send_keyboard": {
+          "name": "Send keyboard",
+          "description": "When enabled (default), the integration default inline keyboard is used if you omit Buttons or leave it empty; non-empty Buttons replace it. When disabled, only non-empty Buttons from this call are attached."
+        },
+        "buttons": {
+          "name": "Buttons",
+          "description": "Custom inline buttons. Formats: object map (Text -> payload) or list of objects (text, payload). Interaction with the default keyboard is controlled by Send keyboard."
+        },
         "notify": { "name": "Notify", "description": "If disabled, send without notifying recipients (silent)." },
         "advanced": { "name": "Advanced" }
       }
@@ -79,6 +99,14 @@
         "config_entry_id": { "name": "Integration", "description": "Max Notify integration when sending by chat_id/user_id." },
         "chat_id": { "name": "Chat ID", "description": "Chat ID: positive — personal, negative — group." },
         "user_id": { "name": "User ID", "description": "User ID for personal chat." },
+        "send_keyboard": {
+          "name": "Send keyboard",
+          "description": "When enabled (default), the integration default inline keyboard is used if you omit Buttons or leave it empty; non-empty Buttons replace it. When disabled, only non-empty Buttons from this call are attached."
+        },
+        "buttons": {
+          "name": "Buttons",
+          "description": "Custom inline buttons. Formats: object map (Text -> payload) or list of objects (text, payload). Interaction with the default keyboard is controlled by Send keyboard."
+        },
         "notify": { "name": "Notify", "description": "If disabled, send without notifying recipients (silent)." },
         "advanced": { "name": "Advanced" }
       }

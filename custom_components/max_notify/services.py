@@ -13,7 +13,6 @@ from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import config_validation as cv, entity_registry as er
 
 from .const import (
-    CONF_BUTTONS,
     CONF_CHAT_ID,
     CONF_CONFIG_ENTRY_ID,
     CONF_COUNT_REQUESTS,
@@ -322,17 +321,29 @@ async def async_edit_message_handler(service: ServiceCall) -> None:
         chat_ids=chat_ids,
         user_ids=user_ids,
     )
-    from .helpers import normalize_service_buttons
+    from .helpers import resolve_service_inline_keyboard
     from .notify import edit_message
 
-    normalized_buttons = normalize_service_buttons(data.get("buttons"))
+    remove_b = data.get("remove_buttons", False)
+    if remove_b:
+        resolved_buttons = None
+    elif "buttons" in data:
+        resolved_buttons = resolve_service_inline_keyboard(
+            entry.options,
+            send_keyboard=data.get(CONF_SEND_KEYBOARD, True),
+            buttons_provided=True,
+            buttons_raw=data.get("buttons"),
+        )
+    else:
+        resolved_buttons = None
+
     ok = await edit_message(
         hass,
         entry,
         message_id,
         text=data.get("text"),
-        buttons=normalized_buttons if data.get("buttons") is not None else None,
-        remove_buttons=data.get("remove_buttons", False),
+        buttons=resolved_buttons,
+        remove_buttons=remove_b,
         format=data.get("format"),
     )
     if ok:
@@ -410,7 +421,7 @@ async def async_send_message_handler(service: ServiceCall) -> None:
     data = service.data
     message = data["message"]
     title = data.get("title")
-    buttons = data.get("buttons")
+    send_kb = data.get(CONF_SEND_KEYBOARD, True)
     buttons_provided = "buttons" in data
     entity_ids = data.get(ATTR_ENTITY_ID)
     config_entry_id = data.get(CONF_CONFIG_ENTRY_ID)
@@ -451,12 +462,10 @@ async def async_send_message_handler(service: ServiceCall) -> None:
         config_entry_id,
         chat_ids,
         user_ids,
-        bool(buttons),
+        buttons_provided,
     )
 
-    # Отправка с inline-кнопками: config_entry_id + chat_id/user_id или entity_id
-    # Если buttons передан в сервисе, отправляем ТОЛЬКО эти кнопки (без кнопок из настроек интеграции).
-    if buttons_provided or (chat_ids or user_ids) and data.get(CONF_SEND_KEYBOARD, True):
+    if chat_ids or user_ids:
         entry = _get_entry_for_send(hass, config_entry_id, chat_ids, user_ids)
         if not entry:
             raise ServiceValidationError(
@@ -464,48 +473,30 @@ async def async_send_message_handler(service: ServiceCall) -> None:
                 translation_key="invalid_config_entry",
                 translation_placeholders={"config_entry_id": config_entry_id or ""},
             )
-        from .helpers import normalize_buttons, normalize_service_buttons
-        from .notify import send_message_with_buttons
+        from .helpers import resolve_service_inline_keyboard
+        from .notify import send_message_with_buttons, send_plain_message
 
-        entry_buttons = (
-            []
-            if buttons_provided
-            else normalize_buttons((entry.options or {}).get(CONF_BUTTONS))
-            if data.get(CONF_SEND_KEYBOARD, True)
-            else []
+        all_buttons = resolve_service_inline_keyboard(
+            entry.options,
+            send_keyboard=send_kb,
+            buttons_provided=buttons_provided,
+            buttons_raw=data.get("buttons"),
         )
-        custom_buttons = normalize_service_buttons(buttons)
-        all_buttons = entry_buttons + custom_buttons
-
-        if all_buttons and (chat_ids or user_ids):
-            recipients: list[dict[str, Any]] = []
+        if all_buttons:
             for cid in chat_ids or []:
-                recipients.append({CONF_CHAT_ID: cid})
+                await send_message_with_buttons(
+                    hass, entry, {CONF_CHAT_ID: cid}, message, all_buttons, title=title
+                )
             for uid in user_ids or []:
-                recipients.append({CONF_USER_ID: uid})
-            if recipients:
-                for recipient in recipients:
-                    await send_message_with_buttons(hass, entry, recipient, message, all_buttons, title=title)
-                return
-
-        if not all_buttons and (chat_ids or user_ids):
-            from .notify import send_plain_message
-            for cid in chat_ids or []:
-                await send_plain_message(hass, entry, {CONF_CHAT_ID: cid}, message, title=title)
-            for uid in user_ids or []:
-                await send_plain_message(hass, entry, {CONF_USER_ID: uid}, message, title=title)
+                await send_message_with_buttons(
+                    hass, entry, {CONF_USER_ID: uid}, message, all_buttons, title=title
+                )
             return
-
-    # chat_ids/user_ids без кнопок и без send_keyboard — только текст
-    if (chat_ids or user_ids) and not buttons:
-        entry = _get_entry_for_send(hass, config_entry_id, chat_ids, user_ids)
-        if entry:
-            from .notify import send_plain_message
-            for cid in chat_ids or []:
-                await send_plain_message(hass, entry, {CONF_CHAT_ID: cid}, message, title=title)
-            for uid in user_ids or []:
-                await send_plain_message(hass, entry, {CONF_USER_ID: uid}, message, title=title)
-            return
+        for cid in chat_ids or []:
+            await send_plain_message(hass, entry, {CONF_CHAT_ID: cid}, message, title=title)
+        for uid in user_ids or []:
+            await send_plain_message(hass, entry, {CONF_USER_ID: uid}, message, title=title)
+        return
 
     resolved = _resolve_entity_ids(
         hass,
@@ -518,32 +509,31 @@ async def async_send_message_handler(service: ServiceCall) -> None:
     if not resolved:
         return
 
-    send_keyboard = False if buttons_provided else data.get(CONF_SEND_KEYBOARD, True)
     reg = er.async_get(hass)
-    from .helpers import normalize_buttons, normalize_service_buttons
+    from .helpers import resolve_service_inline_keyboard
     from .notify import send_message_with_buttons
 
     with_keyboard: list[str] = []
     without_keyboard: list[str] = []
-    custom_buttons = normalize_service_buttons(buttons)
-    if send_keyboard or custom_buttons:
-        for eid in resolved:
-            entity_entry = reg.async_get(eid)
-            if not entity_entry or not entity_entry.config_entry_id or not entity_entry.config_subentry_id:
-                without_keyboard.append(eid)
-                continue
-            entry = hass.config_entries.async_get_entry(entity_entry.config_entry_id)
-            if not entry or entry.domain != DOMAIN:
-                without_keyboard.append(eid)
-                continue
-            raw = (entry.options or {}).get(CONF_BUTTONS) if send_keyboard else []
-            entry_buttons = normalize_buttons(raw) if raw and isinstance(raw, list) else []
-            if entry_buttons or custom_buttons:
-                with_keyboard.append(eid)
-            else:
-                without_keyboard.append(eid)
-    else:
-        without_keyboard = list(resolved)
+    for eid in resolved:
+        entity_entry = reg.async_get(eid)
+        if not entity_entry or not entity_entry.config_entry_id or not entity_entry.config_subentry_id:
+            without_keyboard.append(eid)
+            continue
+        entry = hass.config_entries.async_get_entry(entity_entry.config_entry_id)
+        if not entry or entry.domain != DOMAIN:
+            without_keyboard.append(eid)
+            continue
+        all_buttons = resolve_service_inline_keyboard(
+            entry.options,
+            send_keyboard=send_kb,
+            buttons_provided=buttons_provided,
+            buttons_raw=data.get("buttons"),
+        )
+        if all_buttons:
+            with_keyboard.append(eid)
+        else:
+            without_keyboard.append(eid)
 
     for eid in with_keyboard:
         entity_entry = reg.async_get(eid)
@@ -556,9 +546,12 @@ async def async_send_message_handler(service: ServiceCall) -> None:
         subentry = subentries.get(entity_entry.config_subentry_id)
         if not subentry:
             continue
-        raw = (entry.options or {}).get(CONF_BUTTONS) if send_keyboard else []
-        entry_buttons = normalize_buttons(raw) if raw else []
-        all_buttons = entry_buttons + custom_buttons
+        all_buttons = resolve_service_inline_keyboard(
+            entry.options,
+            send_keyboard=send_kb,
+            buttons_provided=buttons_provided,
+            buttons_raw=data.get("buttons"),
+        )
         if all_buttons:
             await send_message_with_buttons(
                 hass, entry, dict(subentry.data), message, all_buttons, title=title
@@ -590,7 +583,8 @@ async def _send_photo_or_document(
 ) -> None:
     file_path_or_url = data["file"].strip()
     caption = data.get("caption")
-    buttons = data.get("buttons")
+    send_kb = data.get(CONF_SEND_KEYBOARD, True)
+    buttons_provided = "buttons" in data
     count_requests = data.get(CONF_COUNT_REQUESTS)
     entity_ids = data.get(ATTR_ENTITY_ID)
     config_entry_id = data.get(CONF_CONFIG_ENTRY_ID)
@@ -633,7 +627,7 @@ async def _send_photo_or_document(
         chat_ids,
         user_ids,
         count_requests,
-        bool(buttons),
+        buttons_provided,
     )
 
     resolved = _resolve_entity_ids(
@@ -648,9 +642,8 @@ async def _send_photo_or_document(
         return
 
     reg = er.async_get(hass)
-    from .helpers import normalize_service_buttons
+    from .helpers import resolve_service_inline_keyboard
     from .notify import upload_image_and_send
-    custom_buttons = normalize_service_buttons(buttons)
 
     for eid in resolved:
         entity_entry = reg.async_get(eid)
@@ -664,6 +657,12 @@ async def _send_photo_or_document(
         subentry = subentries.get(entity_entry.config_subentry_id)
         if not subentry:
             continue
+        all_buttons = resolve_service_inline_keyboard(
+            entry.options,
+            send_keyboard=send_kb,
+            buttons_provided=buttons_provided,
+            buttons_raw=data.get("buttons"),
+        )
         await upload_image_and_send(
             hass,
             entry,
@@ -671,7 +670,7 @@ async def _send_photo_or_document(
             file_path_or_url,
             caption,
             as_document=as_document,
-            buttons=custom_buttons,
+            buttons=all_buttons,
             count_requests=count_requests,
             # notify=data.get("notify", True),  # отключено: Max не отключает push/звук
         )
@@ -693,7 +692,8 @@ async def _send_video(
 ) -> None:
     file_path_or_url = data["file"].strip()
     caption = data.get("caption")
-    buttons = data.get("buttons")
+    send_kb = data.get(CONF_SEND_KEYBOARD, True)
+    buttons_provided = "buttons" in data
     entity_ids = data.get(ATTR_ENTITY_ID)
     config_entry_id = data.get(CONF_CONFIG_ENTRY_ID)
     chat_id = data.get(CONF_CHAT_ID)
@@ -735,7 +735,7 @@ async def _send_video(
         chat_ids,
         user_ids,
         count_requests,
-        bool(buttons),
+        buttons_provided,
     )
 
     resolved = _resolve_entity_ids(
@@ -750,9 +750,8 @@ async def _send_video(
         return
 
     reg = er.async_get(hass)
-    from .helpers import normalize_service_buttons
+    from .helpers import resolve_service_inline_keyboard
     from .notify import upload_video_and_send
-    custom_buttons = normalize_service_buttons(buttons)
 
     for eid in resolved:
         entity_entry = reg.async_get(eid)
@@ -766,13 +765,19 @@ async def _send_video(
         subentry = subentries.get(entity_entry.config_subentry_id)
         if not subentry:
             continue
+        all_buttons = resolve_service_inline_keyboard(
+            entry.options,
+            send_keyboard=send_kb,
+            buttons_provided=buttons_provided,
+            buttons_raw=data.get("buttons"),
+        )
         await upload_video_and_send(
             hass,
             entry,
             dict(subentry.data),
             file_path_or_url,
             caption=caption,
-            buttons=custom_buttons,
+            buttons=all_buttons,
             count_requests=count_requests,
             # notify=data.get("notify", True),  # отключено: Max не отключает push/звук
         )

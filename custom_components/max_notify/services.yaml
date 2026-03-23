@@ -82,6 +82,10 @@ send_photo:
     advanced:
       collapsed: true
       fields:
+        send_keyboard:
+          default: true
+          selector:
+            boolean:
         config_entry_id:
           selector:
             config_entry:
@@ -140,6 +144,10 @@ send_video:
     advanced:
       collapsed: true
       fields:
+        send_keyboard:
+          default: true
+          selector:
+            boolean:
         config_entry_id:
           selector:
             config_entry:
@@ -198,6 +206,10 @@ send_document:
     advanced:
       collapsed: true
       fields:
+        send_keyboard:
+          default: true
+          selector:
+            boolean:
         config_entry_id:
           selector:
             config_entry:
@@ -267,6 +279,10 @@ edit_message:
       selector:
         text:
           multiline: true
+    send_keyboard:
+      default: true
+      selector:
+        boolean:
     buttons:
       example: >
         {"Button 1":"button_1","Button 2":"button_2"} или

@@ -19,7 +19,7 @@
         },
         "send_keyboard": {
           "name": "Send keyboard",
-          "description": "If enabled (default), attach the keyboard with buttons from integration options to the message."
+          "description": "When enabled (default), the integration default inline keyboard is used if you omit Buttons or leave it empty; non-empty Buttons replace it. When disabled, only non-empty Buttons from this call are attached."
         },
         "config_entry_id": {
           "name": "Integration",
@@ -39,7 +39,7 @@
         },
         "buttons": {
           "name": "Buttons",
-          "description": "Custom inline buttons for this request only. If provided, ONLY these buttons are sent (integration keyboard is ignored). Supported formats: object map (Text -> payload) or list of objects (text, payload)."
+          "description": "Custom inline buttons. Formats: object map (Text -> payload) or list of objects (text, payload). How they combine with the default keyboard is controlled by Send keyboard."
         },
         "notify": {
           "name": "Notify",
@@ -86,9 +86,13 @@
           "name": "Count requests",
           "description": "How many times to POST the message while waiting for attachment processing (attachment.not.ready). Increase for large files."
         },
+        "send_keyboard": {
+          "name": "Send keyboard",
+          "description": "When enabled (default), the integration default inline keyboard is used if you omit Buttons or leave it empty; non-empty Buttons replace it. When disabled, only non-empty Buttons from this call are attached."
+        },
         "buttons": {
           "name": "Buttons",
-          "description": "Custom inline buttons for this request. Supported formats: object map (Text -> payload) or list of objects (text, payload)."
+          "description": "Custom inline buttons. Formats: object map (Text -> payload) or list of objects (text, payload). How they combine with the default keyboard is controlled by Send keyboard."
         },
         "notify": {
           "name": "Notify",
@@ -135,9 +139,13 @@
           "name": "Count requests",
           "description": "How many times to POST the message while waiting for attachment processing (attachment.not.ready). Increase for large files."
         },
+        "send_keyboard": {
+          "name": "Send keyboard",
+          "description": "When enabled (default), the integration default inline keyboard is used if you omit Buttons or leave it empty; non-empty Buttons replace it. When disabled, only non-empty Buttons from this call are attached."
+        },
         "buttons": {
           "name": "Buttons",
-          "description": "Custom inline buttons for this request. Supported formats: object map (Text -> payload) or list of objects (text, payload)."
+          "description": "Custom inline buttons. Formats: object map (Text -> payload) or list of objects (text, payload). How they combine with the default keyboard is controlled by Send keyboard."
         },
         "notify": {
           "name": "Notify",
@@ -184,9 +192,13 @@
           "name": "Count requests",
           "description": "How many times to POST the message while waiting for attachment processing (attachment.not.ready). Increase for large videos."
         },
+        "send_keyboard": {
+          "name": "Send keyboard",
+          "description": "When enabled (default), the integration default inline keyboard is used if you omit Buttons or leave it empty; non-empty Buttons replace it. When disabled, only non-empty Buttons from this call are attached."
+        },
         "buttons": {
           "name": "Buttons",
-          "description": "Custom inline buttons for this request. Supported formats: object map (Text -> payload) or list of objects (text, payload)."
+          "description": "Custom inline buttons. Formats: object map (Text -> payload) or list of objects (text, payload). How they combine with the default keyboard is controlled by Send keyboard."
         },
         "notify": {
           "name": "Notify",
@@ -239,9 +251,13 @@
           "name": "Text",
           "description": "New message text. Omit to keep current."
         },
+        "send_keyboard": {
+          "name": "Send keyboard",
+          "description": "When enabled (default) and you set Buttons: empty Buttons restore the integration default keyboard; non-empty Buttons replace the message keyboard. When disabled, only non-empty Buttons from this call are applied."
+        },
         "buttons": {
           "name": "Buttons",
-          "description": "Custom inline buttons. Replaces current buttons. Supported formats: object map (Text -> payload), list of objects (text, payload), or list of rows."
+          "description": "Custom inline buttons. Formats: object map (Text -> payload), list of objects (text, payload), or list of rows. Interaction with the default keyboard is controlled by Send keyboard."
         },
         "remove_buttons": {
           "name": "Remove buttons",

@@ -7,6 +7,8 @@ from typing import Any
 from homeassistant.core import HomeAssistant
 import logging
 
+from .const import CONF_BUTTONS
+
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -133,6 +135,37 @@ def normalize_service_buttons(raw: Any) -> list[list[dict[str, Any]]]:
         return [row] if row else []
 
     return []
+
+
+def resolve_service_inline_keyboard(
+    options: dict[str, Any] | None,
+    *,
+    send_keyboard: bool,
+    buttons_provided: bool,
+    buttons_raw: Any,
+) -> list[list[dict[str, Any]]]:
+    """Inline keyboard for a service call (same rules for all max_notify services).
+
+    If ``send_keyboard`` is false: only explicit ``buttons`` from the service (no defaults from integration).
+
+    If ``send_keyboard`` is true:
+    - no ``buttons`` field → keyboard from integration options;
+    - ``buttons`` non-empty after normalize → use only these (replace defaults);
+    - ``buttons`` present but empty after normalize → use integration defaults.
+    """
+    standard = (
+        normalize_buttons((options or {}).get(CONF_BUTTONS))
+        if send_keyboard
+        else []
+    )
+    custom = normalize_service_buttons(buttons_raw) if buttons_provided else []
+
+    if not send_keyboard:
+        return custom
+
+    if buttons_provided:
+        return custom if custom else standard
+    return standard
 
 
 def buttons_display_str(buttons: list[list[dict[str, Any]]] | None) -> str:
