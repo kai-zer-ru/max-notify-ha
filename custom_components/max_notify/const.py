@@ -81,5 +81,7 @@ FILE_UPLOAD_DELAY = 1.5
 FILE_READY_RETRY_DELAYS = (3, 5, 8)
 
 UPLOAD_VIDEO_TIMEOUT = 300
-VIDEO_PROCESSING_DELAY = 5
-VIDEO_READY_RETRY_DELAYS = (3, 5, 8, 12)
+# Initial pause after CDN upload before first POST /messages (server-side transcode).
+VIDEO_PROCESSING_DELAY = 10
+# Backoff between POSTs when API returns attachment.not.ready (default attempts = len + 1).
+VIDEO_READY_RETRY_DELAYS = (5, 5, 5, 10, 15, 20, 25, 30)
