@@ -76,6 +76,24 @@ class TestNormalizeServiceButtons:
         result = normalize_service_buttons(raw)
         assert result[0][0]["payload"] == "a"
 
+    def test_multi_rows_list_of_mappings_format(self) -> None:
+        raw = [{"A1": "a1", "A2": "a2"}, {"B1": "b1"}]
+        result = normalize_service_buttons(raw)
+        assert len(result) == 2
+        assert result[0][0]["text"] == "A1"
+        assert result[0][1]["text"] == "A2"
+        assert result[1][0]["text"] == "B1"
+
+    def test_mixed_rows_with_mapping_and_typed_dicts(self) -> None:
+        raw = [
+            [{"A1": "a1"}, {"text": "A2", "payload": "a2"}],
+            [{"text": "B1", "payload": "b1"}],
+        ]
+        result = normalize_service_buttons(raw)
+        assert len(result) == 2
+        assert [b["text"] for b in result[0]] == ["A1", "A2"]
+        assert [b["text"] for b in result[1]] == ["B1"]
+
 
 class TestNormalizeCommands:
     """Tests for normalize_commands (legacy)."""

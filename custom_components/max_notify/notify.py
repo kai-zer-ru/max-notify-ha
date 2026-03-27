@@ -21,6 +21,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import (
     API_BASE_URL,
+    API_BASE_URL_NOTIFY_A161,
     API_PATH_CHATS,
     API_PATH_MESSAGES,
     API_PATH_UPLOADS,
@@ -28,10 +29,12 @@ from .const import (
     CHATS_PAGE_SIZE,
     CONF_ACCESS_TOKEN,
     CONF_CHAT_ID,
+    CONF_INTEGRATION_TYPE,
     CONF_MESSAGE_FORMAT,
     CONF_USER_ID,
     DOMAIN,
     FILE_UPLOAD_DELAY,
+    INTEGRATION_TYPE_NOTIFY_A161,
     FILE_READY_RETRY_DELAYS,
     MAX_MESSAGE_LENGTH,
     UPLOAD_VIDEO_TIMEOUT,
@@ -56,6 +59,20 @@ _VIDEO_EXT_TO_CONTENT_TYPE = {
     ".webm": "video/webm",
     ".mkv": "video/x-matroska",
 }
+
+
+def _is_notify_a161_entry(entry: ConfigEntry) -> bool:
+    """Whether the config entry is using notify.a161.ru mode."""
+    return (
+        entry.data.get(CONF_INTEGRATION_TYPE) == INTEGRATION_TYPE_NOTIFY_A161
+    )
+
+
+def _api_base_url_for_entry(entry: ConfigEntry) -> str:
+    """Return API base URL for current entry."""
+    if _is_notify_a161_entry(entry):
+        return API_BASE_URL_NOTIFY_A161
+    return API_BASE_URL
 
 
 def _content_type_from_path(path: str) -> str:
@@ -133,10 +150,13 @@ def _attachment_payload_from_upload_response(resp: dict[str, Any]) -> dict[str, 
 
 
 async def _resolve_dialog_chat_id(
-    hass: HomeAssistant, token: str, user_id: int
+    hass: HomeAssistant, entry: ConfigEntry, token: str, user_id: int
 ) -> int | None:
     """Resolve user_id to dialog chat_id via GET /chats (required for PMs)."""
-    url = f"{API_BASE_URL}{API_PATH_CHATS}?count={CHATS_PAGE_SIZE}&v={API_VERSION}"
+    if _is_notify_a161_entry(entry):
+        # notify.a161.ru supports direct POST /messages?user_id only.
+        return None
+    url = f"{_api_base_url_for_entry(entry)}{API_PATH_CHATS}?count={CHATS_PAGE_SIZE}&v={API_VERSION}"
     headers = {"Authorization": token}
     session = async_get_clientsession(hass)
     marker: int | None = None
@@ -167,20 +187,33 @@ async def _resolve_dialog_chat_id(
 
 
 async def _get_message_url_and_recipient(
-    hass: HomeAssistant, token: str, recipient: dict[str, Any]
+    hass: HomeAssistant, entry: ConfigEntry, token: str, recipient: dict[str, Any]
 ) -> tuple[str, dict[str, Any]] | None:
+    base_url = _api_base_url_for_entry(entry)
     uid = recipient.get(CONF_USER_ID)
     cid = recipient.get(CONF_CHAT_ID)
     if uid is not None and int(uid) != 0:
-        resolved = await _resolve_dialog_chat_id(hass, token, int(uid))
+        resolved = await _resolve_dialog_chat_id(hass, entry, token, int(uid))
         if resolved is not None:
             cid = resolved
-            url = f"{API_BASE_URL}{API_PATH_MESSAGES}?chat_id={cid}&v={API_VERSION}"
+            url = f"{base_url}{API_PATH_MESSAGES}?chat_id={cid}&v={API_VERSION}"
             return url, {}
-        url = f"{API_BASE_URL}{API_PATH_MESSAGES}?user_id={int(uid)}&v={API_VERSION}"
+        if _is_notify_a161_entry(entry):
+            url = f"{base_url}{API_PATH_MESSAGES}?user_id={int(uid)}"
+            return url, {}
+        url = f"{base_url}{API_PATH_MESSAGES}?user_id={int(uid)}&v={API_VERSION}"
         return url, {}
     if cid is not None and int(cid) != 0:
-        url = f"{API_BASE_URL}{API_PATH_MESSAGES}?chat_id={int(cid)}&v={API_VERSION}"
+        if _is_notify_a161_entry(entry):
+            if int(cid) > 0:
+                # notify.a161.ru ignores chat_id and accepts user_id only.
+                return f"{base_url}{API_PATH_MESSAGES}?user_id={int(cid)}", {}
+            _LOGGER.error(
+                "notify.a161.ru mode does not support group chats (chat_id=%s)",
+                cid,
+            )
+            return None
+        url = f"{base_url}{API_PATH_MESSAGES}?chat_id={int(cid)}&v={API_VERSION}"
         return url, {}
     return None
 
@@ -241,6 +274,9 @@ async def delete_message(
     hass: HomeAssistant, entry: ConfigEntry, message_id: str
 ) -> bool:
     """Delete a message via Max API DELETE /messages."""
+    if _is_notify_a161_entry(entry):
+        _LOGGER.error("delete_message is not supported for notify.a161.ru mode")
+        return False
     token = entry.data.get(CONF_ACCESS_TOKEN)
     if not token:
         _LOGGER.error("No access token in config entry")
@@ -251,7 +287,7 @@ async def delete_message(
         return False
     headers = {"Authorization": token}
     session = async_get_clientsession(hass)
-    url = f"{API_BASE_URL}{API_PATH_MESSAGES}?message_id={mid}&v={API_VERSION}"
+    url = f"{_api_base_url_for_entry(entry)}{API_PATH_MESSAGES}?message_id={mid}&v={API_VERSION}"
     try:
         async with session.delete(
             url, headers=headers, timeout=aiohttp.ClientTimeout(total=15)
@@ -281,6 +317,9 @@ async def edit_message(
     format: str | None = None,
 ) -> bool:
     """Edit a message via Max API PUT /messages. text/buttons can be None to keep current."""
+    if _is_notify_a161_entry(entry):
+        _LOGGER.error("edit_message is not supported for notify.a161.ru mode")
+        return False
     token = entry.data.get(CONF_ACCESS_TOKEN)
     if not token:
         _LOGGER.error("No access token in config entry")
@@ -311,7 +350,7 @@ async def edit_message(
         _LOGGER.warning("edit_message: no changes specified")
         return False
     session = async_get_clientsession(hass)
-    url = f"{API_BASE_URL}{API_PATH_MESSAGES}?message_id={mid}&v={API_VERSION}"
+    url = f"{_api_base_url_for_entry(entry)}{API_PATH_MESSAGES}?message_id={mid}&v={API_VERSION}"
     try:
         async with session.put(
             url, json=payload, headers=headers, timeout=aiohttp.ClientTimeout(total=15)
@@ -486,7 +525,7 @@ async def send_message_with_buttons(
     if not token:
         _LOGGER.error("No access token in config entry")
         return
-    result = await _get_message_url_and_recipient(hass, token, recipient)
+    result = await _get_message_url_and_recipient(hass, entry, token, recipient)
     if not result:
         _LOGGER.error("Could not resolve recipient for message with buttons")
         return
@@ -512,6 +551,20 @@ async def send_message_with_buttons(
     session = async_get_clientsession(hass)
 
     def _on_success(body: str) -> None:
+        _LOGGER.info(
+            "send_message_with_buttons: full server response body=%s",
+            body,
+        )
+        extracted_mid = _extract_message_id_from_response(body)
+        if extracted_mid:
+            _LOGGER.info(
+                "send_message_with_buttons: extracted message_id=%s",
+                extracted_mid,
+            )
+        else:
+            _LOGGER.info(
+                "send_message_with_buttons: message_id not found in response",
+            )
         _store_outgoing_message_id_from_response(
             hass, entry.entry_id, body, "send_message_with_buttons"
         )
@@ -539,7 +592,7 @@ async def send_plain_message(
     if not token:
         _LOGGER.error("No access token in config entry")
         return
-    result = await _get_message_url_and_recipient(hass, token, recipient)
+    result = await _get_message_url_and_recipient(hass, entry, token, recipient)
     if not result:
         _LOGGER.error("Could not resolve recipient for plain message")
         raise ServiceValidationError(
@@ -566,6 +619,20 @@ async def send_plain_message(
     session = async_get_clientsession(hass)
 
     def _on_success(body: str) -> None:
+        _LOGGER.info(
+            "send_plain_message: full server response body=%s",
+            body,
+        )
+        extracted_mid = _extract_message_id_from_response(body)
+        if extracted_mid:
+            _LOGGER.info(
+                "send_plain_message: extracted message_id=%s",
+                extracted_mid,
+            )
+        else:
+            _LOGGER.info(
+                "send_plain_message: message_id not found in response",
+            )
         _store_outgoing_message_id_from_response(
             hass, entry.entry_id, body, "send_plain_message"
         )
@@ -593,11 +660,14 @@ async def upload_image_and_send(
     notify: bool = True,
 ) -> None:
     """Upload image/file to Max (POST /uploads) and send (POST /messages)."""
+    if _is_notify_a161_entry(entry):
+        _LOGGER.error("Media upload is not supported for notify.a161.ru mode")
+        return
     token = entry.data.get(CONF_ACCESS_TOKEN)
     if not token:
         _LOGGER.error("No access token in config entry")
         return
-    result = await _get_message_url_and_recipient(hass, token, recipient)
+    result = await _get_message_url_and_recipient(hass, entry, token, recipient)
     if not result:
         _LOGGER.error("Could not resolve recipient for photo")
         return
@@ -607,7 +677,7 @@ async def upload_image_and_send(
     headers = {"Authorization": token}
 
     upload_type = "file" if as_document else "image"
-    upload_req_url = f"{API_BASE_URL}{API_PATH_UPLOADS}?type={upload_type}&v={API_VERSION}"
+    upload_req_url = f"{_api_base_url_for_entry(entry)}{API_PATH_UPLOADS}?type={upload_type}&v={API_VERSION}"
     try:
         async with session.post(
             upload_req_url,
@@ -752,11 +822,14 @@ async def upload_video_and_send(
     notify: bool = True,
 ) -> None:
     """Upload video to Max (POST /uploads?type=video) and send (POST /messages)."""
+    if _is_notify_a161_entry(entry):
+        _LOGGER.error("Video upload is not supported for notify.a161.ru mode")
+        return
     token = entry.data.get(CONF_ACCESS_TOKEN)
     if not token:
         _LOGGER.error("No access token in config entry")
         return
-    result = await _get_message_url_and_recipient(hass, token, recipient)
+    result = await _get_message_url_and_recipient(hass, entry, token, recipient)
     if not result:
         _LOGGER.error("Could not resolve recipient for video")
         return
@@ -765,7 +838,7 @@ async def upload_video_and_send(
     session = async_get_clientsession(hass)
     headers = {"Authorization": token}
 
-    upload_req_url = f"{API_BASE_URL}{API_PATH_UPLOADS}?type=video&v={API_VERSION}"
+    upload_req_url = f"{_api_base_url_for_entry(entry)}{API_PATH_UPLOADS}?type=video&v={API_VERSION}"
     try:
         async with session.post(
             upload_req_url,
@@ -958,6 +1031,7 @@ class MaxNotifyEntity(NotifyEntity):
 
         uid = self._recipient.get(CONF_USER_ID)
         cid = self._recipient.get(CONF_CHAT_ID)
+        base_url = _api_base_url_for_entry(self._entry)
         msg_format = self._entry.data.get(CONF_MESSAGE_FORMAT, "text")
         payload = {"text": text}
         if msg_format != "text":
@@ -978,14 +1052,26 @@ class MaxNotifyEntity(NotifyEntity):
         )
 
         if uid is not None and int(uid) != 0:
-            resolved = await _resolve_dialog_chat_id(self.hass, token, int(uid))
+            resolved = await _resolve_dialog_chat_id(self.hass, self._entry, token, int(uid))
             if resolved is not None:
                 cid = resolved
-                url = f"{API_BASE_URL}{API_PATH_MESSAGES}?chat_id={cid}&v={API_VERSION}"
+                url = f"{base_url}{API_PATH_MESSAGES}?chat_id={cid}&v={API_VERSION}"
             else:
-                url = f"{API_BASE_URL}{API_PATH_MESSAGES}?user_id={int(uid)}&v={API_VERSION}"
+                if _is_notify_a161_entry(self._entry):
+                    url = f"{base_url}{API_PATH_MESSAGES}?user_id={int(uid)}"
+                else:
+                    url = f"{base_url}{API_PATH_MESSAGES}?user_id={int(uid)}&v={API_VERSION}"
         elif cid is not None and int(cid) != 0:
-            url = f"{API_BASE_URL}{API_PATH_MESSAGES}?chat_id={int(cid)}&v={API_VERSION}"
+            if _is_notify_a161_entry(self._entry):
+                if int(cid) < 0:
+                    _LOGGER.error(
+                        "notify.a161.ru mode does not support group chats (chat_id=%s)",
+                        cid,
+                    )
+                    return
+                url = f"{base_url}{API_PATH_MESSAGES}?user_id={int(cid)}"
+            else:
+                url = f"{base_url}{API_PATH_MESSAGES}?chat_id={int(cid)}&v={API_VERSION}"
         else:
             _LOGGER.error(
                 "Config must have non-zero user_id or chat_id (user_id=%s, chat_id=%s)",
@@ -1030,6 +1116,20 @@ class MaxNotifyEntity(NotifyEntity):
                             )
                         return
                     _LOGGER.info("Message sent successfully (status=%s)", resp.status)
+                    _LOGGER.info(
+                        "MaxNotifyEntity.async_send_message: full server response body=%s",
+                        body,
+                    )
+                    extracted_mid = _extract_message_id_from_response(body)
+                    if extracted_mid:
+                        _LOGGER.info(
+                            "MaxNotifyEntity.async_send_message: extracted message_id=%s",
+                            extracted_mid,
+                        )
+                    else:
+                        _LOGGER.info(
+                            "MaxNotifyEntity.async_send_message: message_id not found in response",
+                        )
                     _store_outgoing_message_id_from_response(
                         self.hass,
                         self._entry.entry_id,

@@ -12,18 +12,33 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .const import (
     API_BASE_URL,
+    API_BASE_URL_NOTIFY_A161,
     API_PATH_ME,
     API_VERSION,
     CONF_ACCESS_TOKEN,
     CONF_COMMANDS,
+    INTEGRATION_TYPE_NOTIFY_A161,
 )
 
 _LOGGER = logging.getLogger(__name__)
 
 
-async def validate_token(hass: HomeAssistant, token: str) -> str | None:
+def _get_api_base_url(integration_type: str | None) -> str:
+    """Return API base URL by integration type."""
+    if integration_type == INTEGRATION_TYPE_NOTIFY_A161:
+        return API_BASE_URL_NOTIFY_A161
+    return API_BASE_URL
+
+
+async def validate_token(
+    hass: HomeAssistant, token: str, integration_type: str | None = None
+) -> str | None:
     """Validate the access token by calling GET /me. Returns error string or None."""
-    url = f"{API_BASE_URL}{API_PATH_ME}?v={API_VERSION}"
+    if integration_type == INTEGRATION_TYPE_NOTIFY_A161:
+        # notify.a161.ru does not provide GET /me endpoint from official Max API.
+        # For this mode we only validate non-empty token in config flow.
+        return None
+    url = f"{_get_api_base_url(integration_type)}{API_PATH_ME}?v={API_VERSION}"
     _LOGGER.debug("Validating token: GET %s (token len=%s)", url, len(token) if token else 0)
     headers = {"Authorization": token}
     try:

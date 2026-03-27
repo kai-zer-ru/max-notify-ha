@@ -16,12 +16,14 @@ from .const import (
     CONF_CHAT_ID,
     CONF_CONFIG_ENTRY_ID,
     CONF_COUNT_REQUESTS,
+    CONF_INTEGRATION_TYPE,
     CONF_MESSAGE_ID,
     CONF_RECIPIENT_ID,
     CONF_SEND_KEYBOARD,
     CONF_USER_ID,
     DOMAIN,
     EVENT_MAX_NOTIFY_RECEIVED,
+    INTEGRATION_TYPE_NOTIFY_A161,
     SERVICE_DELETE_MESSAGE,
     SERVICE_EDIT_MESSAGE,
     SERVICE_SEND_MESSAGE,
@@ -39,6 +41,22 @@ from .schemas import (
 )
 
 _LOGGER = logging.getLogger(__name__)
+
+
+def _is_notify_a161_entry(entry: ConfigEntry) -> bool:
+    """Whether the entry uses notify.a161.ru mode."""
+    return (
+        entry.data.get(CONF_INTEGRATION_TYPE) == INTEGRATION_TYPE_NOTIFY_A161
+    )
+
+
+def _raise_notify_unsupported(operation: str) -> None:
+    """Raise user-facing error for unsupported notify.a161.ru operation."""
+    raise ServiceValidationError(
+        translation_domain=DOMAIN,
+        translation_key="unsupported_for_notify_a161",
+        translation_placeholders={"operation": operation},
+    )
 
 
 def register_send_message_service(hass: HomeAssistant) -> None:
@@ -264,6 +282,8 @@ async def async_delete_message_handler(service: ServiceCall) -> None:
         chat_ids=chat_ids,
         user_ids=user_ids,
     )
+    if _is_notify_a161_entry(entry):
+        _raise_notify_unsupported("delete_message")
     from .notify import delete_message
 
     ok = await delete_message(hass, entry, message_id)
@@ -321,6 +341,8 @@ async def async_edit_message_handler(service: ServiceCall) -> None:
         chat_ids=chat_ids,
         user_ids=user_ids,
     )
+    if _is_notify_a161_entry(entry):
+        _raise_notify_unsupported("edit_message")
     from .helpers import resolve_service_inline_keyboard
     from .notify import edit_message
 
@@ -476,12 +498,20 @@ async def async_send_message_handler(service: ServiceCall) -> None:
         from .helpers import resolve_service_inline_keyboard
         from .notify import send_message_with_buttons, send_plain_message
 
-        all_buttons = resolve_service_inline_keyboard(
-            entry.options,
-            send_keyboard=send_kb,
-            buttons_provided=buttons_provided,
-            buttons_raw=data.get("buttons"),
-        )
+        if _is_notify_a161_entry(entry):
+            if buttons_provided:
+                _LOGGER.warning(
+                    "Ignoring buttons for notify.a161.ru entry %s (text-only mode)",
+                    entry.entry_id,
+                )
+            all_buttons = []
+        else:
+            all_buttons = resolve_service_inline_keyboard(
+                entry.options,
+                send_keyboard=send_kb,
+                buttons_provided=buttons_provided,
+                buttons_raw=data.get("buttons"),
+            )
         if all_buttons:
             for cid in chat_ids or []:
                 await send_message_with_buttons(
@@ -524,6 +554,9 @@ async def async_send_message_handler(service: ServiceCall) -> None:
         if not entry or entry.domain != DOMAIN:
             without_keyboard.append(eid)
             continue
+        if _is_notify_a161_entry(entry):
+            without_keyboard.append(eid)
+            continue
         all_buttons = resolve_service_inline_keyboard(
             entry.options,
             send_keyboard=send_kb,
@@ -541,6 +574,8 @@ async def async_send_message_handler(service: ServiceCall) -> None:
             continue
         entry = hass.config_entries.async_get_entry(entity_entry.config_entry_id)
         if not entry or entry.domain != DOMAIN:
+            continue
+        if _is_notify_a161_entry(entry):
             continue
         subentries = getattr(entry, "subentries", None) or {}
         subentry = subentries.get(entity_entry.config_subentry_id)
@@ -653,6 +688,8 @@ async def _send_photo_or_document(
         entry = hass.config_entries.async_get_entry(entity_entry.config_entry_id)
         if not entry or entry.domain != DOMAIN:
             continue
+        if _is_notify_a161_entry(entry):
+            _raise_notify_unsupported("send_photo/send_document")
         subentries = getattr(entry, "subentries", None) or {}
         subentry = subentries.get(entity_entry.config_subentry_id)
         if not subentry:
@@ -761,6 +798,8 @@ async def _send_video(
         entry = hass.config_entries.async_get_entry(entity_entry.config_entry_id)
         if not entry or entry.domain != DOMAIN:
             continue
+        if _is_notify_a161_entry(entry):
+            _raise_notify_unsupported("send_video")
         subentries = getattr(entry, "subentries", None) or {}
         subentry = subentries.get(entity_entry.config_subentry_id)
         if not subentry:

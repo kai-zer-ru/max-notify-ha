@@ -5,6 +5,45 @@
 - с подстановкой параметров из события `max_notify_received`.
 
 > Примечание: для примеров "из события" триггер предполагает событие `max_notify_received`.
+>
+> Поддержка кнопок (`buttons`) относится к официальному API-домену `platform-api.max.ru`.
+> Для `notify.a161.ru` отправка кнопок не поддерживается.
+
+## Форматы поля buttons
+
+Поле `buttons` поддерживает несколько форматов (старые форматы сохранены):
+
+- Один ряд, словарь:
+  ```yaml
+  buttons:
+    "Button 1": "button_1"
+    "Button 2": "button_2"
+  ```
+- Один ряд, список объектов:
+  ```yaml
+  buttons:
+    - text: "Button 1"
+      payload: "button_1"
+    - text: "Button 2"
+      payload: "button_2"
+  ```
+- Несколько рядов, нативный формат:
+  ```yaml
+  buttons:
+    - - text: "Ряд 1 / Кнопка 1"
+        payload: "r1_b1"
+      - text: "Ряд 1 / Кнопка 2"
+        payload: "r1_b2"
+    - - text: "Ряд 2 / Кнопка 1"
+        payload: "r2_b1"
+  ```
+- Несколько рядов, упрощенный формат (каждый объект верхнего списка = отдельный ряд):
+  ```yaml
+  buttons:
+    - "Ряд 1 / Кнопка 1": "r1_b1"
+      "Ряд 1 / Кнопка 2": "r1_b2"
+    - "Ряд 2 / Кнопка 1": "r2_b1"
+  ```
 
 ---
 
@@ -45,10 +84,8 @@ action:
       recipient_id: "{{ trigger.event.data.recipient_id }}"
       message: "Получено: {{ trigger.event.data.text | default('') }}"
       buttons:
-        - text: "Ок"
-          payload: "ok"
-        - text: "Повтор"
-          payload: "retry"
+        - "Ок": "ok"
+        - "Повтор": "retry"
 mode: single
 ```
 

@@ -51,7 +51,8 @@ send_message:
         buttons:
           example: >
             {"Button 1":"button_1","Button 2":"button_2"} или
-            [{"text":"Button 1","payload":"button_1"},{"text":"Button 2","payload":"button_2"}]
+            [{"text":"Button 1","payload":"button_1"},{"text":"Button 2","payload":"button_2"}] или
+            [{"Ряд 1 / Кнопка 1":"r1_b1"},{"Ряд 2 / Кнопка 1":"r2_b1","Ряд 2 / Кнопка 2":"r2_b2"}]
           selector:
             object:
 
@@ -113,7 +114,8 @@ send_photo:
         buttons:
           example: >
             {"Button 1":"button_1","Button 2":"button_2"} или
-            [{"text":"Button 1","payload":"button_1"},{"text":"Button 2","payload":"button_2"}]
+            [{"text":"Button 1","payload":"button_1"},{"text":"Button 2","payload":"button_2"}] или
+            [{"Ряд 1 / Кнопка 1":"r1_b1"},{"Ряд 2 / Кнопка 1":"r2_b1","Ряд 2 / Кнопка 2":"r2_b2"}]
           selector:
             object:
 
@@ -175,7 +177,8 @@ send_video:
         buttons:
           example: >
             {"Button 1":"button_1","Button 2":"button_2"} или
-            [{"text":"Button 1","payload":"button_1"},{"text":"Button 2","payload":"button_2"}]
+            [{"text":"Button 1","payload":"button_1"},{"text":"Button 2","payload":"button_2"}] или
+            [{"Ряд 1 / Кнопка 1":"r1_b1"},{"Ряд 2 / Кнопка 1":"r2_b1","Ряд 2 / Кнопка 2":"r2_b2"}]
           selector:
             object:
 
@@ -237,7 +240,8 @@ send_document:
         buttons:
           example: >
             {"Button 1":"button_1","Button 2":"button_2"} или
-            [{"text":"Button 1","payload":"button_1"},{"text":"Button 2","payload":"button_2"}]
+            [{"text":"Button 1","payload":"button_1"},{"text":"Button 2","payload":"button_2"}] или
+            [{"Ряд 1 / Кнопка 1":"r1_b1"},{"Ряд 2 / Кнопка 1":"r2_b1","Ряд 2 / Кнопка 2":"r2_b2"}]
           selector:
             object:
 
@@ -286,7 +290,8 @@ edit_message:
     buttons:
       example: >
         {"Button 1":"button_1","Button 2":"button_2"} или
-        [{"text":"Button 1","payload":"button_1"},{"text":"Button 2","payload":"button_2"}]
+        [{"text":"Button 1","payload":"button_1"},{"text":"Button 2","payload":"button_2"}] или
+        [{"Ряд 1 / Кнопка 1":"r1_b1"},{"Ряд 2 / Кнопка 1":"r2_b1","Ряд 2 / Кнопка 2":"r2_b2"}]
       selector:
         object:
     remove_buttons:

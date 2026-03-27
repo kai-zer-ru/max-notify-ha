@@ -119,6 +119,42 @@
       "webhook": "Webhook"
     },
     "step": {
+      "integration_type": {
+        "title": "Choose integration type",
+        "description": "Choose how to connect: official Max API or notify.a161.ru proxy service.",
+        "data": {
+          "integration_type": "Integration type"
+        },
+        "options": {
+          "integration_type": {
+            "official": "Official Max API (platform-api.max.ru)",
+            "notify_a161": "notify.a161.ru (text-only self notifications)"
+          }
+        }
+      },
+      "notify_info": {
+        "title": "notify.a161.ru setup",
+        "description": "Before continuing: open {notify_site_url}, send \"Хочу подключиться\" to the service bot and save your user_id and token. Then click Submit to enter credentials in Home Assistant."
+      },
+      "notify_user": {
+        "title": "notify.a161.ru: token",
+        "description": "Enter token and message format. Receive mode is fixed to Send only.",
+        "data": {
+          "access_token": "Access token",
+          "message_format": "Message format"
+        },
+        "data_description": {
+          "access_token": "Token from notify.a161.ru bot (36 characters).",
+          "message_format": "Text, Markdown or HTML."
+        },
+        "options": {
+          "message_format": {
+            "text": "Text",
+            "markdown": "Markdown",
+            "html": "HTML"
+          }
+        }
+      },
       "user": {
         "title": "Max Notify: Bot token",
         "description": "Enter the bot access token, message format, and receive mode. For Send only no extra fields are needed.",
@@ -237,10 +273,12 @@
     },
     "error": {
       "invalid_token": "Token cannot be empty",
+      "invalid_notify_token_length": "notify.a161.ru token must be 36 characters long.",
       "invalid_auth": "Invalid token. Check the token in the MAX platform Integration section.",
       "cannot_connect": "Failed to connect to Max API. Check your network and try again.",
       "unknown": "An unknown error occurred",
       "invalid_id_format": "Enter an integer (positive — personal chat, negative — group)",
+      "notify_user_only": "For notify.a161.ru use only positive recipient IDs (user_id).",
       "invalid_command_name": "Enter a command name (no slash).",
       "invalid_button_text": "Enter a button label."
     },
@@ -251,6 +289,25 @@
   },
   "options": {
     "step": {
+      "init_notify": {
+        "title": "notify.a161.ru settings",
+        "description": "Token (leave empty to keep) and message format. notify.a161.ru supports send-only text messages.",
+        "data": {
+          "access_token": "New API token (optional)",
+          "message_format": "Message format"
+        },
+        "data_description": {
+          "access_token": "Leave empty to keep the current token",
+          "message_format": "Plain text, Markdown or HTML"
+        },
+        "options": {
+          "message_format": {
+            "text": "Text",
+            "markdown": "Markdown",
+            "html": "HTML"
+          }
+        }
+      },
       "init": {
         "title": "Max Notify settings",
         "description": "Token (leave empty to keep), message format, and receive mode. For Webhook, URL: {webhook_url}. HTTPS required. With Polling/Webhook you can add, edit and remove keyboard buttons on the next step (like adding chats).",

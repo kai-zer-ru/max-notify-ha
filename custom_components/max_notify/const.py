@@ -11,6 +11,7 @@ SERVICE_EDIT_MESSAGE = "edit_message"
 CONF_CONFIG_ENTRY_ID = "config_entry_id"
 
 CONF_ACCESS_TOKEN = "access_token"
+CONF_INTEGRATION_TYPE = "integration_type"
 CONF_MESSAGE_FORMAT = "message_format"
 CONF_RECIPIENT_TYPE = "recipient_type"
 CONF_USER_ID = "user_id"
@@ -24,6 +25,7 @@ RECIPIENT_TYPE_USER = "user"
 RECIPIENT_TYPE_CHAT = "chat"
 
 API_BASE_URL = "https://platform-api.max.ru"
+API_BASE_URL_NOTIFY_A161 = "https://notify.a161.ru"
 API_PATH_ME = "/me"
 API_PATH_CHATS = "/chats"
 API_PATH_MESSAGES = "/messages"
@@ -31,6 +33,10 @@ API_PATH_UPLOADS = "/uploads"
 API_PATH_UPDATES = "/updates"
 API_PATH_SUBSCRIPTIONS = "/subscriptions"
 API_VERSION = "1.2.5"
+
+INTEGRATION_TYPE_OFFICIAL = "official"
+INTEGRATION_TYPE_NOTIFY_A161 = "notify_a161"
+INTEGRATION_TYPES = [INTEGRATION_TYPE_OFFICIAL, INTEGRATION_TYPE_NOTIFY_A161]
 
 # Update types from Max API (GET /updates, POST /subscriptions)
 UPDATE_MESSAGE_CREATED = "message_created"

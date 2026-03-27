@@ -92,17 +92,29 @@ def normalize_service_buttons(raw: Any) -> list[list[dict[str, Any]]]:
     """Normalize service buttons from multiple formats to list-of-rows.
 
     Supported formats:
-    1) {"Button 1": "payload1", "Button 2": "payload2"}
-    2) [{"text": "Button 1", "payload": "payload1"}, ...]
-    3) [[{"type": "...", "text": "...", "payload": "..."}], ...] (native format)
+    1) {"Button 1": "payload1", "Button 2": "payload2"}                      -> one row
+    2) [{"text": "Button 1", "payload": "payload1"}, ...]                    -> one row
+    3) [[{"type": "...", "text": "...", "payload": "..."}], ...]             -> many rows
+    4) [{"Row1 Button 1": "p1"}, {"Row2 Button 1": "p2", "Row2 Button 2": "p3"}] -> many rows
     """
     if raw is None:
         return []
 
-    # Format 1: dict label -> payload
-    if isinstance(raw, dict):
+    def _typed_button_from_dict(item: dict[str, Any]) -> dict[str, Any] | None:
+        text = str(item.get("text") or "").strip()
+        if not text:
+            return None
+        btype = str(item.get("type") or "callback").strip().lower()
+        if btype not in ("callback", "message"):
+            btype = "callback"
+        btn: dict[str, Any] = {"type": btype, "text": text}
+        if btype == "callback" and item.get("payload") is not None:
+            btn["payload"] = str(item["payload"]).strip()
+        return btn
+
+    def _mapping_row_from_dict(item: dict[str, Any]) -> list[dict[str, Any]]:
         row: list[dict[str, Any]] = []
-        for text, payload in raw.items():
+        for text, payload in item.items():
             t = str(text).strip()
             if not t:
                 continue
@@ -110,28 +122,64 @@ def normalize_service_buttons(raw: Any) -> list[list[dict[str, Any]]]:
             if payload is not None:
                 btn["payload"] = str(payload).strip()
             row.append(btn)
+        return row
+
+    def _row_from_any(value: Any) -> list[dict[str, Any]]:
+        # Row as mapping: {"Button": "payload", ...}
+        if isinstance(value, dict):
+            if any(k in value for k in ("text", "type", "payload")):
+                btn = _typed_button_from_dict(value)
+                return [btn] if btn else []
+            return _mapping_row_from_dict(value)
+
+        # Row as list: [{"text":"A"}, {"B":"b"}, ...]
+        if isinstance(value, list):
+            row: list[dict[str, Any]] = []
+            for item in value:
+                if not isinstance(item, dict):
+                    continue
+                if any(k in item for k in ("text", "type", "payload")):
+                    btn = _typed_button_from_dict(item)
+                    if btn:
+                        row.append(btn)
+                else:
+                    row.extend(_mapping_row_from_dict(item))
+            return row
+
+        return []
+
+    # Format 1: mapping -> one row
+    if isinstance(raw, dict):
+        row = _row_from_any(raw)
         return [row] if row else []
 
-    # Format 3: already rows
-    if isinstance(raw, list) and raw and all(isinstance(r, list) for r in raw):
-        return normalize_buttons(raw)
-
-    # Format 2: flat list of button dicts -> one row
     if isinstance(raw, list):
-        row: list[dict[str, Any]] = []
-        for item in raw:
-            if not isinstance(item, dict):
-                continue
-            t = str(item.get("text") or "").strip()
-            if not t:
-                continue
-            btype = str(item.get("type") or "callback").strip().lower()
-            if btype not in ("callback", "message"):
-                btype = "callback"
-            btn: dict[str, Any] = {"type": btype, "text": t}
-            if btype == "callback" and item.get("payload") is not None:
-                btn["payload"] = str(item["payload"]).strip()
-            row.append(btn)
+        if not raw:
+            return []
+
+        # Native rows (and mixed explicit rows): treat each top-level item as separate row.
+        if any(isinstance(item, list) for item in raw):
+            rows: list[list[dict[str, Any]]] = []
+            for item in raw:
+                row = _row_from_any(item)
+                if row:
+                    rows.append(row)
+            return rows
+
+        # New format: list of row-mappings -> many rows.
+        if all(isinstance(item, dict) for item in raw) and all(
+            not any(k in item for k in ("text", "type", "payload"))
+            for item in raw
+        ):
+            rows: list[list[dict[str, Any]]] = []
+            for item in raw:
+                row = _row_from_any(item)
+                if row:
+                    rows.append(row)
+            return rows
+
+        # Backward-compatible flat format: list of typed button dicts -> one row.
+        row = _row_from_any(raw)
         return [row] if row else []
 
     return []
