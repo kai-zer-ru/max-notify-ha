@@ -16,7 +16,9 @@
 
 - **Канал в Telegram** — [@kai_zer_ru_ha](https://t.me/kai_zer_ru_ha)  
   
-- **Канал в Max** — [kai_zer_ru_ha](https://max.ru/id251603503331_biz)  
+- **Канал в Max** — [kai_zer_ru_ha](https://max.ru/id251603503331_biz)
+
+- **Канал в Dzen** - [kai_zer_ru](https://dzen.ru/kai_zer_ru)
 
 ---
 
