@@ -6,8 +6,9 @@
 
 Отправка и приём сообщений в мессенджере **Max** через официальный API (platform-api.max.ru).
 
+[![hacs_badge](https://img.shields.io/badge/HACS-Default-orange.svg)](https://github.com/hacs/integration)
 [![GitHub](https://img.shields.io/badge/GitHub-kai--zer--ru%2Fmax--notify--ha-blue?logo=github)](https://github.com/kai-zer-ru/max-notify-ha)
-
+[![Donate](https://img.shields.io/badge/donate-Tinkoff-FFDD2D.svg)](https://www.tbank.ru/rm/r_wKLcbFgjYa.ncgWMwrHSA/vyQvd5941/)
 ---
 
 # 📣 Присоединяйтесь к сообществу
