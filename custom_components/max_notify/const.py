@@ -83,6 +83,9 @@ CONF_SEND_KEYBOARD = "send_keyboard"
 MAX_MESSAGE_LENGTH = 4000
 CHATS_PAGE_SIZE = 100
 
+# notify.a161.ru: uploads (POST /uploads + POST to returned URL) — лимит на их стороне
+NOTIFY_A161_MAX_UPLOAD_BYTES = 4 * 1024 * 1024
+
 FILE_UPLOAD_DELAY = 1.5
 FILE_READY_RETRY_DELAYS = (3, 5, 8)
 

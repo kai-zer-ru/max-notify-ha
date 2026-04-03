@@ -715,8 +715,6 @@ async def _send_photo_or_document(
         entry = hass.config_entries.async_get_entry(entity_entry.config_entry_id)
         if not entry or entry.domain != DOMAIN:
             continue
-        if _is_notify_a161_entry(entry):
-            _raise_notify_unsupported("send_photo/send_document")
         subentries = getattr(entry, "subentries", None) or {}
         subentry = subentries.get(entity_entry.config_subentry_id)
         if not subentry:

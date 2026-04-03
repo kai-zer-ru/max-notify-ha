@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import mimetypes
 import os
 from typing import Any, Callable
 from urllib.parse import unquote, urlparse
@@ -37,6 +38,7 @@ from .const import (
     INTEGRATION_TYPE_NOTIFY_A161,
     FILE_READY_RETRY_DELAYS,
     MAX_MESSAGE_LENGTH,
+    NOTIFY_A161_MAX_UPLOAD_BYTES,
     UPLOAD_VIDEO_TIMEOUT,
     VIDEO_PROCESSING_DELAY,
     VIDEO_READY_RETRY_DELAYS,
@@ -147,6 +149,105 @@ def _attachment_payload_from_upload_response(resp: dict[str, Any]) -> dict[str, 
     if "file" in resp and isinstance(resp["file"], dict) and resp["file"].get("token") is not None:
         return resp["file"]
     return resp
+
+
+def _notify_a161_upload_step2_ok(resp: Any) -> bool:
+    """Шаг 2 a161: {\"photos\": ...} для картинок; для файлов часто {\"token\": \"...\", \"fileId\": ...}."""
+    if not isinstance(resp, dict) or not resp:
+        return False
+    tok = resp.get("token")
+    if isinstance(tok, str) and tok.strip():
+        return True
+    photos = resp.get("photos")
+    if isinstance(photos, dict) and photos:
+        return True
+    files = resp.get("files")
+    if isinstance(files, dict) and files:
+        return True
+    return False
+
+
+async def _async_read_media_body_for_upload(
+    hass: HomeAssistant,
+    session: aiohttp.ClientSession,
+    file_path_or_url: str,
+    *,
+    as_document: bool,
+) -> tuple[bytes, str, str] | None:
+    """Скачать по URL или прочитать локальный файл; вернуть (body, content_type, filename)."""
+    file_path_or_url = file_path_or_url.strip()
+    if file_path_or_url.startswith(("http://", "https://")):
+        download_headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Accept": "*/*"
+            if as_document
+            else "image/webp,image/apng,image/*,*/*;q=0.8",
+        }
+        try:
+            async with session.get(
+                file_path_or_url,
+                headers=download_headers,
+                timeout=aiohttp.ClientTimeout(total=120 if as_document else 30),
+            ) as r:
+                if r.status != 200:
+                    _LOGGER.error("Download media failed: status=%s", r.status)
+                    return None
+                raw_ct = r.headers.get("Content-Type") or ""
+                if as_document:
+                    if ";" in raw_ct:
+                        raw_ct = raw_ct.split(";", 1)[0].strip().lower()
+                    elif raw_ct:
+                        raw_ct = raw_ct.strip().lower()
+                    if raw_ct and "/" in raw_ct:
+                        content_type = raw_ct
+                    else:
+                        content_type = (
+                            mimetypes.guess_type(file_path_or_url)[0]
+                            or "application/octet-stream"
+                        )
+                    filename = _filename_from_url(file_path_or_url) or "file"
+                else:
+                    if "image/" in raw_ct:
+                        content_type = raw_ct.split(";")[0].strip().lower()
+                    else:
+                        content_type = _content_type_from_path(file_path_or_url)
+                    filename = _filename_from_url(file_path_or_url) or "image"
+                    if not filename.lower().endswith((".jpg", ".jpeg", ".png", ".gif", ".webp")):
+                        ext = _ext_from_content_type(content_type)
+                        filename = f"{filename}.{ext}" if ext else f"{filename}.jpg"
+                body = await r.read()
+                _LOGGER.debug(
+                    "Downloaded media from URL: %d bytes, content_type=%s",
+                    len(body),
+                    content_type,
+                )
+        except aiohttp.ClientError as e:
+            _LOGGER.error("Download media failed: %s", e)
+            return None
+    else:
+        if as_document:
+            filename = (
+                file_path_or_url.rsplit("/", 1)[-1].rsplit("\\", 1)[-1] or "file"
+            )
+            content_type = (
+                mimetypes.guess_type(filename)[0] or "application/octet-stream"
+            )
+        else:
+            content_type = _content_type_from_path(file_path_or_url)
+            filename = (
+                file_path_or_url.rsplit("/", 1)[-1].rsplit("\\", 1)[-1] or "image.jpg"
+            )
+            if not filename.lower().endswith((".jpg", ".jpeg", ".png", ".gif", ".webp")):
+                ext = _ext_from_content_type(content_type)
+                filename = f"image.{ext}" if ext else "image.jpg"
+        try:
+            body = await hass.async_add_executor_job(
+                _read_file_bytes, file_path_or_url, hass.config.config_dir
+            )
+        except (OSError, ValueError) as e:
+            _LOGGER.error("Read media file failed: %s", e)
+            return None
+    return body, content_type, filename
 
 
 async def _resolve_dialog_chat_id(
@@ -660,9 +761,6 @@ async def upload_image_and_send(
     notify: bool = True,
 ) -> None:
     """Upload image/file to Max (POST /uploads) and send (POST /messages)."""
-    if _is_notify_a161_entry(entry):
-        _LOGGER.error("Media upload is not supported for notify.a161.ru mode")
-        return
     token = entry.data.get(CONF_ACCESS_TOKEN)
     if not token:
         _LOGGER.error("No access token in config entry")
@@ -677,6 +775,124 @@ async def upload_image_and_send(
     headers = {"Authorization": token}
 
     upload_type = "file" if as_document else "image"
+
+    if _is_notify_a161_entry(entry):
+        read_out = await _async_read_media_body_for_upload(
+            hass, session, file_path_or_url, as_document=as_document
+        )
+        if read_out is None:
+            return
+        body, content_type, filename = read_out
+
+        if not body:
+            _LOGGER.error("Image data is empty")
+            return
+
+        if len(body) > NOTIFY_A161_MAX_UPLOAD_BYTES:
+            _LOGGER.error(
+                "notify.a161.ru rejects uploads over %s bytes; file size is %s",
+                NOTIFY_A161_MAX_UPLOAD_BYTES,
+                len(body),
+            )
+            return
+        upload_req_url = (
+            f"{_api_base_url_for_entry(entry)}{API_PATH_UPLOADS}?type={upload_type}"
+        )
+        try:
+            async with session.post(
+                upload_req_url,
+                headers=headers,
+                timeout=aiohttp.ClientTimeout(total=15),
+            ) as resp:
+                text = await resp.text()
+                if resp.status != 200:
+                    _LOGGER.error(
+                        "notify.a161.ru upload URL failed: status=%s body=%s",
+                        resp.status,
+                        text[:500],
+                    )
+                    return
+                try:
+                    parsed = json.loads(text) if text.strip() else {}
+                except json.JSONDecodeError as e:
+                    _LOGGER.error(
+                        "notify.a161.ru upload URL bad JSON: %s body=%s",
+                        e,
+                        text[:500],
+                    )
+                    return
+                if not isinstance(parsed, dict):
+                    _LOGGER.error(
+                        "notify.a161.ru upload URL expected object, got: %s",
+                        text[:500],
+                    )
+                    return
+                data = parsed
+        except aiohttp.ClientError as e:
+            _LOGGER.error("notify.a161.ru upload URL request failed: %s", e)
+            return
+        upload_url = data.get("url")
+        if not upload_url:
+            _LOGGER.error("notify.a161.ru upload response has no url: %s", data)
+            return
+        try:
+            form = aiohttp.FormData()
+            form.add_field("data", body, filename=filename, content_type=content_type)
+            async with session.post(
+                upload_url,
+                data=form,
+                headers=headers,
+                timeout=aiohttp.ClientTimeout(total=120),
+            ) as resp:
+                if resp.status >= 400:
+                    text = await resp.text()
+                    _LOGGER.error(
+                        "notify.a161.ru file upload failed: status=%s body=%s",
+                        resp.status,
+                        text[:500],
+                    )
+                    return
+                upload_resp = await _parse_upload_response(resp)
+        except (aiohttp.ClientError, ValueError) as e:
+            _LOGGER.error("notify.a161.ru file upload failed: %s", e)
+            return
+        if not _notify_a161_upload_step2_ok(upload_resp):
+            _LOGGER.error("notify.a161.ru upload response unexpected: %s", upload_resp)
+            return
+        if buttons:
+            _LOGGER.warning(
+                "Ignoring buttons for notify.a161.ru media (entry %s)",
+                entry.entry_id,
+            )
+        att_type = "file" if as_document else "image"
+        attachments_a161: list[dict[str, Any]] = [
+            {"type": att_type, "payload": upload_resp}
+        ]
+        msg_format_a161 = entry.data.get(CONF_MESSAGE_FORMAT, "text")
+        payload_a161: dict[str, Any] = {
+            "text": (caption or "")[:MAX_MESSAGE_LENGTH],
+            "attachments": attachments_a161,
+        }
+        if msg_format_a161 != "text":
+            payload_a161["format"] = msg_format_a161
+
+        def _on_success_a161(resp_body: str) -> None:
+            _store_outgoing_message_id_from_response(
+                hass, entry.entry_id, resp_body, "upload_image_and_send_notify_a161"
+            )
+
+        await _post_message_with_retry(
+            session,
+            msg_url,
+            headers,
+            payload_a161,
+            (),
+            "notify_a161_media",
+            count_requests if count_requests is not None else 1,
+            on_success=_on_success_a161,
+        )
+        return
+
     upload_req_url = f"{_api_base_url_for_entry(entry)}{API_PATH_UPLOADS}?type={upload_type}&v={API_VERSION}"
     try:
         async with session.post(
