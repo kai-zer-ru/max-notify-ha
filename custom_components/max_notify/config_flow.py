@@ -65,6 +65,21 @@ from .webhook import get_webhook_url
 _LOGGER = logging.getLogger(__name__)
 
 
+def _is_notify_a161_entry(entry: ConfigEntry) -> bool:
+    """True if entry is notify.a161.ru (by data or legacy title)."""
+    if entry.data.get(CONF_INTEGRATION_TYPE) == INTEGRATION_TYPE_NOTIFY_A161:
+        return True
+    title = entry.title or ""
+    return "notify.a161.ru" in title.lower()
+
+
+def _effective_integration_type(entry: ConfigEntry) -> str:
+    """Resolved integration type for validation and options UI."""
+    if _is_notify_a161_entry(entry):
+        return INTEGRATION_TYPE_NOTIFY_A161
+    return entry.data.get(CONF_INTEGRATION_TYPE, INTEGRATION_TYPE_OFFICIAL)
+
+
 class MaxNotifyConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a config flow for Max Notify."""
 
@@ -193,7 +208,7 @@ class MaxNotifyConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     async def async_step_notify_user(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
-        """notify.a161.ru setup: token + format, затем меню кнопок и user_id."""
+        """notify.a161.ru setup: token + format, затем user_id."""
         if user_input is not None:
             self._token = user_input[CONF_ACCESS_TOKEN].strip()
             try:
@@ -228,7 +243,7 @@ class MaxNotifyConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             self._receive_mode = RECEIVE_MODE_SEND_ONLY
             self._webhook_secret = ""
             self._buttons_rows = []
-            return await self.async_step_receive_options_menu(None)
+            return await self.async_step_notify_recipient(None)
         return self.async_show_form(
             step_id="notify_user", data_schema=await self._schema_notify_user_async()
         )
@@ -321,8 +336,6 @@ class MaxNotifyConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 return await self.async_step_add_button(None)
             if key == "remove_button":
                 return await self.async_step_remove_button(None)
-            if self._integration_type == INTEGRATION_TYPE_NOTIFY_A161:
-                return await self.async_step_notify_recipient(None)
             return await self.async_step_recipient(None)
 
         return self.async_show_form(
@@ -653,7 +666,7 @@ class MaxNotifyConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 err = await validate_token(
                     self.hass,
                     token_input,
-                    entry.data.get(CONF_INTEGRATION_TYPE, INTEGRATION_TYPE_OFFICIAL),
+                    _effective_integration_type(entry),
                 )
                 if err:
                     return self.async_show_form(
@@ -724,11 +737,11 @@ class MaxNotifyOptionsFlow(OptionsFlow):
     ) -> FlowResult:
         """Show form; on submit either save (send_only) or go to commands menu."""
         entry = self.config_entry
+        if _is_notify_a161_entry(entry):
+            return await self.async_step_init_notify(user_input)
         integration_type = entry.data.get(
             CONF_INTEGRATION_TYPE, INTEGRATION_TYPE_OFFICIAL
         )
-        if integration_type == INTEGRATION_TYPE_NOTIFY_A161:
-            return await self.async_step_init_notify(user_input)
         if user_input is None:
             try:
                 await async_get_translations(
@@ -804,11 +817,9 @@ class MaxNotifyOptionsFlow(OptionsFlow):
     async def async_step_init_notify(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
-        """Options flow for notify.a161.ru: token, format, затем меню кнопок."""
+        """Options flow for notify.a161.ru: token and message format (no keyboard UI)."""
         entry = self.config_entry
-        integration_type = entry.data.get(
-            CONF_INTEGRATION_TYPE, INTEGRATION_TYPE_OFFICIAL
-        )
+        integration_type = _effective_integration_type(entry)
         if user_input is None:
             try:
                 await async_get_translations(
@@ -852,14 +863,21 @@ class MaxNotifyOptionsFlow(OptionsFlow):
             new_data[CONF_MESSAGE_FORMAT] = (
                 msg_fmt_label_to_key.get(raw_msg_fmt, raw_msg_fmt) or "text"
             )
-            prev_opts = entry.options or {}
-            self._pending_data = new_data
-            self._pending_options = {
+            new_data[CONF_INTEGRATION_TYPE] = INTEGRATION_TYPE_NOTIFY_A161
+            new_options = {
                 CONF_RECEIVE_MODE: RECEIVE_MODE_SEND_ONLY,
                 CONF_WEBHOOK_SECRET: "",
+                CONF_BUTTONS: [],
             }
-            self._opt_buttons = normalize_buttons(prev_opts.get(CONF_BUTTONS))
-            return await self.async_step_buttons_menu(None)
+            base_title = "Max Notify (notify.a161.ru)"
+            new_title = get_unique_entry_title(
+                self.hass, DOMAIN, base_title, exclude_entry_id=entry.entry_id
+            )
+            self.hass.config_entries.async_update_entry(
+                entry, data=new_data, title=new_title
+            )
+            await self.hass.config_entries.async_reload(entry.entry_id)
+            return self.async_create_entry(data=new_options)
         return self.async_show_form(
             step_id="init_notify",
             data_schema=await self._schema_init_async(entry),
@@ -869,6 +887,8 @@ class MaxNotifyOptionsFlow(OptionsFlow):
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
         """Form: choose action (add/remove button or finish)."""
+        if _is_notify_a161_entry(self.config_entry):
+            return await self.async_step_init_notify(None)
         option_keys: list[tuple[str, str]] = [
             ("opt_add_button", ""),
             ("opt_next", ""),
@@ -1145,18 +1165,13 @@ class MaxNotifyOptionsFlow(OptionsFlow):
         user_input: dict[str, Any] | None = None,
     ):
         """Options init schema with translated message_format and receive_mode options."""
-        integration_type = entry.data.get(
-            CONF_INTEGRATION_TYPE, INTEGRATION_TYPE_OFFICIAL
-        )
         try:
             trans = await async_get_translations(
                 self.hass, self.hass.config.language, "options", [DOMAIN]
             )
         except Exception:
             trans = {}
-        msg_step_id = (
-            "init_notify" if integration_type == INTEGRATION_TYPE_NOTIFY_A161 else "init"
-        )
+        msg_step_id = "init_notify" if _is_notify_a161_entry(entry) else "init"
         msg_fmt_labels = get_option_labels(
             trans, "options", msg_step_id, "message_format", ["text", "markdown", "html"]
         )
@@ -1186,7 +1201,7 @@ class MaxNotifyOptionsFlow(OptionsFlow):
                 CONF_RECEIVE_MODE: recv_labels.get(cur_recv, cur_recv),
                 CONF_WEBHOOK_SECRET: options.get(CONF_WEBHOOK_SECRET, ""),
             }
-        if integration_type == INTEGRATION_TYPE_NOTIFY_A161:
+        if _is_notify_a161_entry(entry):
             return self.add_suggested_values_to_schema(
                 vol.Schema(
                     {

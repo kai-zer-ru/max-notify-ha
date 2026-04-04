@@ -521,7 +521,7 @@
     "step": {
       "init_notify": {
         "title": "notify.a161.ru settings",
-        "description": "Token (leave empty to keep) and message format. Next you will edit keyboard buttons; changes apply when you finish. user_id stays fixed from initial setup.",
+        "description": "Token (leave empty to keep) and message format. Changes apply when you submit. user_id stays fixed from initial setup.",
         "data": {
           "access_token": "New API token (optional)",
           "message_format": "Message format"
