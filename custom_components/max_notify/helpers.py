@@ -4,8 +4,9 @@ from __future__ import annotations
 
 from typing import Any
 
-from homeassistant.core import HomeAssistant
 import logging
+
+from homeassistant.core import HomeAssistant
 
 from .const import CONF_BUTTONS
 

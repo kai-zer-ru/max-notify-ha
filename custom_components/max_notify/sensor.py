@@ -8,7 +8,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import DOMAIN
+from .const import CONF_INTEGRATION_TYPE, DOMAIN, INTEGRATION_TYPE_NOTIFY_A161
 from .message_state import (
     SIGNAL_MESSAGE_STATE_UPDATED,
     get_last_incoming_message_id,
@@ -22,12 +22,13 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up sensor entities for a config entry."""
-    async_add_entities(
-        [
-            MaxNotifyLastOutgoingMessageIdSensor(hass, entry),
-            MaxNotifyLastIncomingMessageIdSensor(hass, entry),
-        ]
-    )
+    entities: list[SensorEntity] = [
+        MaxNotifyLastOutgoingMessageIdSensor(hass, entry),
+    ]
+    # notify.a161.ru has no incoming updates API — only outgoing ID is useful.
+    if entry.data.get(CONF_INTEGRATION_TYPE) != INTEGRATION_TYPE_NOTIFY_A161:
+        entities.append(MaxNotifyLastIncomingMessageIdSensor(hass, entry))
+    async_add_entities(entities)
 
 
 class _BaseMessageIdSensor(SensorEntity):

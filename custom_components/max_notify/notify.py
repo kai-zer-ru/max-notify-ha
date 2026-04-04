@@ -39,6 +39,7 @@ from .const import (
     FILE_READY_RETRY_DELAYS,
     MAX_MESSAGE_LENGTH,
     NOTIFY_A161_MAX_UPLOAD_BYTES,
+    NOTIFY_A161_MAX_VIDEO_UPLOAD_BYTES,
     UPLOAD_VIDEO_TIMEOUT,
     VIDEO_PROCESSING_DELAY,
     VIDEO_READY_RETRY_DELAYS,
@@ -358,7 +359,11 @@ async def _post_message_with_retry(
                         await asyncio.sleep(delay)
                         continue
                 _LOGGER.error("Max API send %s failed: status=%s body=%s", log_label, resp.status, body[:500])
-                if log_label == "Video" and resp.status == 400 and "attachment.not.ready" in body:
+                if (
+                    log_label in ("Video", "notify_a161_video")
+                    and resp.status == 400
+                    and "attachment.not.ready" in body
+                ):
                     _LOGGER.error(
                         "Max is still processing the video; increase `count_requests` on send_video for large files."
                     )
@@ -375,9 +380,6 @@ async def delete_message(
     hass: HomeAssistant, entry: ConfigEntry, message_id: str
 ) -> bool:
     """Delete a message via Max API DELETE /messages."""
-    if _is_notify_a161_entry(entry):
-        _LOGGER.error("delete_message is not supported for notify.a161.ru mode")
-        return False
     token = entry.data.get(CONF_ACCESS_TOKEN)
     if not token:
         _LOGGER.error("No access token in config entry")
@@ -386,21 +388,28 @@ async def delete_message(
     if not mid:
         _LOGGER.error("delete_message: empty message_id")
         return False
+    base = _api_base_url_for_entry(entry)
+    if _is_notify_a161_entry(entry):
+        url = f"{base}{API_PATH_MESSAGES}?message_id={mid}"
+    else:
+        url = f"{base}{API_PATH_MESSAGES}?message_id={mid}&v={API_VERSION}"
     headers = {"Authorization": token}
     session = async_get_clientsession(hass)
-    url = f"{_api_base_url_for_entry(entry)}{API_PATH_MESSAGES}?message_id={mid}&v={API_VERSION}"
     try:
         async with session.delete(
             url, headers=headers, timeout=aiohttp.ClientTimeout(total=15)
         ) as resp:
             body = await resp.text()
+            _LOGGER.info(
+                "delete_message HTTP response: status=%s body=%s", resp.status, body
+            )
             if resp.status < 400:
                 _LOGGER.info("Message %s deleted successfully", mid)
                 return True
             _LOGGER.error(
                 "Max API delete message failed: status=%s body=%s",
                 resp.status,
-                body[:300],
+                body,
             )
             return False
     except aiohttp.ClientError as e:
@@ -418,9 +427,6 @@ async def edit_message(
     format: str | None = None,
 ) -> bool:
     """Edit a message via Max API PUT /messages. text/buttons can be None to keep current."""
-    if _is_notify_a161_entry(entry):
-        _LOGGER.error("edit_message is not supported for notify.a161.ru mode")
-        return False
     token = entry.data.get(CONF_ACCESS_TOKEN)
     if not token:
         _LOGGER.error("No access token in config entry")
@@ -431,11 +437,11 @@ async def edit_message(
         return False
     headers = {"Authorization": token, "Content-Type": "application/json"}
     payload: dict[str, Any] = {}
+    msg_format = format or entry.data.get(CONF_MESSAGE_FORMAT, "text")
     if text is not None:
         payload["text"] = (
             text[:MAX_MESSAGE_LENGTH] if len(text) > MAX_MESSAGE_LENGTH else text
         )
-    msg_format = format or entry.data.get(CONF_MESSAGE_FORMAT, "text")
     if text is not None and msg_format != "text":
         payload["format"] = msg_format
     if remove_buttons:
@@ -450,20 +456,28 @@ async def edit_message(
     if not payload:
         _LOGGER.warning("edit_message: no changes specified")
         return False
+    base = _api_base_url_for_entry(entry)
+    if _is_notify_a161_entry(entry):
+        url = f"{base}{API_PATH_MESSAGES}?message_id={mid}"
+    else:
+        url = f"{base}{API_PATH_MESSAGES}?message_id={mid}&v={API_VERSION}"
+
     session = async_get_clientsession(hass)
-    url = f"{_api_base_url_for_entry(entry)}{API_PATH_MESSAGES}?message_id={mid}&v={API_VERSION}"
     try:
         async with session.put(
             url, json=payload, headers=headers, timeout=aiohttp.ClientTimeout(total=15)
         ) as resp:
             body = await resp.text()
+            _LOGGER.info(
+                "edit_message HTTP response: status=%s body=%s", resp.status, body
+            )
             if resp.status < 400:
                 _LOGGER.info("Message %s edited successfully", mid)
                 return True
             _LOGGER.error(
                 "Max API edit message failed: status=%s body=%s",
                 resp.status,
-                body[:300],
+                body,
             )
             return False
     except aiohttp.ClientError as e:
@@ -625,6 +639,12 @@ async def send_message_with_buttons(
     token = entry.data.get(CONF_ACCESS_TOKEN)
     if not token:
         _LOGGER.error("No access token in config entry")
+        return
+    if _is_notify_a161_entry(entry):
+        _LOGGER.debug(
+            "notify.a161.ru: inline keyboard not sent (not supported); sending text only"
+        )
+        await send_plain_message(hass, entry, recipient, message, title=title)
         return
     result = await _get_message_url_and_recipient(hass, entry, token, recipient)
     if not result:
@@ -789,12 +809,14 @@ async def upload_image_and_send(
             return
 
         if len(body) > NOTIFY_A161_MAX_UPLOAD_BYTES:
-            _LOGGER.error(
-                "notify.a161.ru rejects uploads over %s bytes; file size is %s",
-                NOTIFY_A161_MAX_UPLOAD_BYTES,
-                len(body),
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="a161_media_too_large",
+                translation_placeholders={
+                    "max_mib": str(NOTIFY_A161_MAX_UPLOAD_BYTES // (1024 * 1024)),
+                    "size_mib": f"{len(body) / (1024 * 1024):.2f}",
+                },
             )
-            return
         upload_req_url = (
             f"{_api_base_url_for_entry(entry)}{API_PATH_UPLOADS}?type={upload_type}"
         )
@@ -859,15 +881,14 @@ async def upload_image_and_send(
         if not _notify_a161_upload_step2_ok(upload_resp):
             _LOGGER.error("notify.a161.ru upload response unexpected: %s", upload_resp)
             return
-        if buttons:
-            _LOGGER.warning(
-                "Ignoring buttons for notify.a161.ru media (entry %s)",
-                entry.entry_id,
-            )
         att_type = "file" if as_document else "image"
         attachments_a161: list[dict[str, Any]] = [
             {"type": att_type, "payload": upload_resp}
         ]
+        if buttons:
+            _LOGGER.debug(
+                "notify.a161.ru: inline keyboard not sent with media (not supported)"
+            )
         msg_format_a161 = entry.data.get(CONF_MESSAGE_FORMAT, "text")
         payload_a161: dict[str, Any] = {
             "text": (caption or "")[:MAX_MESSAGE_LENGTH],
@@ -1038,9 +1059,6 @@ async def upload_video_and_send(
     notify: bool = True,
 ) -> None:
     """Upload video to Max (POST /uploads?type=video) and send (POST /messages)."""
-    if _is_notify_a161_entry(entry):
-        _LOGGER.error("Video upload is not supported for notify.a161.ru mode")
-        return
     token = entry.data.get(CONF_ACCESS_TOKEN)
     if not token:
         _LOGGER.error("No access token in config entry")
@@ -1054,31 +1072,75 @@ async def upload_video_and_send(
     session = async_get_clientsession(hass)
     headers = {"Authorization": token}
 
-    upload_req_url = f"{_api_base_url_for_entry(entry)}{API_PATH_UPLOADS}?type=video&v={API_VERSION}"
-    try:
-        async with session.post(
-            upload_req_url,
-            headers=headers,
-            timeout=aiohttp.ClientTimeout(total=15),
-        ) as resp:
-            if resp.status != 200:
+    upload_url: str | None = None
+    video_token: str | None = None
+
+    if _is_notify_a161_entry(entry):
+        upload_req_url = f"{_api_base_url_for_entry(entry)}{API_PATH_UPLOADS}?type=video"
+        try:
+            async with session.post(
+                upload_req_url,
+                headers=headers,
+                timeout=aiohttp.ClientTimeout(total=15),
+            ) as resp:
                 text = await resp.text()
-                _LOGGER.error("Max API upload URL failed: status=%s body=%s", resp.status, text[:300])
-                return
-            data = await resp.json()
-    except (aiohttp.ClientError, ValueError) as e:
-        _LOGGER.error("Max API upload URL request failed: %s", e)
-        return
+                if resp.status != 200:
+                    _LOGGER.error(
+                        "notify.a161.ru video upload URL failed: status=%s body=%s",
+                        resp.status,
+                        text[:500],
+                    )
+                    return
+                try:
+                    parsed = json.loads(text) if text.strip() else {}
+                except json.JSONDecodeError as e:
+                    _LOGGER.error(
+                        "notify.a161.ru video upload URL bad JSON: %s body=%s",
+                        e,
+                        text[:500],
+                    )
+                    return
+                if not isinstance(parsed, dict):
+                    _LOGGER.error(
+                        "notify.a161.ru video upload URL expected object: %s",
+                        text[:500],
+                    )
+                    return
+                data = parsed
+        except aiohttp.ClientError as e:
+            _LOGGER.error("notify.a161.ru video upload URL request failed: %s", e)
+            return
+        upload_url = data.get("url")
+        video_token = data.get("token")
+        if not upload_url or not video_token:
+            _LOGGER.error("notify.a161.ru video step1 needs url and token: %s", data)
+            return
+    else:
+        upload_req_url = f"{_api_base_url_for_entry(entry)}{API_PATH_UPLOADS}?type=video&v={API_VERSION}"
+        try:
+            async with session.post(
+                upload_req_url,
+                headers=headers,
+                timeout=aiohttp.ClientTimeout(total=15),
+            ) as resp:
+                if resp.status != 200:
+                    text = await resp.text()
+                    _LOGGER.error("Max API upload URL failed: status=%s body=%s", resp.status, text[:300])
+                    return
+                data = await resp.json()
+        except (aiohttp.ClientError, ValueError) as e:
+            _LOGGER.error("Max API upload URL request failed: %s", e)
+            return
 
-    upload_url = data.get("url")
-    if not upload_url:
-        _LOGGER.error("Max API upload response has no url: %s", data)
-        return
+        upload_url = data.get("url")
+        if not upload_url:
+            _LOGGER.error("Max API upload response has no url: %s", data)
+            return
 
-    video_token = data.get("token")
-    if not video_token:
-        _LOGGER.error("Max API upload response has no token (required for video): %s", data)
-        return
+        video_token = data.get("token")
+        if not video_token:
+            _LOGGER.error("Max API upload response has no token (required for video): %s", data)
+            return
 
     file_path_or_url = file_path_or_url.strip()
     content_type = "video/mp4"
@@ -1121,28 +1183,75 @@ async def upload_video_and_send(
         _LOGGER.error("Video data is empty")
         return
 
+    if _is_notify_a161_entry(entry) and len(body) > NOTIFY_A161_MAX_VIDEO_UPLOAD_BYTES:
+        raise ServiceValidationError(
+            translation_domain=DOMAIN,
+            translation_key="a161_video_too_large",
+            translation_placeholders={
+                "max_mib": str(NOTIFY_A161_MAX_VIDEO_UPLOAD_BYTES // (1024 * 1024)),
+                "size_mib": f"{len(body) / (1024 * 1024):.2f}",
+            },
+        )
+
     try:
         form = aiohttp.FormData()
         form.add_field("data", body, filename=filename, content_type=content_type)
         async with session.post(
             upload_url,
             data=form,
-            headers={"Authorization": token},
+            headers=headers,
             timeout=aiohttp.ClientTimeout(total=UPLOAD_VIDEO_TIMEOUT),
         ) as resp:
             if resp.status >= 400:
                 text = await resp.text()
-                _LOGGER.error("Max API video upload failed: status=%s body=%s", resp.status, text[:300])
+                _LOGGER.error(
+                    "Video file upload failed: status=%s body=%s", resp.status, text[:300]
+                )
                 return
-            _LOGGER.debug("Video upload to CDN completed: status=%s", resp.status)
+            _LOGGER.debug("Video upload to storage completed: status=%s", resp.status)
     except (aiohttp.ClientError, ValueError) as e:
         _LOGGER.error("Max API video upload failed: %s", e)
+        return
+
+    msg_format = entry.data.get(CONF_MESSAGE_FORMAT, "text")
+
+    if _is_notify_a161_entry(entry):
+        # Same as official Max: transcode needs time; retries handle attachment.not.ready.
+        await asyncio.sleep(VIDEO_PROCESSING_DELAY)
+        attachments_a161: list[dict[str, Any]] = [
+            {"type": "video", "payload": {"token": str(video_token)}}
+        ]
+        if buttons:
+            _LOGGER.debug(
+                "notify.a161.ru: inline keyboard not sent with video (not supported)"
+            )
+        payload_a161: dict[str, Any] = {
+            "text": (caption or "")[:MAX_MESSAGE_LENGTH],
+            "attachments": attachments_a161,
+        }
+        if msg_format != "text":
+            payload_a161["format"] = msg_format
+
+        def _on_success_a161_vid(resp_body: str) -> None:
+            _store_outgoing_message_id_from_response(
+                hass, entry.entry_id, resp_body, "upload_video_notify_a161"
+            )
+
+        await _post_message_with_retry(
+            session,
+            msg_url,
+            headers,
+            payload_a161,
+            VIDEO_READY_RETRY_DELAYS,
+            "notify_a161_video",
+            count_requests,
+            on_success=_on_success_a161_vid,
+        )
         return
 
     attachment_payload = {"token": video_token}
     await asyncio.sleep(VIDEO_PROCESSING_DELAY)
 
-    msg_format = entry.data.get(CONF_MESSAGE_FORMAT, "text")
     attachments: list[dict[str, Any]] = [{"type": "video", "payload": attachment_payload}]
     if buttons:
         attachments.append(
@@ -1157,9 +1266,7 @@ async def upload_video_and_send(
     }
     if msg_format != "text":
         payload["format"] = msg_format
-    # Отключено: Max не отключает push/звук по notify: false.
-    # if not notify:
-    #     payload["notify"] = False
+
     def _on_success(body: str) -> None:
         _store_outgoing_message_id_from_response(
             hass, entry.entry_id, body, "upload_video_and_send"

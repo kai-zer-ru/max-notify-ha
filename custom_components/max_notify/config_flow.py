@@ -193,7 +193,7 @@ class MaxNotifyConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     async def async_step_notify_user(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
-        """notify.a161.ru setup: token + format (send-only)."""
+        """notify.a161.ru setup: token + format, затем меню кнопок и user_id."""
         if user_input is not None:
             self._token = user_input[CONF_ACCESS_TOKEN].strip()
             try:
@@ -228,7 +228,7 @@ class MaxNotifyConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             self._receive_mode = RECEIVE_MODE_SEND_ONLY
             self._webhook_secret = ""
             self._buttons_rows = []
-            return await self.async_step_notify_recipient(None)
+            return await self.async_step_receive_options_menu(None)
         return self.async_show_form(
             step_id="notify_user", data_schema=await self._schema_notify_user_async()
         )
@@ -321,6 +321,8 @@ class MaxNotifyConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 return await self.async_step_add_button(None)
             if key == "remove_button":
                 return await self.async_step_remove_button(None)
+            if self._integration_type == INTEGRATION_TYPE_NOTIFY_A161:
+                return await self.async_step_notify_recipient(None)
             return await self.async_step_recipient(None)
 
         return self.async_show_form(
@@ -802,7 +804,7 @@ class MaxNotifyOptionsFlow(OptionsFlow):
     async def async_step_init_notify(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
-        """Options flow for notify.a161.ru: only token and message format."""
+        """Options flow for notify.a161.ru: token, format, затем меню кнопок."""
         entry = self.config_entry
         integration_type = entry.data.get(
             CONF_INTEGRATION_TYPE, INTEGRATION_TYPE_OFFICIAL
@@ -850,14 +852,14 @@ class MaxNotifyOptionsFlow(OptionsFlow):
             new_data[CONF_MESSAGE_FORMAT] = (
                 msg_fmt_label_to_key.get(raw_msg_fmt, raw_msg_fmt) or "text"
             )
-            new_options = {
+            prev_opts = entry.options or {}
+            self._pending_data = new_data
+            self._pending_options = {
                 CONF_RECEIVE_MODE: RECEIVE_MODE_SEND_ONLY,
                 CONF_WEBHOOK_SECRET: "",
-                CONF_BUTTONS: [],
             }
-            self.hass.config_entries.async_update_entry(entry, data=new_data)
-            await self.hass.config_entries.async_reload(entry.entry_id)
-            return self.async_create_entry(data=new_options)
+            self._opt_buttons = normalize_buttons(prev_opts.get(CONF_BUTTONS))
+            return await self.async_step_buttons_menu(None)
         return self.async_show_form(
             step_id="init_notify",
             data_schema=await self._schema_init_async(entry),
@@ -1116,7 +1118,13 @@ class MaxNotifyOptionsFlow(OptionsFlow):
             **self._pending_options,
             CONF_BUTTONS: self._opt_buttons,
         }
-        base_title = f"Max Notify ({await get_receive_mode_title(self.hass, self._pending_options[CONF_RECEIVE_MODE])})"
+        if (
+            self._pending_data.get(CONF_INTEGRATION_TYPE)
+            == INTEGRATION_TYPE_NOTIFY_A161
+        ):
+            base_title = "Max Notify (notify.a161.ru)"
+        else:
+            base_title = f"Max Notify ({await get_receive_mode_title(self.hass, self._pending_options[CONF_RECEIVE_MODE])})"
         new_title = get_unique_entry_title(
             self.hass, DOMAIN, base_title, exclude_entry_id=entry.entry_id
         )

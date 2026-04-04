@@ -298,6 +298,8 @@
   "no_matching_entities": "No matching notify entities for integration {config_entry_id}.",
   "plain_recipient_not_resolved": "Could not resolve recipient for direct send. Check recipient_id, chat_id/user_id and the integration settings.",
   "unsupported_for_notify_a161": "Operation {operation} is not supported for notify.a161.ru mode.",
+  "a161_video_too_large": "notify.a161.ru accepts video up to {max_mib} MB; this file is about {size_mib} MB.",
+  "a161_media_too_large": "notify.a161.ru accepts photos and documents up to {max_mib} MB; this file is about {size_mib} MB.",
   "exceptions": {
     "invalid_notify_entity": {
       "message": "Invalid Max Notify entity: {entity_id}"
@@ -322,6 +324,12 @@
     },
     "unsupported_for_notify_a161": {
       "message": "Operation {operation} is not supported for notify.a161.ru mode."
+    },
+    "a161_video_too_large": {
+      "message": "notify.a161.ru accepts video up to {max_mib} MB; this file is about {size_mib} MB."
+    },
+    "a161_media_too_large": {
+      "message": "notify.a161.ru accepts photos and documents up to {max_mib} MB; this file is about {size_mib} MB."
     }
   },
   "config": {
@@ -350,7 +358,7 @@
       },
       "notify_user": {
         "title": "notify.a161.ru: token",
-        "description": "Enter token and message format. Receive mode is fixed to Send only.",
+        "description": "Enter token and message format. Next you can add optional keyboard buttons, then user_id. Receive mode is Send only.",
         "data": {
           "access_token": "Access token",
           "message_format": "Message format"
@@ -513,7 +521,7 @@
     "step": {
       "init_notify": {
         "title": "notify.a161.ru settings",
-        "description": "Token (leave empty to keep), message format, and configured user_id (fixed after setup). Only text sending is supported.",
+        "description": "Token (leave empty to keep) and message format. Next you will edit keyboard buttons; changes apply when you finish. user_id stays fixed from initial setup.",
         "data": {
           "access_token": "New API token (optional)",
           "message_format": "Message format"

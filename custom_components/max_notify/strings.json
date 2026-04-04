@@ -138,7 +138,7 @@
       },
       "notify_user": {
         "title": "notify.a161.ru: token",
-        "description": "Enter token and message format. Receive mode is fixed to Send only.",
+        "description": "Enter token and message format. Next you can add optional keyboard buttons, then user_id. Receive mode is Send only.",
         "data": {
           "access_token": "Access token",
           "message_format": "Message format"
@@ -301,7 +301,7 @@
     "step": {
       "init_notify": {
         "title": "notify.a161.ru settings",
-        "description": "Token (leave empty to keep), message format, and configured user_id (fixed after setup). Only text sending is supported.",
+        "description": "Token (leave empty to keep) and message format. Next you will edit keyboard buttons; changes apply when you finish. user_id stays fixed from initial setup.",
         "data": {
           "access_token": "New API token (optional)",
           "message_format": "Message format"
