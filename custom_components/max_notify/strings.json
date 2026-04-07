@@ -498,7 +498,8 @@
     },
     "abort": {
       "already_configured": "This configuration is already added",
-      "reconfigure_successful": "Reconfiguration successful"
+      "reconfigure_successful": "Reconfiguration successful",
+      "unsupported_ha_version": "This integration requires Home Assistant Core {minimum_ha_version} or newer. Update Home Assistant and try again."
     }
   },
   "options": {
@@ -701,6 +702,10 @@
     "webhook_disabled_no_https": {
       "title": "Max Notify: WebHook turned off (no HTTPS URL)",
       "description": "{entry_title} was set to WebHook, but Home Assistant has no external HTTPS base URL. Receive mode was switched to Send only. Configure Settings → System → Network (or Home Assistant Cloud), then choose WebHook again in the integration options if needed."
+    },
+    "unsupported_ha_version_runtime": {
+      "title": "Max Notify: Home Assistant update required",
+      "description": "{entry_title} was not loaded because Home Assistant Core {current_ha_version} is not supported. This integration requires Core {minimum_ha_version} or newer. Update Home Assistant, then reload the integration."
     }
   }
 }

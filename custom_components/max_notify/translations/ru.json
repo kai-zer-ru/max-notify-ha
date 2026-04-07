@@ -545,7 +545,8 @@
     },
     "abort": {
       "already_configured": "Эта конфигурация уже добавлена",
-      "reconfigure_successful": "Настройки обновлены"
+      "reconfigure_successful": "Настройки обновлены",
+      "unsupported_ha_version": "Для этой интеграции нужен Home Assistant Core {minimum_ha_version} или новее. Обновите Home Assistant и повторите попытку."
     }
   },
   "options": {
@@ -721,6 +722,10 @@
     "webhook_disabled_no_https": {
       "title": "Max Notify: WebHook отключён (нет HTTPS)",
       "description": "Интеграция {entry_title} была в режиме WebHook, но у Home Assistant нет внешнего HTTPS base URL. Режим сменён на «Только отправка». Настройте Настройки → Система → Сеть (или Nabu Casa), затем при необходимости снова выберите WebHook в настройках интеграции."
+    },
+    "unsupported_ha_version_runtime": {
+      "title": "Max Notify: требуется обновление Home Assistant",
+      "description": "Интеграция {entry_title} не загружена, потому что Home Assistant Core {current_ha_version} не поддерживается. Для этой интеграции нужен Core {minimum_ha_version} или новее. Обновите Home Assistant и перезагрузите интеграцию."
     }
   },
   "config_subentries": {

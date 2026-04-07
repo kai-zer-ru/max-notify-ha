@@ -13,13 +13,19 @@ from urllib.parse import unquote, urlparse
 
 import aiohttp
 from homeassistant.components.notify import NotifyEntity
-from homeassistant.config_entries import ConfigEntry, ConfigSubentry
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+
+try:
+    from homeassistant.config_entries import ConfigSubentry
+except ImportError:
+    class ConfigSubentry:  # type: ignore[too-many-ancestors]
+        """Compatibility stub for old Home Assistant versions."""
 
 from .const import (
     API_BASE_URL,

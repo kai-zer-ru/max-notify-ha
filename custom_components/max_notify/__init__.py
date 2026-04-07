@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
+import json
 import logging
+import re
+from pathlib import Path
 
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import __version__ as HA_VERSION
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import config_validation as cv
@@ -40,6 +44,39 @@ _LOGGER = logging.getLogger(__name__)
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 PLATFORMS: list[Platform] = [Platform.NOTIFY, Platform.SENSOR]
+_ISSUE_UNSUPPORTED_HA_PREFIX = "unsupported_ha_version_"
+
+
+def _minimum_ha_version_from_manifest() -> str:
+    """Read minimum HA version from integration manifest."""
+    try:
+        manifest_path = Path(__file__).with_name("manifest.json")
+        manifest_data = json.loads(manifest_path.read_text(encoding="utf-8"))
+        return str(manifest_data.get("minimum_ha_version", "unknown"))
+    except Exception:
+        return "unknown"
+
+
+MINIMUM_HA_VERSION = _minimum_ha_version_from_manifest()
+
+
+def _version_key(version: str) -> tuple[int, int, int]:
+    """Convert HA version string to comparable numeric tuple."""
+    match = re.search(r"(\d+)\.(\d+)(?:\.(\d+))?", version or "")
+    if not match:
+        return (0, 0, 0)
+    return (
+        int(match.group(1)),
+        int(match.group(2)),
+        int(match.group(3) or 0),
+    )
+
+
+def _is_ha_version_compatible() -> bool:
+    """Check if current HA Core version satisfies manifest minimum."""
+    if MINIMUM_HA_VERSION == "unknown":
+        return True
+    return _version_key(HA_VERSION) >= _version_key(MINIMUM_HA_VERSION)
 
 
 def _ensure_service_registered(hass: HomeAssistant) -> None:
@@ -74,6 +111,45 @@ def _ensure_webhook_view_registered(hass: HomeAssistant) -> None:
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Max Notify from a config entry."""
     _LOGGER.debug("async_setup_entry: entry_id=%s title=%s", entry.entry_id, entry.title)
+    issue_id = f"{_ISSUE_UNSUPPORTED_HA_PREFIX}{entry.entry_id}"
+    if not _is_ha_version_compatible():
+        _LOGGER.error(
+            "Max Notify [%s]: unsupported Home Assistant Core version %s; requires %s+.",
+            entry.title or entry.entry_id,
+            HA_VERSION,
+            MINIMUM_HA_VERSION,
+        )
+        official = (
+            entry.data.get(CONF_INTEGRATION_TYPE, INTEGRATION_TYPE_OFFICIAL)
+            == INTEGRATION_TYPE_OFFICIAL
+        )
+        if official:
+            # On incompatible HA, proactively remove stale Max webhook subscription.
+            try:
+                await unregister_webhook(hass, entry)
+            except Exception as e:
+                _LOGGER.warning(
+                    "Failed to unregister WebHook for incompatible entry %s: %s",
+                    entry.entry_id,
+                    e,
+                )
+        ir.async_create_issue(
+            hass,
+            DOMAIN,
+            issue_id,
+            breaks_in_ha_version=None,
+            is_fixable=False,
+            severity=ir.IssueSeverity.ERROR,
+            translation_key="unsupported_ha_version_runtime",
+            translation_placeholders={
+                "entry_title": entry.title or entry.entry_id,
+                "minimum_ha_version": MINIMUM_HA_VERSION,
+                "current_ha_version": HA_VERSION,
+            },
+        )
+        return False
+    ir.async_delete_issue(hass, DOMAIN, issue_id)
+
     hass.async_create_task(_async_register_service_once(hass))
     if DOMAIN not in hass.data:
         hass.data[DOMAIN] = {}

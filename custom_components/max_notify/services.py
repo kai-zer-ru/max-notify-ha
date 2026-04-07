@@ -6,11 +6,17 @@ import logging
 import time
 from typing import Any
 
-from homeassistant.config_entries import ConfigEntry, ConfigSubentry
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import ATTR_ENTITY_ID
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import config_validation as cv, entity_registry as er
+
+try:
+    from homeassistant.config_entries import ConfigSubentry
+except ImportError:
+    class ConfigSubentry:
+        """Compatibility stub for old Home Assistant versions."""
 
 from .const import (
     CONF_CHAT_ID,

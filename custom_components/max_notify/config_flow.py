@@ -2,23 +2,35 @@
 
 from __future__ import annotations
 
+import json
 import logging
+from pathlib import Path
 from typing import Any
 
 import voluptuous as vol
 from homeassistant import config_entries
-from homeassistant.config_entries import (
-    ConfigEntry,
-    ConfigSubentryData,
-    ConfigSubentryFlow,
-    OptionsFlow,
-    SubentryFlowResult,
-)
+from homeassistant.config_entries import ConfigEntry, OptionsFlow
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers.event import async_call_later
 from homeassistant.helpers import selector
 from homeassistant.helpers.translation import async_get_translations
+
+try:
+    from homeassistant.config_entries import (
+        ConfigSubentryData,
+        ConfigSubentryFlow,
+        SubentryFlowResult,
+    )
+
+    HAS_CONFIG_SUBENTRY = True
+except ImportError:
+    HAS_CONFIG_SUBENTRY = False
+    ConfigSubentryData = dict[str, Any]
+    SubentryFlowResult = FlowResult
+
+    class ConfigSubentryFlow:
+        """Compatibility stub for old Home Assistant versions."""
 
 from .api import validate_token
 from .const import (
@@ -74,6 +86,19 @@ from .webhook import (
 )
 
 _LOGGER = logging.getLogger(__name__)
+
+
+def _minimum_ha_version_from_manifest() -> str:
+    """Read minimum HA version from integration manifest."""
+    try:
+        manifest_path = Path(__file__).with_name("manifest.json")
+        manifest_data = json.loads(manifest_path.read_text(encoding="utf-8"))
+        return str(manifest_data.get("minimum_ha_version", "unknown"))
+    except Exception:
+        return "unknown"
+
+
+MINIMUM_HA_VERSION = _minimum_ha_version_from_manifest()
 
 # Text fields for tokens/secrets: avoid browser "save password" / autofill (HA passes autocomplete to ha-textfield).
 _SENSITIVE_TEXT_SELECTOR = selector.TextSelector(
@@ -132,6 +157,12 @@ class MaxNotifyConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def async_step_user(self, user_input: dict[str, Any] | None = None) -> FlowResult:
         """Entry point: choose integration type then run corresponding setup."""
+        if not HAS_CONFIG_SUBENTRY:
+            # Avoid import/runtime crashes on old HA and show a clear update requirement.
+            return self.async_abort(
+                reason="unsupported_ha_version",
+                description_placeholders={"minimum_ha_version": MINIMUM_HA_VERSION},
+            )
         if self._integration_type is None:
             return await self.async_step_integration_type(user_input)
         if self._integration_type == INTEGRATION_TYPE_NOTIFY_A161:
@@ -655,6 +686,8 @@ class MaxNotifyConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         config_entry: config_entries.ConfigEntry,
     ) -> dict[str, type[ConfigSubentryFlow]]:
         """Тип subentry «Добавить чат» для всех записей; для notify.a161.ru поток сразу прерывается с подсказкой."""
+        if not HAS_CONFIG_SUBENTRY:
+            return {}
         return {SUBENTRY_TYPE_RECIPIENT: RecipientSubEntryFlowHandler}
 
     async def _schema_token_async(
