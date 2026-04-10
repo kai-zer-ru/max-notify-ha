@@ -13,6 +13,7 @@ from custom_components.max_notify.const import (
 )
 from custom_components.max_notify.notify import (
     _extract_message_id_from_response,
+    _extract_url_and_basic_auth,
     _normalize_buttons_for_api,
     _message_id_candidates,
     delete_message,
@@ -82,6 +83,29 @@ class TestExtractMessageIdFromResponse:
     def test_from_result_message_body_mid(self) -> None:
         body = '{"result":{"message":{"body":{"mid":"mid.xyz987"}}}}'
         assert _extract_message_id_from_response(body) == "xyz987"
+
+
+class TestExtractUrlAndBasicAuth:
+    """Tests for URL/userinfo and explicit basic auth parsing."""
+
+    def test_uses_explicit_basic_auth(self) -> None:
+        url, auth = _extract_url_and_basic_auth(
+            "http://camera.local/snapshot.jpg", "admin:12345678"
+        )
+        assert url == "http://camera.local/snapshot.jpg"
+        assert auth is not None
+        assert auth.login == "admin"
+        assert auth.password == "12345678"
+
+    def test_uses_basic_auth_from_url(self) -> None:
+        url, auth = _extract_url_and_basic_auth(
+            "http://admin:12345678@192.168.2.253/cgi-bin/snapshot.cgi?channel=1",
+            None,
+        )
+        assert url == "http://192.168.2.253/cgi-bin/snapshot.cgi?channel=1"
+        assert auth is not None
+        assert auth.login == "admin"
+        assert auth.password == "12345678"
 
 
 class TestMessageIdCandidates:

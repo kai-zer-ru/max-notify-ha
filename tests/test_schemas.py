@@ -157,3 +157,10 @@ class TestSendVideoSchema:
             "disable_ssl": True,
         })
         assert data["disable_ssl"] is True
+
+    def test_url_basic_auth(self) -> None:
+        data = SERVICE_SEND_VIDEO_SCHEMA({
+            "file": "/tmp/v.mp4",
+            "url_basic_auth": "admin:12345678",
+        })
+        assert data["url_basic_auth"] == "admin:12345678"

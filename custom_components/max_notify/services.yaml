@@ -118,6 +118,13 @@ send_photo:
           default: false
           selector:
             boolean:
+        url_basic_auth:
+          name: Basic auth for file URL
+          description: >
+            Credentials for downloading file URL in format login:password.
+            If URL contains credentials (http://login:password@host/...), they are used automatically.
+          selector:
+            text:
         buttons:
           example: >
             {"Button 1":"button_1","Button 2":"button_2"} или
@@ -189,6 +196,13 @@ send_video:
           default: false
           selector:
             boolean:
+        url_basic_auth:
+          name: Basic auth for file URL
+          description: >
+            Credentials for downloading file URL in format login:password.
+            If URL contains credentials (http://login:password@host/...), they are used automatically.
+          selector:
+            text:
         buttons:
           example: >
             {"Button 1":"button_1","Button 2":"button_2"} или
@@ -260,6 +274,13 @@ send_document:
           default: false
           selector:
             boolean:
+        url_basic_auth:
+          name: Basic auth for file URL
+          description: >
+            Credentials for downloading file URL in format login:password.
+            If URL contains credentials (http://login:password@host/...), they are used automatically.
+          selector:
+            text:
         buttons:
           example: >
             {"Button 1":"button_1","Button 2":"button_2"} или

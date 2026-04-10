@@ -23,6 +23,7 @@ from .const import (
     CONF_CONFIG_ENTRY_ID,
     CONF_COUNT_REQUESTS,
     CONF_DISABLE_SSL,
+    CONF_URL_BASIC_AUTH,
     CONF_MESSAGE_ID,
     CONF_RECIPIENT_ID,
     CONF_SEND_KEYBOARD,
@@ -631,6 +632,7 @@ async def _send_photo_or_document(
     send_kb = data.get(CONF_SEND_KEYBOARD, True)
     buttons_provided = "buttons" in data
     count_requests = data.get(CONF_COUNT_REQUESTS)
+    url_basic_auth = data.get(CONF_URL_BASIC_AUTH)
     entity_ids = data.get(ATTR_ENTITY_ID)
     config_entry_id = data.get(CONF_CONFIG_ENTRY_ID)
     chat_id = data.get(CONF_CHAT_ID)
@@ -719,6 +721,7 @@ async def _send_photo_or_document(
             buttons=all_buttons,
             count_requests=count_requests,
             disable_ssl=disable_ssl,
+            url_basic_auth=url_basic_auth,
             # notify=data.get("notify", True),  # отключено: Max не отключает push/звук
         )
 
@@ -748,6 +751,7 @@ async def _send_video(
     user_id = data.get(CONF_USER_ID)
     recipient_id = data.get(CONF_RECIPIENT_ID)
     count_requests = data.get(CONF_COUNT_REQUESTS)
+    url_basic_auth = data.get(CONF_URL_BASIC_AUTH)
 
     chat_ids = _normalize_target_ids(chat_id) if chat_id is not None else None
     user_ids = _normalize_target_ids(user_id) if user_id is not None else None
@@ -775,7 +779,7 @@ async def _send_video(
 
     _LOGGER.debug(
         "_send_video: file=%s, caption_present=%s, entity_ids=%s, "
-        "config_entry_id=%s, chat_ids=%s, user_ids=%s, count_requests=%s, disable_ssl=%s, buttons_present=%s",
+        "config_entry_id=%s, chat_ids=%s, user_ids=%s, count_requests=%s, disable_ssl=%s, url_basic_auth_present=%s, buttons_present=%s",
         file_path_or_url,
         bool(caption),
         entity_ids,
@@ -784,6 +788,7 @@ async def _send_video(
         user_ids,
         count_requests,
         disable_ssl,
+        bool(url_basic_auth),
         buttons_provided,
     )
 
@@ -829,6 +834,7 @@ async def _send_video(
             buttons=all_buttons,
             count_requests=count_requests,
             disable_ssl=disable_ssl,
+            url_basic_auth=url_basic_auth,
             # notify=data.get("notify", True),  # отключено: Max не отключает push/звук
         )
 

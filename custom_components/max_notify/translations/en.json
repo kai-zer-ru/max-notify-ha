@@ -86,6 +86,10 @@
           "name": "Disable SSL verification",
           "description": "Disables SSL certificate validation for this operation. Use only for endpoints with self-signed or invalid certificates."
         },
+        "url_basic_auth": {
+          "name": "Basic auth for file URL",
+          "description": "Credentials for Basic authentication while downloading file URL in format login:password. If URL already contains credentials (http://login:password@host/...), they are used automatically."
+        },
         "count_requests": {
           "name": "Count requests",
           "description": "How many times to POST the message while waiting for attachment processing (attachment.not.ready). Increase for large files."
@@ -143,6 +147,10 @@
           "name": "Disable SSL verification",
           "description": "Disables SSL certificate validation for this operation. Use only for endpoints with self-signed or invalid certificates."
         },
+        "url_basic_auth": {
+          "name": "Basic auth for file URL",
+          "description": "Credentials for Basic authentication while downloading file URL in format login:password. If URL already contains credentials (http://login:password@host/...), they are used automatically."
+        },
         "count_requests": {
           "name": "Count requests",
           "description": "How many times to POST the message while waiting for attachment processing (attachment.not.ready). Increase for large files."
@@ -199,6 +207,10 @@
         "disable_ssl": {
           "name": "Disable SSL verification",
           "description": "Disables SSL certificate validation for this operation. Use only for endpoints with self-signed or invalid certificates."
+        },
+        "url_basic_auth": {
+          "name": "Basic auth for file URL",
+          "description": "Credentials for Basic authentication while downloading file URL in format login:password. If URL already contains credentials (http://login:password@host/...), they are used automatically."
         },
         "count_requests": {
           "name": "Count requests",

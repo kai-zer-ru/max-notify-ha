@@ -9,7 +9,7 @@ import mimetypes
 import os
 import time
 from typing import Any, Awaitable, Callable
-from urllib.parse import unquote, urlparse
+from urllib.parse import unquote, urlparse, urlunparse
 
 import aiohttp
 from homeassistant.components.notify import NotifyEntity
@@ -163,6 +163,38 @@ def _filename_from_url(url: str) -> str | None:
     return name or None
 
 
+def _extract_url_and_basic_auth(
+    file_url: str, basic_auth_raw: str | None
+) -> tuple[str, aiohttp.BasicAuth | None]:
+    """Build sanitized URL + BasicAuth from service field or URL userinfo."""
+    parsed = urlparse(file_url)
+
+    username: str | None = None
+    password: str = ""
+
+    if basic_auth_raw:
+        value = basic_auth_raw.strip()
+        if ":" in value:
+            username, password = value.split(":", 1)
+        else:
+            _LOGGER.warning(
+                "Invalid url_basic_auth format (expected login:password), ignoring it"
+            )
+
+    if username is None and parsed.username is not None:
+        username = unquote(parsed.username)
+        password = unquote(parsed.password or "")
+
+    sanitized_url = file_url
+    if parsed.username is not None:
+        host_netloc = parsed.netloc.rsplit("@", 1)[-1]
+        sanitized_url = urlunparse(parsed._replace(netloc=host_netloc))
+
+    if username is None:
+        return sanitized_url, None
+    return sanitized_url, aiohttp.BasicAuth(username, password)
+
+
 async def _parse_upload_response(resp: aiohttp.ClientResponse) -> dict[str, Any]:
     text = await resp.text()
     if not text.strip():
@@ -228,11 +260,15 @@ async def _async_read_media_body_for_upload(
     file_path_or_url: str,
     *,
     as_document: bool,
+    url_basic_auth: str | None = None,
     disable_ssl: bool = False,
 ) -> tuple[bytes, str, str] | None:
     """Скачать по URL или прочитать локальный файл; вернуть (body, content_type, filename)."""
     file_path_or_url = file_path_or_url.strip()
     if file_path_or_url.startswith(("http://", "https://")):
+        file_path_or_url, download_auth = _extract_url_and_basic_auth(
+            file_path_or_url, url_basic_auth
+        )
         download_headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
             "Accept": "*/*"
@@ -243,6 +279,7 @@ async def _async_read_media_body_for_upload(
             async with session.get(
                 file_path_or_url,
                 headers=download_headers,
+                auth=download_auth,
                 timeout=aiohttp.ClientTimeout(total=FILE_DOWNLOAD_TIMEOUT),
                 ssl=_request_ssl(disable_ssl),
             ) as r:
@@ -894,6 +931,7 @@ async def upload_image_and_send(
     count_requests: int | None = None,
     notify: bool = True,
     disable_ssl: bool = False,
+    url_basic_auth: str | None = None,
 ) -> None:
     """Upload image/file to Max (POST /uploads) and send (POST /messages)."""
     token = entry.data.get(CONF_ACCESS_TOKEN)
@@ -917,6 +955,7 @@ async def upload_image_and_send(
             session,
             file_path_or_url,
             as_document=as_document,
+            url_basic_auth=url_basic_auth,
             disable_ssl=disable_ssl,
         )
         if read_out is None:
@@ -1065,49 +1104,17 @@ async def upload_image_and_send(
         _LOGGER.error("Max API upload response has no url: %s", data)
         return
 
-    file_path_or_url = file_path_or_url.strip()
-    content_type: str = "image/jpeg"
-    filename: str = "image.jpg"
-    if file_path_or_url.startswith(("http://", "https://")):
-        download_headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            "Accept": "image/webp,image/apng,image/*,*/*;q=0.8",
-        }
-        try:
-            async with session.get(
-                file_path_or_url,
-                headers=download_headers,
-                timeout=aiohttp.ClientTimeout(total=30),
-                ssl=_request_ssl(disable_ssl),
-            ) as r:
-                if r.status != 200:
-                    _LOGGER.error("Download image failed: status=%s", r.status)
-                    return
-                raw_ct = r.headers.get("Content-Type") or ""
-                if "image/" in raw_ct:
-                    content_type = raw_ct.split(";")[0].strip().lower()
-                else:
-                    content_type = _content_type_from_path(file_path_or_url)
-                filename = _filename_from_url(file_path_or_url) or "image"
-                if not filename.lower().endswith((".jpg", ".jpeg", ".png", ".gif", ".webp")):
-                    ext = _ext_from_content_type(content_type)
-                    filename = f"{filename}.{ext}" if ext else f"{filename}.jpg"
-                body = await r.read()
-                _LOGGER.debug("Downloaded image from URL: %d bytes, content_type=%s", len(body), content_type)
-        except aiohttp.ClientError as e:
-            _LOGGER.error("Download image failed: %s", e)
-            return
-    else:
-        content_type = _content_type_from_path(file_path_or_url)
-        filename = file_path_or_url.rsplit("/", 1)[-1].rsplit("\\", 1)[-1] or "image.jpg"
-        if not filename.lower().endswith((".jpg", ".jpeg", ".png", ".gif", ".webp")):
-            ext = _ext_from_content_type(content_type)
-            filename = f"image.{ext}" if ext else "image.jpg"
-        try:
-            body = await hass.async_add_executor_job(_read_file_bytes, file_path_or_url, hass.config.config_dir)
-        except (OSError, ValueError) as e:
-            _LOGGER.error("Read image file failed: %s", e)
-            return
+    read_out = await _async_read_media_body_for_upload(
+        hass,
+        session,
+        file_path_or_url,
+        as_document=as_document,
+        url_basic_auth=url_basic_auth,
+        disable_ssl=disable_ssl,
+    )
+    if read_out is None:
+        return
+    body, content_type, filename = read_out
 
     if not body:
         _LOGGER.error("Image data is empty")
@@ -1193,6 +1200,7 @@ async def upload_video_and_send(
     count_requests: int | None = None,
     notify: bool = True,
     disable_ssl: bool = False,
+    url_basic_auth: str | None = None,
 ) -> None:
     """Upload video to Max (POST /uploads?type=video) and send (POST /messages)."""
     token = entry.data.get(CONF_ACCESS_TOKEN)
@@ -1284,6 +1292,9 @@ async def upload_video_and_send(
     content_type = "video/mp4"
     filename = "video.mp4"
     if file_path_or_url.startswith(("http://", "https://")):
+        file_path_or_url, download_auth = _extract_url_and_basic_auth(
+            file_path_or_url, url_basic_auth
+        )
         delays = list(VIDEO_URL_DOWNLOAD_RETRY_DELAYS)
         max_attempts = 1 + len(delays)
         body = b""
@@ -1294,6 +1305,7 @@ async def upload_video_and_send(
                 try:
                     async with session.get(
                         file_path_or_url,
+                        auth=download_auth,
                         timeout=aiohttp.ClientTimeout(total=120),
                         ssl=_request_ssl(disable_ssl),
                     ) as r:
