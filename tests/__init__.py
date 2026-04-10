@@ -1,1 +1,1 @@
-"""Tests for Max Notify integration."""
+"""Tests for MaxNotify integration."""

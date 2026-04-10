@@ -1,5 +1,5 @@
 {
-  "title": "Max Notify",
+  "title": "MaxNotify",
   "services": {
     "send_message": {
       "name": "Отправить сообщение",
@@ -7,7 +7,7 @@
       "fields": {
         "entity_id": {
           "name": "Сущность уведомления",
-          "description": "Сущность Max Notify (чат) для отправки. Можно выбрать несколько."
+          "description": "Сущность MaxNotify (чат) для отправки. Можно выбрать несколько."
         },
         "message": {
           "name": "Сообщение",
@@ -23,7 +23,7 @@
         },
         "config_entry_id": {
           "name": "Интеграция",
-          "description": "Интеграция Max Notify для отправки по chat_id/user_id (если интеграций несколько)."
+          "description": "Интеграция MaxNotify для отправки по chat_id/user_id (если интеграций несколько)."
         },
         "recipient_id": {
           "name": "ID получателя",
@@ -64,11 +64,11 @@
         },
         "entity_id": {
           "name": "Сущность уведомления",
-          "description": "Сущность Max Notify для отправки. Можно выбрать несколько."
+          "description": "Сущность MaxNotify для отправки. Можно выбрать несколько."
         },
         "config_entry_id": {
           "name": "Интеграция",
-          "description": "Интеграция Max Notify при отправке по chat_id/user_id."
+          "description": "Интеграция MaxNotify при отправке по chat_id/user_id."
         },
         "recipient_id": {
           "name": "ID получателя",
@@ -121,11 +121,11 @@
         },
         "entity_id": {
           "name": "Сущность уведомления",
-          "description": "Сущность Max Notify для отправки."
+          "description": "Сущность MaxNotify для отправки."
         },
         "config_entry_id": {
           "name": "Интеграция",
-          "description": "Интеграция Max Notify при отправке по chat_id/user_id."
+          "description": "Интеграция MaxNotify при отправке по chat_id/user_id."
         },
         "recipient_id": {
           "name": "ID получателя",
@@ -178,11 +178,11 @@
         },
         "entity_id": {
           "name": "Сущность уведомления",
-          "description": "Сущность Max Notify для отправки."
+          "description": "Сущность MaxNotify для отправки."
         },
         "config_entry_id": {
           "name": "Интеграция",
-          "description": "Интеграция Max Notify при отправке по chat_id/user_id."
+          "description": "Интеграция MaxNotify при отправке по chat_id/user_id."
         },
         "recipient_id": {
           "name": "ID получателя",
@@ -231,7 +231,7 @@
         },
         "entity_id": {
           "name": "Сущность уведомления",
-          "description": "Сущность Max Notify. Можно использовать вместо config_entry_id."
+          "description": "Сущность MaxNotify. Можно использовать вместо config_entry_id."
         },
         "recipient_id": {
           "name": "ID получателя",
@@ -247,7 +247,7 @@
         },
         "config_entry_id": {
           "name": "Интеграция",
-          "description": "Интеграция Max Notify для использования (обязательно при нескольких)."
+          "description": "Интеграция MaxNotify для использования (обязательно при нескольких)."
         }
       }
     },
@@ -281,7 +281,7 @@
         },
         "entity_id": {
           "name": "Сущность уведомления",
-          "description": "Сущность Max Notify. Можно использовать вместо config_entry_id."
+          "description": "Сущность MaxNotify. Можно использовать вместо config_entry_id."
         },
         "recipient_id": {
           "name": "ID получателя",
@@ -297,16 +297,16 @@
         },
         "config_entry_id": {
           "name": "Интеграция",
-          "description": "Интеграция Max Notify для использования (обязательно при нескольких)."
+          "description": "Интеграция MaxNotify для использования (обязательно при нескольких)."
         }
       }
     }
   },
-  "invalid_notify_entity": "Недопустимая сущность Max Notify: {entity_id}",
+  "invalid_notify_entity": "Недопустимая сущность MaxNotify: {entity_id}",
   "invalid_message_id": "ID сообщения не может быть пустым.",
   "missing_target": "Укажите entity_id или config_entry_id с recipient_id, chat_id или user_id.",
   "invalid_config_entry": "Недопустимая запись конфигурации: {config_entry_id}",
-  "missing_config_entry_id": "Найдено несколько интеграций Max Notify; укажите config_entry_id.",
+  "missing_config_entry_id": "Найдено несколько интеграций MaxNotify; укажите config_entry_id.",
   "no_matching_entities": "Нет подходящих сущностей уведомлений для интеграции {config_entry_id}.",
   "plain_recipient_not_resolved": "Не удалось определить получателя для прямой отправки. Проверьте recipient_id, chat_id/user_id и настройки интеграции.",
   "unsupported_for_notify_a161": "Операция {operation} не поддерживается в режиме notify.a161.ru.",
@@ -315,7 +315,7 @@
   "link_button_url_http_https_only": "URL кнопки-ссылки должен быть только http или https (получено: {url}).",
   "exceptions": {
     "invalid_notify_entity": {
-      "message": "Недопустимая сущность Max Notify: {entity_id}"
+      "message": "Недопустимая сущность MaxNotify: {entity_id}"
     },
     "invalid_message_id": {
       "message": "ID сообщения не может быть пустым."
@@ -327,7 +327,7 @@
       "message": "Недопустимая запись конфигурации: {config_entry_id}"
     },
     "missing_config_entry_id": {
-      "message": "Найдено несколько интеграций Max Notify; укажите config_entry_id."
+      "message": "Найдено несколько интеграций MaxNotify; укажите config_entry_id."
     },
     "no_matching_entities": {
       "message": "Нет подходящих сущностей уведомлений для интеграции {config_entry_id}."
@@ -374,10 +374,11 @@
       },
       "notify_user": {
         "title": "notify.a161.ru: токен",
-        "description": "Введите токен и формат сообщений, затем user_id. Режим приёма: только отправка.",
+        "description": "Введите токен, формат сообщений и режим приёма, затем user_id.\n\nРежим приёма: только отправка или очередь Polling updates.",
         "data": {
           "access_token": "Токен доступа",
-          "message_format": "Формат сообщений"
+          "message_format": "Формат сообщений",
+          "receive_mode": "Режим приёма"
         },
         "data_description": {
           "access_token": "Токен от бота notify.a161.ru (36 символов).",
@@ -388,6 +389,10 @@
             "text": "Текст",
             "markdown": "Markdown",
             "html": "HTML"
+          },
+          "receive_mode": {
+            "send_only": "Только отправка",
+            "polling": "Очередь Polling updates"
           }
         }
       },
@@ -401,8 +406,15 @@
           "recipient_id": "Используйте только положительное число из ответа бота notify.a161.ru."
         }
       },
+      "updates_interval": {
+        "title": "notify.a161.ru: интервал опроса updates",
+        "description": "Укажите интервал опроса очереди /updates в секундах. По умолчанию: {default_seconds} с.",
+        "data": {
+          "updates_interval": " "
+        }
+      },
       "user": {
-        "title": "Max Notify: токен бота",
+        "title": "MaxNotify: токен бота",
         "description": "Введите токен доступа бота, формат сообщений и режим приёма. При «Только отправка» дополнительные поля не нужны.\n\nЧтобы режим WebHook стал доступен в списке выбора, настройте внешний HTTPS-URL Home Assistant (Настройки → Система → Сеть). См. https://www.home-assistant.io/docs/configuration/basic/\n\nПока в Max активна подписка WebHook, Long Polling недоступен, и наоборот — см. https://dev.max.ru/docs-api/methods/POST/subscriptions",
         "data": {
           "access_token": "Токен доступа",
@@ -514,7 +526,7 @@
         }
       },
       "reconfigure": {
-        "title": "Изменить настройки Max Notify",
+        "title": "Изменить настройки MaxNotify",
         "description": "Новый API-ключ (оставьте пустым, чтобы оставить текущий) и формат сообщений.",
         "data": {
           "access_token": "Новый API-ключ (необязательно)",
@@ -533,15 +545,17 @@
       "cannot_connect": "Не удалось подключиться к API Max. Проверьте сеть и повторите.",
       "polling_subscription_list_failed": "Не удалось получить список WebHook-подписок в Max API. Проверьте сеть и повторите.",
       "polling_webhook_subscriptions_remain": "Long Polling недоступен, пока для бота активна подписка WebHook в Max. Удалите подписки WebHook (или выберите «Только отправка» / WebHook в настройках) и повторите. См. https://dev.max.ru/docs-api/methods/POST/subscriptions",
-      "polling_blocked_by_webhook_other_entry": "Другая интеграция Max Notify уже использует WebHook с этим токеном бота. Сначала отключите WebHook там или используйте другой токен.",
-      "webhook_blocked_by_polling_other_entry": "Другая интеграция Max Notify уже использует Long Polling с этим токеном бота. Сначала отключите Long Polling там или используйте другой токен.",
+      "polling_blocked_by_webhook_other_entry": "Другая интеграция MaxNotify уже использует WebHook с этим токеном бота. Сначала отключите WebHook там или используйте другой токен.",
+      "webhook_blocked_by_polling_other_entry": "Другая интеграция MaxNotify уже использует Long Polling с этим токеном бота. Сначала отключите Long Polling там или используйте другой токен.",
       "webhook_requires_external_https_url": "Для WebHook нужен внешний HTTPS-адрес Home Assistant (Настройки → Система → Сеть или Nabu Casa). Сначала настройте URL, затем снова выберите WebHook.",
       "unknown": "Произошла неизвестная ошибка",
       "invalid_id_format": "Введите целое число (положительное — личный чат, отрицательное — группа).",
       "notify_user_only": "Для notify.a161.ru используйте только положительные ID получателя (user_id).",
       "invalid_command_name": "Введите имя команды (без слэша).",
       "invalid_button_text": "Введите подпись на кнопке.",
-      "invalid_button_url": "Для кнопки-ссылки укажите URL с http:// или https://."
+      "invalid_button_url": "Для кнопки-ссылки укажите URL с http:// или https://.",
+      "invalid_updates_interval": "Введите интервал опроса от 2 до 30 секунд.",
+      "a161_polling_requires_buttons_switched_send_only": "Кнопки не настроены. Режим приёма автоматически переключен на «Только отправка». Добавьте хотя бы одну кнопку, чтобы использовать Polling."
     },
     "abort": {
       "already_configured": "Эта конфигурация уже добавлена",
@@ -553,9 +567,10 @@
     "step": {
       "init_notify": {
         "title": "Настройки notify.a161.ru",
-        "description": "Только формат сообщений. Чтобы сменить API-ключ, удалите интеграцию и добавьте заново. user_id задаётся только при первой настройке.",
+        "description": "Формат сообщений и режим приёма.\n\nРежим приёма: только отправка или очередь Polling updates.\n\nЧтобы сменить API-ключ, удалите интеграцию и добавьте заново. user_id задаётся только при первой настройке.",
         "data": {
-          "message_format": "Формат сообщений"
+          "message_format": "Формат сообщений",
+          "receive_mode": "Режим приёма"
         },
         "data_description": {
           "message_format": "Текст, Markdown или HTML"
@@ -565,11 +580,22 @@
             "text": "Текст",
             "markdown": "Markdown",
             "html": "HTML"
+          },
+          "receive_mode": {
+            "send_only": "Только отправка",
+            "polling": "Очередь Polling updates"
           }
         }
       },
+      "updates_interval": {
+        "title": "notify.a161.ru: интервал опроса updates",
+        "description": "Укажите интервал опроса очереди /updates в секундах. По умолчанию: {default_seconds} с.",
+        "data": {
+          "updates_interval": " "
+        }
+      },
       "init": {
-        "title": "Настройки Max Notify",
+        "title": "Настройки MaxNotify",
         "description": "Токен (необязательно), формат сообщений, режим приёма.{webhook_url_paragraph}",
         "webhook_url_paragraph": "URL WebHook в Max: {webhook_url}.",
         "data": {
@@ -713,18 +739,20 @@
     "error": {
       "polling_subscription_list_failed": "Не удалось получить список WebHook-подписок в Max API. Проверьте сеть и повторите.",
       "polling_webhook_subscriptions_remain": "Long Polling недоступен, пока для бота активна подписка WebHook в Max. Удалите подписки WebHook (или выберите «Только отправка» / WebHook в настройках) и повторите. См. https://dev.max.ru/docs-api/methods/POST/subscriptions",
-      "polling_blocked_by_webhook_other_entry": "Другая интеграция Max Notify уже использует WebHook с этим токеном бота. Сначала отключите WebHook там или используйте другой токен.",
-      "webhook_blocked_by_polling_other_entry": "Другая интеграция Max Notify уже использует Long Polling с этим токеном бота. Сначала отключите Long Polling там или используйте другой токен.",
-      "webhook_requires_external_https_url": "Для WebHook нужен внешний HTTPS-адрес Home Assistant (Настройки → Система → Сеть или Nabu Casa). Сначала настройте URL, затем снова выберите WebHook."
+      "polling_blocked_by_webhook_other_entry": "Другая интеграция MaxNotify уже использует WebHook с этим токеном бота. Сначала отключите WebHook там или используйте другой токен.",
+      "webhook_blocked_by_polling_other_entry": "Другая интеграция MaxNotify уже использует Long Polling с этим токеном бота. Сначала отключите Long Polling там или используйте другой токен.",
+      "webhook_requires_external_https_url": "Для WebHook нужен внешний HTTPS-адрес Home Assistant (Настройки → Система → Сеть или Nabu Casa). Сначала настройте URL, затем снова выберите WebHook.",
+      "invalid_updates_interval": "Введите интервал опроса от 2 до 30 секунд.",
+      "a161_polling_requires_buttons_switched_send_only": "Кнопки не настроены. Режим приёма автоматически переключен на «Только отправка». Добавьте хотя бы одну кнопку, чтобы использовать Polling."
     }
   },
   "issues": {
     "webhook_disabled_no_https": {
-      "title": "Max Notify: WebHook отключён (нет HTTPS)",
+      "title": "MaxNotify: WebHook отключён (нет HTTPS)",
       "description": "Интеграция {entry_title} была в режиме WebHook, но у Home Assistant нет внешнего HTTPS base URL. Режим сменён на «Только отправка». Настройте Настройки → Система → Сеть (или Nabu Casa), затем при необходимости снова выберите WebHook в настройках интеграции."
     },
     "unsupported_ha_version_runtime": {
-      "title": "Max Notify: требуется обновление Home Assistant",
+      "title": "MaxNotify: требуется обновление Home Assistant",
       "description": "Интеграция {entry_title} не загружена, потому что Home Assistant Core {current_ha_version} не поддерживается. Для этой интеграции нужен Core {minimum_ha_version} или новее. Обновите Home Assistant и перезагрузите интеграцию."
     }
   },
@@ -732,7 +760,7 @@
     "recipient": {
       "abort": {
         "already_configured": "Этот ID уже добавлен",
-        "notify_user_locked": "Для notify.a161.ru нельзя добавлять чаты в этой записи. Добавьте новую интеграцию Max Notify для другого получателя."
+        "notify_user_locked": "Для notify.a161.ru нельзя добавлять чаты в этой записи. Добавьте новую интеграцию MaxNotify для другого получателя."
       },
       "entry_type": "ID чата",
       "error": {

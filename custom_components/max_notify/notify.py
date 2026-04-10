@@ -1,4 +1,4 @@
-"""Notify platform for Max Notify integration."""
+"""Notify platform for MaxNotify integration."""
 
 from __future__ import annotations
 
@@ -36,6 +36,7 @@ from .const import (
     API_VERSION,
     CHATS_PAGE_SIZE,
     CONF_ACCESS_TOKEN,
+    CONF_A161_LAST_BUTTON_SEND_AT,
     CONF_CHAT_ID,
     CONF_MESSAGE_FORMAT,
     CONF_USER_ID,
@@ -73,6 +74,19 @@ _VIDEO_EXT_TO_CONTENT_TYPE = {
 # Transient HTTP statuses when fetching a video URL (clip still processing, overload, etc.).
 _RETRYABLE_VIDEO_DOWNLOAD_STATUSES = frozenset({400, 404, 408, 429, 500, 502, 503, 504})
 _NETWORK_RETRY_DELAYS = (2, 4, 8)
+
+
+def _mark_a161_button_send(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Remember last successful a161 message send with buttons."""
+    if not is_notify_a161_entry(entry):
+        return
+    now_ts = time.time()
+    domain_data = hass.data.setdefault(DOMAIN, {})
+    marks: dict[str, float] = domain_data.setdefault("_a161_button_send_marks", {})
+    marks[entry.entry_id] = now_ts
+    new_options = dict(entry.options or {})
+    new_options[CONF_A161_LAST_BUTTON_SEND_AT] = int(now_ts)
+    hass.config_entries.async_update_entry(entry, options=new_options)
 
 
 def _request_ssl(disable_ssl: bool) -> bool | None:
@@ -741,12 +755,6 @@ async def send_message_with_buttons(
     if not token:
         _LOGGER.error("No access token in config entry")
         return
-    if is_notify_a161_entry(entry):
-        _LOGGER.debug(
-            "notify.a161.ru: inline keyboard not sent (not supported); sending text only"
-        )
-        await send_plain_message(hass, entry, recipient, message, title=title)
-        return
     result = await _get_message_url_and_recipient(hass, entry, token, recipient)
     if not result:
         _LOGGER.error("Could not resolve recipient for message with buttons")
@@ -790,6 +798,7 @@ async def send_message_with_buttons(
         _store_outgoing_message_id_from_response(
             hass, entry.entry_id, body, "send_message_with_buttons"
         )
+        _mark_a161_button_send(hass, entry)
 
     await _post_message_with_retry(
         hass,
@@ -998,8 +1007,11 @@ async def upload_image_and_send(
             {"type": att_type, "payload": upload_resp}
         ]
         if buttons:
-            _LOGGER.debug(
-                "notify.a161.ru: inline keyboard not sent with media (not supported)"
+            attachments_a161.append(
+                {
+                    "type": "inline_keyboard",
+                    "payload": {"buttons": _normalize_buttons_for_api(buttons)},
+                }
             )
         msg_format_a161 = entry.data.get(CONF_MESSAGE_FORMAT, "text")
         payload_a161: dict[str, Any] = {
@@ -1013,6 +1025,8 @@ async def upload_image_and_send(
             _store_outgoing_message_id_from_response(
                 hass, entry.entry_id, resp_body, "upload_image_and_send_notify_a161"
             )
+            if buttons:
+                _mark_a161_button_send(hass, entry)
 
         await _post_message_with_retry(
             hass,
@@ -1397,8 +1411,11 @@ async def upload_video_and_send(
             {"type": "video", "payload": {"token": str(video_token)}}
         ]
         if buttons:
-            _LOGGER.debug(
-                "notify.a161.ru: inline keyboard not sent with video (not supported)"
+            attachments_a161.append(
+                {
+                    "type": "inline_keyboard",
+                    "payload": {"buttons": _normalize_buttons_for_api(buttons)},
+                }
             )
         payload_a161: dict[str, Any] = {
             "text": (caption or "")[:MAX_MESSAGE_LENGTH],
@@ -1411,6 +1428,8 @@ async def upload_video_and_send(
             _store_outgoing_message_id_from_response(
                 hass, entry.entry_id, resp_body, "upload_video_notify_a161"
             )
+            if buttons:
+                _mark_a161_button_send(hass, entry)
 
         await _post_message_with_retry(
             hass,
@@ -1498,7 +1517,7 @@ async def async_setup_entry(
 
 
 class MaxNotifyEntity(NotifyEntity):
-    """Representation of a Max Notify entity."""
+    """Representation of a MaxNotify entity."""
 
     _attr_has_entity_name = True
     _attr_entity_category = EntityCategory.CONFIG
@@ -1674,7 +1693,7 @@ class MaxNotifyEntity(NotifyEntity):
                 "persistent_notification",
                 "create",
                 {
-                    "title": "Max Notify: ошибка отправки сообщения",
+                    "title": "MaxNotify: ошибка отправки сообщения",
                     "message": message,
                     "notification_id": f"max_notify_send_error_{self._entry.entry_id}",
                 },

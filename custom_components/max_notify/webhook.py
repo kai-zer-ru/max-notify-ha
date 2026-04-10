@@ -243,7 +243,7 @@ def log_webhook_https_diagnostics(hass: HomeAssistant, entry: ConfigEntry) -> No
     webhook_url = get_webhook_url(hass, entry)
     can_receive = bool(webhook_url and webhook_url.startswith("https://"))
     _LOGGER.info(
-        "Max Notify [%s]: HTTPS for Max webhook=%s; webhook URL=%s; "
+        "MaxNotify [%s]: HTTPS for Max webhook=%s; webhook URL=%s; "
         "external_base_https_ok=%s; HA external_url=%s; internal_url=%s",
         entry.title or entry.entry_id,
         "yes" if can_receive else "no",

@@ -1,4 +1,4 @@
-"""Pytest fixtures for Max Notify tests."""
+"""Pytest fixtures for MaxNotify tests."""
 
 from __future__ import annotations
 
@@ -27,7 +27,7 @@ def hass() -> MagicMock:
 
 @pytest.fixture
 def mock_config_entry() -> MagicMock:
-    """Create a mock config entry for Max Notify."""
+    """Create a mock config entry for MaxNotify."""
     entry = MagicMock()
     entry.entry_id = "test-entry-id"
     entry.domain = DOMAIN
@@ -36,7 +36,7 @@ def mock_config_entry() -> MagicMock:
         CONF_MESSAGE_FORMAT: "text",
     }
     entry.options = {}
-    entry.title = "Max Notify Test"
+    entry.title = "MaxNotify Test"
     return entry
 
 

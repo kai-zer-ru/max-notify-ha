@@ -1,4 +1,4 @@
-"""Config flow for Max Notify integration."""
+"""Config flow for MaxNotify integration."""
 
 from __future__ import annotations
 
@@ -52,9 +52,13 @@ from .const import (
     CONF_RECIPIENT_TYPE,
     CONF_USER_ID,
     CONF_WEBHOOK_SECRET,
+    CONF_UPDATES_INTERVAL,
     DOMAIN,
     INTEGRATION_TYPE_NOTIFY_A161,
     INTEGRATION_TYPE_OFFICIAL,
+    NOTIFY_A161_UPDATES_INTERVAL_MAX_SECONDS,
+    NOTIFY_A161_UPDATES_INTERVAL_MIN_SECONDS,
+    NOTIFY_A161_UPDATES_INTERVAL_SECONDS,
     RECEIVE_MODE_POLLING,
     RECEIVE_MODE_SEND_ONLY,
     RECEIVE_MODE_WEBHOOK,
@@ -109,6 +113,26 @@ _SENSITIVE_TEXT_SELECTOR = selector.TextSelector(
 )
 
 
+def _dropdown_mode_value():
+    """Select selector mode value compatible with different HA versions."""
+    mode_enum = getattr(selector, "SelectSelectorMode", None)
+    if mode_enum is None:
+        return "dropdown"
+    return mode_enum.DROPDOWN
+
+
+def _remove_buttons_selector(options: list[str]) -> selector.SelectSelector:
+    """Dropdown multi-select for button removal."""
+    return selector.SelectSelector(
+        selector.SelectSelectorConfig(
+            options=options,
+            multiple=True,
+            mode=_dropdown_mode_value(),
+            custom_value=False,
+        )
+    )
+
+
 def _effective_integration_type(entry: ConfigEntry) -> str:
     """Resolved integration type for validation and options UI."""
     if is_notify_a161_entry(entry):
@@ -141,7 +165,7 @@ async def _async_keyboard_menu_intro(
 
 
 class MaxNotifyConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
-    """Handle a config flow for Max Notify."""
+    """Handle a config flow for MaxNotify."""
 
     VERSION = 1
 
@@ -154,6 +178,8 @@ class MaxNotifyConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self._webhook_secret: str = ""
         self._buttons_rows: list[list[dict[str, Any]]] = []
         self._remove_button_label_to_value: dict[str, str] = {}
+        self._a161_polling_requested: bool = False
+        self._updates_interval: int = NOTIFY_A161_UPDATES_INTERVAL_SECONDS
 
     async def async_step_user(self, user_input: dict[str, Any] | None = None) -> FlowResult:
         """Entry point: choose integration type then run corresponding setup."""
@@ -360,7 +386,15 @@ class MaxNotifyConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             msg_fmt_key_to_label = get_option_labels(
                 trans, "config", "notify_user", "message_format", ["text", "markdown", "html"]
             )
+            recv_key_to_label = get_option_labels(
+                trans,
+                "config",
+                "notify_user",
+                "receive_mode",
+                [RECEIVE_MODE_SEND_ONLY, RECEIVE_MODE_POLLING],
+            )
             msg_fmt_label_to_key = {v: k for k, v in msg_fmt_key_to_label.items()}
+            recv_label_to_key = {v: k for k, v in recv_key_to_label.items()}
             self._message_format = (
                 msg_fmt_label_to_key.get(
                     user_input.get(CONF_MESSAGE_FORMAT),
@@ -368,6 +402,15 @@ class MaxNotifyConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 )
                 or "text"
             )
+            self._receive_mode = (
+                recv_label_to_key.get(
+                    user_input.get(CONF_RECEIVE_MODE),
+                    user_input.get(CONF_RECEIVE_MODE),
+                )
+                or RECEIVE_MODE_SEND_ONLY
+            )
+            self._a161_polling_requested = self._receive_mode == RECEIVE_MODE_POLLING
+            self._updates_interval = int(NOTIFY_A161_UPDATES_INTERVAL_SECONDS)
             if not self._token:
                 return self.async_show_form(
                     step_id="notify_user",
@@ -380,9 +423,10 @@ class MaxNotifyConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     data_schema=await self._schema_notify_user_async(),
                     errors={"base": "invalid_notify_token_length"},
                 )
-            self._receive_mode = RECEIVE_MODE_SEND_ONLY
             self._webhook_secret = ""
             self._buttons_rows = []
+            if self._receive_mode == RECEIVE_MODE_POLLING:
+                return await self.async_step_updates_interval(None)
             return await self.async_step_notify_recipient(None)
         return self.async_show_form(
             step_id="notify_user", data_schema=await self._schema_notify_user_async()
@@ -413,7 +457,8 @@ class MaxNotifyConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     CONF_WEBHOOK_SECRET: self._webhook_secret,
                     CONF_BUTTONS: self._buttons_rows,
                 }
-                base_title = "Max Notify (notify.a161.ru)"
+                mode_title = await get_receive_mode_title(self.hass, self._receive_mode)
+                base_title = f"MaxNotify (notify.a161.ru, {mode_title})"
                 entry_title = get_unique_entry_title(self.hass, DOMAIN, base_title)
                 result = self.async_create_entry(
                     title=entry_title,
@@ -451,6 +496,51 @@ class MaxNotifyConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             data_schema=self._schema_webhook_secret(),
             description_placeholders={
                 "receive_mode": await get_receive_mode_title(self.hass, self._receive_mode),
+            },
+        )
+
+    async def async_step_updates_interval(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """notify.a161.ru polling interval in seconds."""
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            try:
+                interval = int(user_input.get(CONF_UPDATES_INTERVAL))
+            except (TypeError, ValueError):
+                interval = 0
+            if (
+                interval < NOTIFY_A161_UPDATES_INTERVAL_MIN_SECONDS
+                or interval > NOTIFY_A161_UPDATES_INTERVAL_MAX_SECONDS
+            ):
+                errors["base"] = "invalid_updates_interval"
+            else:
+                self._updates_interval = interval
+                return await self.async_step_receive_options_menu(None)
+        return self.async_show_form(
+            step_id="updates_interval",
+            data_schema=self.add_suggested_values_to_schema(
+                vol.Schema(
+                    {
+                        vol.Required(
+                            CONF_UPDATES_INTERVAL,
+                            default=NOTIFY_A161_UPDATES_INTERVAL_SECONDS,
+                        ): vol.All(
+                            vol.Coerce(int),
+                            vol.Range(
+                                min=NOTIFY_A161_UPDATES_INTERVAL_MIN_SECONDS,
+                                max=NOTIFY_A161_UPDATES_INTERVAL_MAX_SECONDS,
+                            ),
+                        )
+                    }
+                ),
+                {
+                    CONF_UPDATES_INTERVAL: self._updates_interval,
+                },
+            ),
+            errors=errors,
+            description_placeholders={
+                "default_seconds": str(NOTIFY_A161_UPDATES_INTERVAL_SECONDS),
             },
         )
 
@@ -567,6 +657,11 @@ class MaxNotifyConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                             self._buttons_rows.append([btn])
                     except ValueError:
                         self._buttons_rows.append([btn])
+                if (
+                    self._integration_type == INTEGRATION_TYPE_NOTIFY_A161
+                    and self._a161_polling_requested
+                ):
+                    self._receive_mode = RECEIVE_MODE_POLLING
                 return await self.async_step_receive_options_menu(None)
         return self.async_show_form(
             step_id="add_button",
@@ -592,18 +687,30 @@ class MaxNotifyConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     ) -> FlowResult:
         """Form: choose button to remove; remove and return to menu."""
         if user_input is not None:
-            chosen_label = (user_input.get(CONF_BUTTON_TO_REMOVE) or "").strip()
-            to_remove = self._remove_button_label_to_value.get(chosen_label, "")
-            if ":" in to_remove:
+            selected = user_input.get(CONF_BUTTON_TO_REMOVE)
+            if isinstance(selected, str):
+                selected_labels = [selected.strip()] if selected.strip() else []
+            elif isinstance(selected, list):
+                selected_labels = [
+                    str(item).strip() for item in selected if str(item).strip()
+                ]
+            else:
+                selected_labels = []
+            to_delete: list[tuple[int, int]] = []
+            for chosen_label in selected_labels:
+                to_remove = self._remove_button_label_to_value.get(chosen_label, "")
+                if ":" not in to_remove:
+                    continue
                 ri_s, bi_s = to_remove.split(":", 1)
                 try:
-                    ri, bi = int(ri_s), int(bi_s)
-                    if 0 <= ri < len(self._buttons_rows) and 0 <= bi < len(self._buttons_rows[ri]):
-                        self._buttons_rows[ri].pop(bi)
-                        if not self._buttons_rows[ri]:
-                            self._buttons_rows.pop(ri)
+                    to_delete.append((int(ri_s), int(bi_s)))
                 except ValueError:
-                    pass
+                    continue
+            for ri, bi in sorted(set(to_delete), reverse=True):
+                if 0 <= ri < len(self._buttons_rows) and 0 <= bi < len(self._buttons_rows[ri]):
+                    self._buttons_rows[ri].pop(bi)
+                    if not self._buttons_rows[ri]:
+                        self._buttons_rows.pop(ri)
             return await self.async_step_receive_options_menu(None)
         choices = buttons_choice_list(self._buttons_rows)
         if not choices:
@@ -613,7 +720,7 @@ class MaxNotifyConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         return self.async_show_form(
             step_id="remove_button",
             data_schema=vol.Schema(
-                {vol.Required(CONF_BUTTON_TO_REMOVE): vol.In(choice_labels)}
+                {vol.Required(CONF_BUTTON_TO_REMOVE): _remove_buttons_selector(choice_labels)}
             ),
             description_placeholders={"buttons_list": buttons_display_str(self._buttons_rows)},
         )
@@ -655,11 +762,15 @@ class MaxNotifyConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         CONF_RECEIVE_MODE: self._receive_mode,
                         CONF_WEBHOOK_SECRET: self._webhook_secret,
                         CONF_BUTTONS: self._buttons_rows,
+                    CONF_UPDATES_INTERVAL: self._updates_interval,
                     }
                     if self._integration_type == INTEGRATION_TYPE_NOTIFY_A161:
-                        base_title = "Max Notify (notify.a161.ru)"
+                        mode_title = await get_receive_mode_title(
+                            self.hass, self._receive_mode
+                        )
+                        base_title = f"MaxNotify (notify.a161.ru, {mode_title})"
                     else:
-                        base_title = f"Max Notify ({await get_receive_mode_title(self.hass, self._receive_mode)})"
+                        base_title = f"MaxNotify ({await get_receive_mode_title(self.hass, self._receive_mode)})"
                     entry_title = get_unique_entry_title(self.hass, DOMAIN, base_title)
                     result = self.async_create_entry(
                         title=entry_title,
@@ -817,11 +928,20 @@ class MaxNotifyConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         msg_fmt_labels = get_option_labels(
             trans, "config", "notify_user", "message_format", msg_fmt_keys
         )
+        recv_keys = [RECEIVE_MODE_SEND_ONLY, RECEIVE_MODE_POLLING]
+        recv_labels = get_option_labels(
+            trans, "config", "notify_user", "receive_mode", recv_keys
+        )
         msg_fmt_list = [msg_fmt_labels[k] for k in msg_fmt_keys]
+        recv_list = [recv_labels[k] for k in recv_keys]
         suggested = {
             CONF_ACCESS_TOKEN: self._token or "",
             CONF_MESSAGE_FORMAT: msg_fmt_labels.get(
                 self._message_format, self._message_format
+            ),
+            CONF_RECEIVE_MODE: recv_labels.get(
+                self._receive_mode,
+                recv_labels[RECEIVE_MODE_SEND_ONLY],
             ),
         }
         return self.add_suggested_values_to_schema(
@@ -829,6 +949,7 @@ class MaxNotifyConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 {
                     vol.Required(CONF_ACCESS_TOKEN): _SENSITIVE_TEXT_SELECTOR,
                     vol.Optional(CONF_MESSAGE_FORMAT, default=msg_fmt_list[0]): vol.In(msg_fmt_list),
+                    vol.Required(CONF_RECEIVE_MODE, default=recv_list[0]): vol.In(recv_list),
                 }
             ),
             suggested,
@@ -952,6 +1073,8 @@ class MaxNotifyOptionsFlow(OptionsFlow):
         self._opt_remove_button_label_to_value: dict[str, str] = {}
         self._opt_edit_index: tuple[int, int] | None = None
         self._opt_edit_label_to_value: dict[str, str] = {}
+        self._a161_polling_requested: bool = False
+        self._pending_updates_interval: int = NOTIFY_A161_UPDATES_INTERVAL_SECONDS
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
@@ -1022,7 +1145,7 @@ class MaxNotifyOptionsFlow(OptionsFlow):
                     CONF_WEBHOOK_SECRET: new_webhook_secret,
                     CONF_BUTTONS: [],
                 }
-                base_title = f"Max Notify ({await get_receive_mode_title(self.hass, new_receive_mode)})"
+                base_title = f"MaxNotify ({await get_receive_mode_title(self.hass, new_receive_mode)})"
                 new_title = get_unique_entry_title(
                     self.hass, DOMAIN, base_title, exclude_entry_id=entry.entry_id
                 )
@@ -1139,7 +1262,7 @@ class MaxNotifyOptionsFlow(OptionsFlow):
     async def async_step_init_notify(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
-        """Options flow for notify.a161.ru: message format only (token is not changed here)."""
+        """Options flow for notify.a161.ru: message format + receive mode."""
         entry = self.config_entry
         if user_input is None:
             try:
@@ -1162,19 +1285,51 @@ class MaxNotifyOptionsFlow(OptionsFlow):
                 "message_format",
                 ["text", "markdown", "html"],
             )
+            recv_key_to_label = get_option_labels(
+                trans,
+                "options",
+                "init_notify",
+                "receive_mode",
+                [RECEIVE_MODE_SEND_ONLY, RECEIVE_MODE_POLLING],
+            )
             msg_fmt_label_to_key = {v: k for k, v in msg_fmt_key_to_label.items()}
+            recv_label_to_key = {v: k for k, v in recv_key_to_label.items()}
             raw_msg_fmt = user_input.get(CONF_MESSAGE_FORMAT, "text")
+            raw_recv = user_input.get(CONF_RECEIVE_MODE, RECEIVE_MODE_SEND_ONLY)
             new_data = dict(entry.data)
             new_data[CONF_MESSAGE_FORMAT] = (
                 msg_fmt_label_to_key.get(raw_msg_fmt, raw_msg_fmt) or "text"
             )
+            new_receive_mode = (
+                recv_label_to_key.get(raw_recv, raw_recv) or RECEIVE_MODE_SEND_ONLY
+            )
             new_data[CONF_INTEGRATION_TYPE] = INTEGRATION_TYPE_NOTIFY_A161
+            self._a161_polling_requested = new_receive_mode == RECEIVE_MODE_POLLING
+            if new_receive_mode == RECEIVE_MODE_POLLING:
+                self._pending_data = new_data
+                self._pending_updates_interval = int(
+                    (entry.options or {}).get(
+                        CONF_UPDATES_INTERVAL, NOTIFY_A161_UPDATES_INTERVAL_SECONDS
+                    )
+                )
+                self._pending_options = {
+                    CONF_RECEIVE_MODE: RECEIVE_MODE_POLLING,
+                    CONF_WEBHOOK_SECRET: "",
+                }
+                self._opt_buttons = normalize_buttons((entry.options or {}).get(CONF_BUTTONS))
+                return await self.async_step_updates_interval(None)
             new_options = {
-                CONF_RECEIVE_MODE: RECEIVE_MODE_SEND_ONLY,
+                CONF_RECEIVE_MODE: new_receive_mode,
                 CONF_WEBHOOK_SECRET: "",
                 CONF_BUTTONS: [],
+                CONF_UPDATES_INTERVAL: int(
+                    (entry.options or {}).get(
+                        CONF_UPDATES_INTERVAL, NOTIFY_A161_UPDATES_INTERVAL_SECONDS
+                    )
+                ),
             }
-            base_title = "Max Notify (notify.a161.ru)"
+            mode_title = await get_receive_mode_title(self.hass, new_receive_mode)
+            base_title = f"MaxNotify (notify.a161.ru, {mode_title})"
             new_title = get_unique_entry_title(
                 self.hass, DOMAIN, base_title, exclude_entry_id=entry.entry_id
             )
@@ -1188,12 +1343,61 @@ class MaxNotifyOptionsFlow(OptionsFlow):
             data_schema=await self._schema_init_async(entry),
         )
 
+    async def async_step_updates_interval(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Options step: notify.a161 polling interval in seconds."""
+        entry = self.config_entry
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            try:
+                interval = int(user_input.get(CONF_UPDATES_INTERVAL))
+            except (TypeError, ValueError):
+                interval = 0
+            if (
+                interval < NOTIFY_A161_UPDATES_INTERVAL_MIN_SECONDS
+                or interval > NOTIFY_A161_UPDATES_INTERVAL_MAX_SECONDS
+            ):
+                errors["base"] = "invalid_updates_interval"
+            else:
+                self._pending_updates_interval = interval
+                return await self.async_step_buttons_menu(None)
+        suggested = self._pending_updates_interval or int(
+            (entry.options or {}).get(
+                CONF_UPDATES_INTERVAL, NOTIFY_A161_UPDATES_INTERVAL_SECONDS
+            )
+        )
+        return self.async_show_form(
+            step_id="updates_interval",
+            data_schema=self.add_suggested_values_to_schema(
+                vol.Schema(
+                    {
+                        vol.Required(
+                            CONF_UPDATES_INTERVAL,
+                            default=NOTIFY_A161_UPDATES_INTERVAL_SECONDS,
+                        ): vol.All(
+                            vol.Coerce(int),
+                            vol.Range(
+                                min=NOTIFY_A161_UPDATES_INTERVAL_MIN_SECONDS,
+                                max=NOTIFY_A161_UPDATES_INTERVAL_MAX_SECONDS,
+                            ),
+                        )
+                    }
+                ),
+                {
+                    CONF_UPDATES_INTERVAL: suggested,
+                },
+            ),
+            errors=errors,
+            description_placeholders={
+                "default_seconds": str(NOTIFY_A161_UPDATES_INTERVAL_SECONDS),
+            },
+        )
+
     async def async_step_buttons_menu(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
         """Form: choose action (add/remove button or finish)."""
-        if is_notify_a161_entry(self.config_entry):
-            return await self.async_step_init_notify(None)
         option_keys: list[tuple[str, str]] = [
             ("opt_add_button", ""),
             ("opt_next", ""),
@@ -1304,6 +1508,12 @@ class MaxNotifyOptionsFlow(OptionsFlow):
                             self._opt_buttons.append([btn])
                     except ValueError:
                         self._opt_buttons.append([btn])
+                if (
+                    is_notify_a161_entry(self.config_entry)
+                    and self._a161_polling_requested
+                    and self._pending_options.get(CONF_RECEIVE_MODE) == RECEIVE_MODE_SEND_ONLY
+                ):
+                    self._pending_options[CONF_RECEIVE_MODE] = RECEIVE_MODE_POLLING
                 return await self.async_step_buttons_menu(None)
         return self.async_show_form(
             step_id="opt_add_button",
@@ -1329,18 +1539,30 @@ class MaxNotifyOptionsFlow(OptionsFlow):
     ) -> FlowResult:
         """Remove button (options flow)."""
         if user_input is not None:
-            chosen_label = (user_input.get(CONF_BUTTON_TO_REMOVE) or "").strip()
-            to_remove = self._opt_remove_button_label_to_value.get(chosen_label, "")
-            if ":" in to_remove:
+            selected = user_input.get(CONF_BUTTON_TO_REMOVE)
+            if isinstance(selected, str):
+                selected_labels = [selected.strip()] if selected.strip() else []
+            elif isinstance(selected, list):
+                selected_labels = [
+                    str(item).strip() for item in selected if str(item).strip()
+                ]
+            else:
+                selected_labels = []
+            to_delete: list[tuple[int, int]] = []
+            for chosen_label in selected_labels:
+                to_remove = self._opt_remove_button_label_to_value.get(chosen_label, "")
+                if ":" not in to_remove:
+                    continue
                 ri_s, bi_s = to_remove.split(":", 1)
                 try:
-                    ri, bi = int(ri_s), int(bi_s)
-                    if 0 <= ri < len(self._opt_buttons) and 0 <= bi < len(self._opt_buttons[ri]):
-                        self._opt_buttons[ri].pop(bi)
-                        if not self._opt_buttons[ri]:
-                            self._opt_buttons.pop(ri)
+                    to_delete.append((int(ri_s), int(bi_s)))
                 except ValueError:
-                    pass
+                    continue
+            for ri, bi in sorted(set(to_delete), reverse=True):
+                if 0 <= ri < len(self._opt_buttons) and 0 <= bi < len(self._opt_buttons[ri]):
+                    self._opt_buttons[ri].pop(bi)
+                    if not self._opt_buttons[ri]:
+                        self._opt_buttons.pop(ri)
             return await self.async_step_buttons_menu(None)
         choices = buttons_choice_list(self._opt_buttons)
         if not choices:
@@ -1350,7 +1572,7 @@ class MaxNotifyOptionsFlow(OptionsFlow):
         return self.async_show_form(
             step_id="opt_remove_button",
             data_schema=vol.Schema(
-                {vol.Required(CONF_BUTTON_TO_REMOVE): vol.In(choice_labels)}
+                {vol.Required(CONF_BUTTON_TO_REMOVE): _remove_buttons_selector(choice_labels)}
             ),
             description_placeholders={"buttons_list": buttons_display_str(self._opt_buttons)},
         )
@@ -1474,14 +1696,19 @@ class MaxNotifyOptionsFlow(OptionsFlow):
         new_options = {
             **self._pending_options,
             CONF_BUTTONS: self._opt_buttons,
+            CONF_UPDATES_INTERVAL: self._pending_updates_interval,
         }
         if (
             self._pending_data.get(CONF_INTEGRATION_TYPE)
             == INTEGRATION_TYPE_NOTIFY_A161
         ):
-            base_title = "Max Notify (notify.a161.ru)"
+            mode_title = await get_receive_mode_title(
+                self.hass,
+                self._pending_options.get(CONF_RECEIVE_MODE, RECEIVE_MODE_SEND_ONLY),
+            )
+            base_title = f"MaxNotify (notify.a161.ru, {mode_title})"
         else:
-            base_title = f"Max Notify ({await get_receive_mode_title(self.hass, self._pending_options[CONF_RECEIVE_MODE])})"
+            base_title = f"MaxNotify ({await get_receive_mode_title(self.hass, self._pending_options[CONF_RECEIVE_MODE])})"
         new_title = get_unique_entry_title(
             self.hass, DOMAIN, base_title, exclude_entry_id=entry.entry_id
         )
@@ -1653,16 +1880,34 @@ class MaxNotifyOptionsFlow(OptionsFlow):
                 CONF_RECEIVE_MODE: recv_labels.get(eff_recv, recv_list[0]),
             }
         if is_notify_a161_entry(entry):
+            recv_keys_a161 = [RECEIVE_MODE_SEND_ONLY, RECEIVE_MODE_POLLING]
+            recv_labels_a161 = get_option_labels(
+                trans,
+                "options",
+                "init_notify",
+                "receive_mode",
+                recv_keys_a161,
+            )
+            recv_list_a161 = [recv_labels_a161[k] for k in recv_keys_a161]
+            cur_recv_a161 = options.get(CONF_RECEIVE_MODE, RECEIVE_MODE_SEND_ONLY)
+            selected_recv_a161 = (
+                cur_recv_a161
+                if cur_recv_a161 in recv_keys_a161
+                else RECEIVE_MODE_SEND_ONLY
+            )
             if user_input is not None:
                 suggested_a161 = {
-                    CONF_MESSAGE_FORMAT: user_input.get(
-                        CONF_MESSAGE_FORMAT, msg_fmt_list[0]
-                    ),
+                    CONF_MESSAGE_FORMAT: user_input.get(CONF_MESSAGE_FORMAT, msg_fmt_list[0]),
+                    CONF_RECEIVE_MODE: user_input.get(CONF_RECEIVE_MODE, recv_list_a161[0]),
                 }
             else:
                 cur_fmt = entry.data.get(CONF_MESSAGE_FORMAT, "text")
                 suggested_a161 = {
                     CONF_MESSAGE_FORMAT: msg_fmt_labels.get(cur_fmt, cur_fmt),
+                    CONF_RECEIVE_MODE: recv_labels_a161.get(
+                        selected_recv_a161,
+                        recv_list_a161[0],
+                    ),
                 }
             return self.add_suggested_values_to_schema(
                 vol.Schema(
@@ -1670,6 +1915,9 @@ class MaxNotifyOptionsFlow(OptionsFlow):
                         vol.Optional(CONF_MESSAGE_FORMAT, default=msg_fmt_list[0]): vol.In(
                             msg_fmt_list
                         ),
+                        vol.Required(
+                            CONF_RECEIVE_MODE, default=recv_list_a161[0]
+                        ): vol.In(recv_list_a161),
                     }
                 ),
                 suggested_a161,

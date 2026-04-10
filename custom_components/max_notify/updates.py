@@ -1,4 +1,4 @@
-"""Receive updates from Max API (Long Polling) and fire Home Assistant events."""
+"""Receive updates from API and fire Home Assistant events."""
 
 from __future__ import annotations
 
@@ -15,18 +15,24 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .const import (
     API_BASE_URL,
+    API_BASE_URL_NOTIFY_A161,
     API_PATH_UPDATES,
     API_VERSION,
     CONF_ACCESS_TOKEN,
     CONF_BUTTONS,
     CONF_COMMANDS,
+    CONF_UPDATES_INTERVAL,
     DOMAIN,
     EVENT_MAX_NOTIFY_RECEIVED,
+    NOTIFY_A161_UPDATES_INTERVAL_MAX_SECONDS,
+    NOTIFY_A161_UPDATES_INTERVAL_MIN_SECONDS,
+    NOTIFY_A161_UPDATES_INTERVAL_SECONDS,
     POLLING_LIMIT,
     POLLING_RETRY_DELAY,
     POLLING_TIMEOUT,
     UPDATE_TYPES_RECEIVE,
 )
+from .helpers import is_notify_a161_entry
 from .message_state import set_last_incoming_message_id
 
 _LOGGER = logging.getLogger(__name__)
@@ -40,6 +46,11 @@ def _extract_user_id(update: dict[str, Any], message: dict[str, Any], update_typ
             uid = callback.get("user_id") or callback.get("userId")
             if uid is not None:
                 return uid
+            cb_user = callback.get("user")
+            if isinstance(cb_user, dict):
+                uid = cb_user.get("user_id") or cb_user.get("userId")
+                if uid is not None:
+                    return uid
             for key in ("from", "from_user", "user"):
                 obj = callback.get(key)
                 if isinstance(obj, dict):
@@ -246,6 +257,7 @@ def _should_fire_command_event(entry: ConfigEntry, command: str | None, update_t
 # Окно дедупликации для message_callback: одно нажатие = одно событие; повтор через N сек допустим
 CALLBACK_DEDUPE_WINDOW = 3.0
 DEDUPE_WINDOW_DEFAULT = 15.0
+NOTIFY_A161_UPDATES_LIMIT = 5
 
 
 def _update_dedup_key(update: dict[str, Any]) -> str:
@@ -263,8 +275,15 @@ def _update_dedup_key(update: dict[str, Any]) -> str:
     if utype == "message_callback":
         cb = update.get("callback")
         if isinstance(cb, dict):
+            callback_id = cb.get("callback_id") or cb.get("callbackId")
+            if callback_id:
+                return f"{utype}_cbid_{callback_id}"
             payload = str(cb.get("payload") or cb.get("data") or cb.get("callback_data") or "")
             uid_cb = cb.get("user_id") or cb.get("userId")
+            if uid_cb is None:
+                cb_user = cb.get("user")
+                if isinstance(cb_user, dict):
+                    uid_cb = cb_user.get("user_id") or cb_user.get("userId")
         else:
             payload = str(cb) if cb else ""
             uid_cb = None
@@ -346,8 +365,160 @@ async def async_process_update(
         _LOGGER.warning("Failed to process update: %s", e, exc_info=True)
 
 
+def _normalize_notify_a161_reply_update(item: Any) -> dict[str, Any] | None:
+    """Convert notify.a161.ru `reply` item to common update format.
+
+    notify.a161.ru may return:
+    - official-like update dict (already has update_type/message),
+    - dict with `reply` payload,
+    - plain text reply.
+    """
+    if isinstance(item, dict) and "update_type" in item and "message" in item:
+        return item
+
+    if isinstance(item, str):
+        text = item.strip()
+        if not text:
+            return None
+        return {
+            "update_type": "message_created",
+            "timestamp": int(time.time() * 1000),
+            "message": {"body": {"text": text}},
+        }
+
+    if not isinstance(item, dict):
+        return None
+
+    reply = item.get("reply")
+    if isinstance(reply, str):
+        reply = {"text": reply}
+    if reply is None:
+        reply = item
+    if not isinstance(reply, dict):
+        return None
+
+    text_raw = (
+        reply.get("text")
+        or reply.get("message")
+        or reply.get("body")
+        or item.get("text")
+        or item.get("message")
+        or ""
+    )
+    text = str(text_raw).strip() if text_raw is not None else ""
+    if not text:
+        return None
+
+    user_id = (
+        reply.get("user_id")
+        or reply.get("userId")
+        or reply.get("from_user_id")
+        or reply.get("fromUserId")
+        or item.get("user_id")
+        or item.get("userId")
+    )
+    chat_id = (
+        reply.get("chat_id")
+        or reply.get("chatId")
+        or reply.get("recipient_id")
+        or item.get("chat_id")
+        or item.get("chatId")
+        or item.get("recipient_id")
+    )
+    message_id = (
+        reply.get("message_id")
+        or reply.get("messageId")
+        or reply.get("id")
+        or item.get("message_id")
+        or item.get("messageId")
+        or item.get("id")
+    )
+    timestamp = item.get("timestamp") or reply.get("timestamp") or int(time.time() * 1000)
+
+    recipient: dict[str, Any] = {}
+    if chat_id is not None:
+        recipient["chat_id"] = chat_id
+    elif user_id is not None:
+        recipient["user_id"] = user_id
+
+    message: dict[str, Any] = {"body": {"text": text}}
+    if recipient:
+        message["recipient"] = recipient
+    if message_id is not None:
+        message["message_id"] = message_id
+    if user_id is not None:
+        message["sender"] = {"user_id": user_id}
+
+    normalized: dict[str, Any] = {
+        "update_type": "message_created",
+        "timestamp": timestamp,
+        "message": message,
+    }
+    if message_id is not None:
+        normalized["message_id"] = message_id
+    return normalized
+
+
+def _extract_updates_from_payload(data: Any, *, notify_a161_mode: bool) -> list[dict[str, Any]]:
+    """Extract normalized update list from API payload."""
+    if not notify_a161_mode:
+        if isinstance(data, dict):
+            raw_updates = data.get("updates") or []
+            return [one for one in raw_updates if isinstance(one, dict)]
+        return []
+
+    raw_items: list[Any] = []
+    if isinstance(data, dict):
+        if isinstance(data.get("updates"), list):
+            raw_items = list(data["updates"])
+        elif isinstance(data.get("reply"), list):
+            raw_items = list(data["reply"])
+        elif data.get("reply") is not None:
+            raw_items = [data.get("reply")]
+        elif isinstance(data.get("result"), list):
+            raw_items = list(data["result"])
+        elif isinstance(data.get("result"), dict):
+            result_obj = data["result"]
+            if isinstance(result_obj.get("updates"), list):
+                raw_items = list(result_obj["updates"])
+            elif isinstance(result_obj.get("reply"), list):
+                raw_items = list(result_obj["reply"])
+            elif result_obj.get("reply") is not None:
+                raw_items = [result_obj.get("reply")]
+            else:
+                raw_items = [result_obj]
+        elif isinstance(data.get("data"), list):
+            raw_items = list(data["data"])
+        elif isinstance(data.get("data"), dict):
+            raw_items = [data["data"]]
+        else:
+            # Some notify.a161 responses contain direct reply object without wrapper keys.
+            raw_items = [data]
+    elif isinstance(data, list):
+        raw_items = data
+    else:
+        raw_items = []
+
+    normalized: list[dict[str, Any]] = []
+    for one in raw_items:
+        update = _normalize_notify_a161_reply_update(one)
+        if update:
+            normalized.append(update)
+    return normalized
+
+
+def _parse_json_response_text(raw_text: str, content_type: str) -> Any:
+    """Parse JSON from raw response text."""
+    try:
+        return json.loads(raw_text)
+    except json.JSONDecodeError as err:
+        raise ValueError(
+            f"Invalid JSON body (content-type={content_type!r}, body={raw_text!r})"
+        ) from err
+
+
 async def _polling_loop(hass: HomeAssistant, entry: ConfigEntry) -> None:
-    """Long polling task: GET /updates and process each update."""
+    """Polling task: GET /updates and process each update."""
     token = entry.data.get(CONF_ACCESS_TOKEN)
     if not token:
         _LOGGER.warning("Polling skipped: no access token for entry %s", entry.entry_id)
@@ -359,29 +530,64 @@ async def _polling_loop(hass: HomeAssistant, entry: ConfigEntry) -> None:
     markers = hass.data[DOMAIN].setdefault("_polling_markers", {})
     markers[entry_id] = markers.get(entry_id)  # keep previous marker or None
 
-    url = f"{API_BASE_URL}{API_PATH_UPDATES}"
+    notify_a161_mode = is_notify_a161_entry(entry)
+
+    base_url = API_BASE_URL_NOTIFY_A161 if notify_a161_mode else API_BASE_URL
+    url = f"{base_url}{API_PATH_UPDATES}"
     headers = {"Authorization": token}
-    params: dict[str, Any] = {
-        "v": API_VERSION,
-        "timeout": POLLING_TIMEOUT,
-        "limit": POLLING_LIMIT,
-    }
+    params: dict[str, Any] = {"v": API_VERSION}
     types_param = ",".join(UPDATE_TYPES_RECEIVE)
+    if notify_a161_mode:
+        params["limit"] = NOTIFY_A161_UPDATES_LIMIT
+    else:
+        params.update(
+            {
+                "timeout": POLLING_TIMEOUT,
+                "limit": POLLING_LIMIT,
+            }
+        )
 
     session = async_get_clientsession(hass)
-    _LOGGER.info("Long Polling started for entry_id=%s", entry_id)
+    _LOGGER.info("Updates polling started for entry_id=%s", entry_id)
+    next_request_not_before = 0.0
+    updates_interval = NOTIFY_A161_UPDATES_INTERVAL_SECONDS
+    if notify_a161_mode:
+        raw_interval = (entry.options or {}).get(
+            CONF_UPDATES_INTERVAL, NOTIFY_A161_UPDATES_INTERVAL_SECONDS
+        )
+        try:
+            updates_interval = float(raw_interval)
+        except (TypeError, ValueError):
+            updates_interval = NOTIFY_A161_UPDATES_INTERVAL_SECONDS
+        updates_interval = max(
+            float(NOTIFY_A161_UPDATES_INTERVAL_MIN_SECONDS),
+            min(float(NOTIFY_A161_UPDATES_INTERVAL_MAX_SECONDS), updates_interval),
+        )
 
     while True:
+        if notify_a161_mode:
+            now = time.monotonic()
+            if now < next_request_not_before:
+                await asyncio.sleep(next_request_not_before - now)
+            next_request_not_before = (
+                time.monotonic() + updates_interval
+            )
+
         marker = markers.get(entry_id)
-        if marker is not None:
-            params["marker"] = marker
-        params["types"] = types_param
+        if notify_a161_mode:
+            params.pop("marker", None)
+            params.pop("timeout", None)
+            params.pop("types", None)
+        else:
+            if marker is not None:
+                params["marker"] = marker
+            params["types"] = types_param
 
         _LOGGER.debug(
             "Polling GET /updates: entry_id=%s, marker=%s, params=%s",
             entry_id,
             marker,
-            {**params, "timeout": POLLING_TIMEOUT},
+            params,
         )
 
         try:
@@ -389,15 +595,20 @@ async def _polling_loop(hass: HomeAssistant, entry: ConfigEntry) -> None:
                 url,
                 headers=headers,
                 params=params,
-                timeout=aiohttp.ClientTimeout(total=POLLING_TIMEOUT + 10),
+                timeout=aiohttp.ClientTimeout(
+                    total=(POLLING_TIMEOUT + 10) if not notify_a161_mode else 15
+                ),
             ) as resp:
+                raw_text = await resp.text()
+
                 if resp.status != 200:
-                    text = await resp.text()
-                    _LOGGER.warning("GET /updates failed: status=%s body=%s", resp.status, text[:200])
+                    _LOGGER.warning("GET /updates failed: status=%s body=%s", resp.status, raw_text)
                     await asyncio.sleep(POLLING_RETRY_DELAY)
                     continue
 
-                data = await resp.json()
+                data = _parse_json_response_text(
+                    raw_text, resp.headers.get("Content-Type", "")
+                )
         except asyncio.CancelledError:
             raise
         except Exception as e:
@@ -405,9 +616,11 @@ async def _polling_loop(hass: HomeAssistant, entry: ConfigEntry) -> None:
             await asyncio.sleep(POLLING_RETRY_DELAY)
             continue
 
-        updates_list = data.get("updates") or []
-        new_marker = data.get("marker")
-        if new_marker is not None:
+        updates_list = _extract_updates_from_payload(
+            data, notify_a161_mode=notify_a161_mode
+        )
+        new_marker = data.get("marker") if isinstance(data, dict) else None
+        if not notify_a161_mode and new_marker is not None:
             markers[entry_id] = new_marker
 
         _LOGGER.debug(
@@ -428,10 +641,10 @@ async def _polling_loop(hass: HomeAssistant, entry: ConfigEntry) -> None:
             seen_keys.add(dedupe_key or "")
             hass.async_create_task(async_process_update(hass, entry, one))
 
-        if not updates_list:
+        if not updates_list and not notify_a161_mode:
             await asyncio.sleep(0.5)
 
-    _LOGGER.info("Long Polling stopped for entry_id=%s", entry_id)
+    _LOGGER.info("Updates polling stopped for entry_id=%s", entry_id)
 
 
 def start_polling(hass: HomeAssistant, entry: ConfigEntry) -> asyncio.Task[None] | None:

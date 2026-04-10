@@ -281,7 +281,7 @@ class TestIsOfficialMaxPlatformEntry:
 
         legacy_a161 = MagicMock()
         legacy_a161.data = {}
-        legacy_a161.title = "Max Notify (notify.a161.ru)"
+        legacy_a161.title = "MaxNotify (notify.a161.ru)"
         assert not is_official_max_platform_entry(legacy_a161)
 
 

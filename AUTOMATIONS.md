@@ -1,4 +1,4 @@
-# Примеры автоматизаций для Max Notify
+# Примеры автоматизаций для MaxNotify
 
 Ниже примеры для всех сервисов интеграции `max_notify` в двух вариантах:
 - с ручным указанием параметров;
@@ -52,7 +52,7 @@
 ### Вручную
 
 ```yaml
-alias: Max Notify — send_message (manual)
+alias: MaxNotify — send_message (manual)
 trigger:
   - platform: time_pattern
     minutes: "/30"
@@ -73,7 +73,7 @@ mode: single
 ### Из события
 
 ```yaml
-alias: Max Notify — send_message (from event)
+alias: MaxNotify — send_message (from event)
 trigger:
   - platform: event
     event_type: max_notify_received
@@ -96,7 +96,7 @@ mode: single
 ### Вручную
 
 ```yaml
-alias: Max Notify — send_photo (manual)
+alias: MaxNotify — send_photo (manual)
 trigger:
   - platform: state
     entity_id: binary_sensor.door
@@ -117,7 +117,7 @@ mode: single
 ### Из события
 
 ```yaml
-alias: Max Notify — send_photo (from event)
+alias: MaxNotify — send_photo (from event)
 trigger:
   - platform: event
     event_type: max_notify_received
@@ -143,7 +143,7 @@ mode: single
 ### Вручную
 
 ```yaml
-alias: Max Notify — send_document (manual)
+alias: MaxNotify — send_document (manual)
 trigger:
   - platform: time
     at: "09:00:00"
@@ -163,7 +163,7 @@ mode: single
 ### Из события
 
 ```yaml
-alias: Max Notify — send_document (from event)
+alias: MaxNotify — send_document (from event)
 trigger:
   - platform: event
     event_type: max_notify_received
@@ -186,7 +186,7 @@ mode: single
 ### Вручную
 
 ```yaml
-alias: Max Notify — send_video (manual)
+alias: MaxNotify — send_video (manual)
 trigger:
   - platform: state
     entity_id: alarm_control_panel.home_alarm
@@ -207,7 +207,7 @@ mode: single
 ### Из события
 
 ```yaml
-alias: Max Notify — send_video (from event)
+alias: MaxNotify — send_video (from event)
 trigger:
   - platform: event
     event_type: max_notify_received
@@ -231,7 +231,7 @@ mode: single
 ### Вручную
 
 ```yaml
-alias: Max Notify — edit_message (manual)
+alias: MaxNotify — edit_message (manual)
 trigger:
   - platform: event
     event_type: my_custom_event
@@ -251,7 +251,7 @@ mode: single
 ### Из события
 
 ```yaml
-alias: Max Notify — edit_message (from event)
+alias: MaxNotify — edit_message (from event)
 trigger:
   - platform: event
     event_type: max_notify_received
@@ -279,7 +279,7 @@ mode: single
 ### Вручную
 
 ```yaml
-alias: Max Notify — delete_message (manual)
+alias: MaxNotify — delete_message (manual)
 trigger:
   - platform: event
     event_type: my_cleanup_event
@@ -294,7 +294,7 @@ mode: single
 ### Из события
 
 ```yaml
-alias: Max Notify — delete_message (from event)
+alias: MaxNotify — delete_message (from event)
 trigger:
   - platform: event
     event_type: max_notify_received

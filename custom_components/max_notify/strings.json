@@ -6,7 +6,7 @@
       "fields": {
         "entity_id": {
           "name": "Notify entity",
-          "description": "Max Notify notify entity (chat) to send to. You can select multiple."
+          "description": "MaxNotify notify entity (chat) to send to. You can select multiple."
         },
         "message": {
           "name": "Message",
@@ -22,7 +22,7 @@
         },
         "config_entry_id": {
           "name": "Integration",
-          "description": "Max Notify integration to use when sending by chat_id/user_id (if several integrations exist)."
+          "description": "MaxNotify integration to use when sending by chat_id/user_id (if several integrations exist)."
         },
         "recipient_id": {
           "name": "Recipient ID",
@@ -63,11 +63,11 @@
         },
         "entity_id": {
           "name": "Notify entity",
-          "description": "Max Notify notify entity to send to. You can select multiple."
+          "description": "MaxNotify notify entity to send to. You can select multiple."
         },
         "config_entry_id": {
           "name": "Integration",
-          "description": "Max Notify integration when sending by chat_id/user_id."
+          "description": "MaxNotify integration when sending by chat_id/user_id."
         },
         "recipient_id": {
           "name": "Recipient ID",
@@ -120,11 +120,11 @@
         },
         "entity_id": {
           "name": "Notify entity",
-          "description": "Max Notify notify entity to send to."
+          "description": "MaxNotify notify entity to send to."
         },
         "config_entry_id": {
           "name": "Integration",
-          "description": "Max Notify integration when sending by chat_id/user_id."
+          "description": "MaxNotify integration when sending by chat_id/user_id."
         },
         "recipient_id": {
           "name": "Recipient ID",
@@ -177,11 +177,11 @@
         },
         "entity_id": {
           "name": "Notify entity",
-          "description": "Max Notify notify entity to send to."
+          "description": "MaxNotify notify entity to send to."
         },
         "config_entry_id": {
           "name": "Integration",
-          "description": "Max Notify integration when sending by chat_id/user_id."
+          "description": "MaxNotify integration when sending by chat_id/user_id."
         },
         "recipient_id": {
           "name": "Recipient ID",
@@ -230,7 +230,7 @@
         },
         "entity_id": {
           "name": "Notify entity",
-          "description": "Max Notify notify entity. Can be used instead of config_entry_id."
+          "description": "MaxNotify notify entity. Can be used instead of config_entry_id."
         },
         "recipient_id": {
           "name": "Recipient ID",
@@ -246,7 +246,7 @@
         },
         "config_entry_id": {
           "name": "Integration",
-          "description": "Max Notify integration to use (required if multiple exist)."
+          "description": "MaxNotify integration to use (required if multiple exist)."
         }
       }
     },
@@ -280,7 +280,7 @@
         },
         "entity_id": {
           "name": "Notify entity",
-          "description": "Max Notify notify entity. Can be used instead of config_entry_id."
+          "description": "MaxNotify notify entity. Can be used instead of config_entry_id."
         },
         "recipient_id": {
           "name": "Recipient ID",
@@ -296,7 +296,7 @@
         },
         "config_entry_id": {
           "name": "Integration",
-          "description": "Max Notify integration to use (required if multiple exist)."
+          "description": "MaxNotify integration to use (required if multiple exist)."
         }
       }
     }
@@ -327,10 +327,11 @@
       },
       "notify_user": {
         "title": "notify.a161.ru: token",
-        "description": "Enter token and message format, then user_id. Receive mode is Send only.",
+        "description": "Enter token, message format, and receive mode, then user_id.\n\nReceive mode: Send only or Polling updates queue.",
         "data": {
           "access_token": "Access token",
-          "message_format": "Message format"
+          "message_format": "Message format",
+          "receive_mode": "Receive mode"
         },
         "data_description": {
           "access_token": "Token from notify.a161.ru bot (36 characters).",
@@ -341,6 +342,10 @@
             "text": "Text",
             "markdown": "Markdown",
             "html": "HTML"
+          },
+          "receive_mode": {
+            "send_only": "Send only",
+            "polling": "Polling queue"
           }
         }
       },
@@ -354,8 +359,15 @@
           "recipient_id": "Use only a positive number from notify.a161.ru bot response."
         }
       },
+      "updates_interval": {
+        "title": "notify.a161.ru: updates polling interval",
+        "description": "Set polling interval in seconds for /updates queue. Default: {default_seconds} s.",
+        "data": {
+          "updates_interval": " "
+        }
+      },
       "user": {
-        "title": "Max Notify: Bot token",
+        "title": "MaxNotify: Bot token",
         "description": "Enter the bot access token, message format, and receive mode. For Send only, no extra fields are needed.\n\nFor WebHook to become available in the list, configure an external HTTPS URL for Home Assistant (Settings → System → Network). See https://www.home-assistant.io/docs/configuration/basic/\n\nWhile a WebHook subscription is active in Max, Long Polling is unavailable, and vice versa — see https://dev.max.ru/docs-api/methods/POST/subscriptions",
         "data": {
           "access_token": "Access token",
@@ -405,7 +417,7 @@
         }
       },
       "reconfigure": {
-        "title": "Reconfigure Max Notify",
+        "title": "Reconfigure MaxNotify",
         "description": "Change API token (leave empty to keep current) and message format.",
         "data": {
           "access_token": "New API token (optional)",
@@ -486,15 +498,17 @@
       "cannot_connect": "Failed to connect to Max API. Check your network and try again.",
       "polling_subscription_list_failed": "Could not read WebHook subscriptions from Max API. Check the network and try again.",
       "polling_webhook_subscriptions_remain": "Long Polling cannot be used while a WebHook subscription is active on Max. Remove WebHook subscriptions (or choose Send only / WebHook in settings), then try again. See https://dev.max.ru/docs-api/methods/POST/subscriptions",
-      "polling_blocked_by_webhook_other_entry": "Another Max Notify integration already uses WebHook with this bot token. Stop WebHook there or use another token before enabling Long Polling here.",
-      "webhook_blocked_by_polling_other_entry": "Another Max Notify integration already uses Long Polling with this bot token. Stop Long Polling there or use another token before enabling WebHook here.",
+      "polling_blocked_by_webhook_other_entry": "Another MaxNotify integration already uses WebHook with this bot token. Stop WebHook there or use another token before enabling Long Polling here.",
+      "webhook_blocked_by_polling_other_entry": "Another MaxNotify integration already uses Long Polling with this bot token. Stop Long Polling there or use another token before enabling WebHook here.",
       "webhook_requires_external_https_url": "WebHook requires an external HTTPS URL for Home Assistant (Settings → System → Network, or Home Assistant Cloud). Configure it first, then choose WebHook again.",
       "unknown": "An unknown error occurred",
       "invalid_id_format": "Enter an integer (positive — personal chat, negative — group)",
       "notify_user_only": "For notify.a161.ru use only positive recipient IDs (user_id).",
       "invalid_command_name": "Enter a command name (no slash).",
       "invalid_button_text": "Enter a button label.",
-      "invalid_button_url": "Enter an http(s) URL for link buttons."
+      "invalid_button_url": "Enter an http(s) URL for link buttons.",
+      "invalid_updates_interval": "Enter a polling interval from 2 to 30 seconds.",
+      "a161_polling_requires_buttons_switched_send_only": "No buttons configured. Receive mode was switched to Send only. Add at least one button to use Polling."
     },
     "abort": {
       "already_configured": "This configuration is already added",
@@ -506,9 +520,10 @@
     "step": {
       "init_notify": {
         "title": "notify.a161.ru settings",
-        "description": "Message format only. To change the API token, remove this integration and add it again. user_id stays fixed from initial setup.",
+        "description": "Message format and receive mode.\n\nReceive mode: Send only or Polling updates queue.\n\nTo change the API token, remove this integration and add it again. user_id stays fixed from initial setup.",
         "data": {
-          "message_format": "Message format"
+          "message_format": "Message format",
+          "receive_mode": "Receive mode"
         },
         "data_description": {
           "message_format": "Plain text, Markdown or HTML"
@@ -518,11 +533,22 @@
             "text": "Text",
             "markdown": "Markdown",
             "html": "HTML"
+          },
+          "receive_mode": {
+            "send_only": "Send only",
+            "polling": "Polling queue"
           }
         }
       },
+      "updates_interval": {
+        "title": "notify.a161.ru: updates polling interval",
+        "description": "Set polling interval in seconds for /updates queue. Default: {default_seconds} s.",
+        "data": {
+          "updates_interval": " "
+        }
+      },
       "init": {
-        "title": "Max Notify settings",
+        "title": "MaxNotify settings",
         "description": "Token (optional), message format, receive mode.{webhook_url_paragraph}",
         "webhook_url_paragraph": "WebHook URL registered with Max: {webhook_url}.",
         "data": {
@@ -666,16 +692,18 @@
     "error": {
       "polling_subscription_list_failed": "Could not read WebHook subscriptions from Max API. Check the network and try again.",
       "polling_webhook_subscriptions_remain": "Long Polling cannot be used while a WebHook subscription is active on Max. Remove WebHook subscriptions (or choose Send only / WebHook in settings), then try again. See https://dev.max.ru/docs-api/methods/POST/subscriptions",
-      "polling_blocked_by_webhook_other_entry": "Another Max Notify integration already uses WebHook with this bot token. Stop WebHook there or use another token before enabling Long Polling here.",
-      "webhook_blocked_by_polling_other_entry": "Another Max Notify integration already uses Long Polling with this bot token. Stop Long Polling there or use another token before enabling WebHook here.",
-      "webhook_requires_external_https_url": "WebHook requires an external HTTPS URL for Home Assistant (Settings → System → Network, or Home Assistant Cloud). Configure it first, then choose WebHook again."
+      "polling_blocked_by_webhook_other_entry": "Another MaxNotify integration already uses WebHook with this bot token. Stop WebHook there or use another token before enabling Long Polling here.",
+      "webhook_blocked_by_polling_other_entry": "Another MaxNotify integration already uses Long Polling with this bot token. Stop Long Polling there or use another token before enabling WebHook here.",
+      "webhook_requires_external_https_url": "WebHook requires an external HTTPS URL for Home Assistant (Settings → System → Network, or Home Assistant Cloud). Configure it first, then choose WebHook again.",
+      "invalid_updates_interval": "Enter a polling interval from 2 to 30 seconds.",
+      "a161_polling_requires_buttons_switched_send_only": "No buttons configured. Receive mode was switched to Send only. Add at least one button to use Polling."
     }
   },
   "config_subentries": {
     "recipient": {
       "abort": {
         "already_configured": "This ID is already added",
-        "notify_user_locked": "You cannot add chats for notify.a161.ru here. Add another Max Notify integration to use a different recipient."
+        "notify_user_locked": "You cannot add chats for notify.a161.ru here. Add another MaxNotify integration to use a different recipient."
       },
       "entry_type": "Chat ID",
       "error": {
@@ -700,11 +728,11 @@
   },
   "issues": {
     "webhook_disabled_no_https": {
-      "title": "Max Notify: WebHook turned off (no HTTPS URL)",
+      "title": "MaxNotify: WebHook turned off (no HTTPS URL)",
       "description": "{entry_title} was set to WebHook, but Home Assistant has no external HTTPS base URL. Receive mode was switched to Send only. Configure Settings → System → Network (or Home Assistant Cloud), then choose WebHook again in the integration options if needed."
     },
     "unsupported_ha_version_runtime": {
-      "title": "Max Notify: Home Assistant update required",
+      "title": "MaxNotify: Home Assistant update required",
       "description": "{entry_title} was not loaded because Home Assistant Core {current_ha_version} is not supported. This integration requires Core {minimum_ha_version} or newer. Update Home Assistant, then reload the integration."
     }
   }

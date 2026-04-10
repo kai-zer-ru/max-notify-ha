@@ -1,4 +1,4 @@
-"""Constants for the Max Notify integration."""
+"""Constants for the MaxNotify integration."""
 
 DOMAIN = "max_notify"
 
@@ -20,6 +20,9 @@ CONF_RECIPIENT_ID = "recipient_id"
 CONF_COUNT_REQUESTS = "count_requests"
 CONF_DISABLE_SSL = "disable_ssl"
 CONF_MESSAGE_ID = "message_id"
+CONF_UPDATES_INTERVAL = "updates_interval"
+CONF_A161_POLLING_GRACE_STARTED_AT = "a161_polling_grace_started_at"
+CONF_A161_LAST_BUTTON_SEND_AT = "a161_last_button_send_at"
 
 SUBENTRY_TYPE_RECIPIENT = "recipient"
 RECIPIENT_TYPE_USER = "user"
@@ -90,6 +93,11 @@ CHATS_PAGE_SIZE = 100
 NOTIFY_A161_MAX_UPLOAD_BYTES = 10 * 1024 * 1024
 # notify.a161.ru: минимум между успешными исходящими сообщениями (снижает заливку API при серии вызовов)
 NOTIFY_A161_MIN_SEND_INTERVAL_SECONDS = 1.0
+# notify.a161.ru: частота входящего polling /updates (секунды)
+NOTIFY_A161_UPDATES_INTERVAL_SECONDS = 5
+NOTIFY_A161_UPDATES_INTERVAL_MIN_SECONDS = 2
+NOTIFY_A161_UPDATES_INTERVAL_MAX_SECONDS = 30
+NOTIFY_A161_POLLING_GRACE_SECONDS = 24 * 60 * 60
 
 FILE_UPLOAD_DELAY = 1.5
 FILE_READY_RETRY_DELAYS = (3, 5, 8)

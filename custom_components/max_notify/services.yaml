@@ -1,4 +1,4 @@
-# Описание служб интеграции Max Notify (имя и описание — в translations)
+# Описание служб интеграции MaxNotify (имя и описание — в translations)
 send_message:
   fields:
     entity_id:

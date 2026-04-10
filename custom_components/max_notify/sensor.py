@@ -1,4 +1,4 @@
-"""Sensor entities for Max Notify integration."""
+"""Sensor entities for MaxNotify integration."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import CONF_INTEGRATION_TYPE, DOMAIN, INTEGRATION_TYPE_NOTIFY_A161
+from .const import CONF_RECEIVE_MODE, DOMAIN, RECEIVE_MODE_SEND_ONLY
 from .message_state import (
     SIGNAL_MESSAGE_STATE_UPDATED,
     get_last_incoming_message_id,
@@ -25,8 +25,8 @@ async def async_setup_entry(
     entities: list[SensorEntity] = [
         MaxNotifyLastOutgoingMessageIdSensor(hass, entry),
     ]
-    # notify.a161.ru has no incoming updates API — only outgoing ID is useful.
-    if entry.data.get(CONF_INTEGRATION_TYPE) != INTEGRATION_TYPE_NOTIFY_A161:
+    # Incoming sensor is useful whenever receive mode is enabled.
+    if (entry.options or {}).get(CONF_RECEIVE_MODE, RECEIVE_MODE_SEND_ONLY) != RECEIVE_MODE_SEND_ONLY:
         entities.append(MaxNotifyLastIncomingMessageIdSensor(hass, entry))
     async_add_entities(entities)
 

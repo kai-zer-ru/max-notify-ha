@@ -1,4 +1,4 @@
-"""Services for Max Notify integration (send_message by entity_id or config_entry_id + chat_id/user_id)."""
+"""Services for MaxNotify integration (send_message by entity_id or config_entry_id + chat_id/user_id)."""
 
 from __future__ import annotations
 
@@ -76,7 +76,7 @@ def _notify_allowed_user_ids(entry: ConfigEntry) -> set[int]:
 
 def register_send_message_service(hass: HomeAssistant) -> None:
     """Register max_notify services (send_message, send_photo, send_document, send_video, delete_message, edit_message)."""
-    _LOGGER.debug("Registering Max Notify services")
+    _LOGGER.debug("Registering MaxNotify services")
     hass.services.async_register(
         DOMAIN,
         SERVICE_SEND_MESSAGE,

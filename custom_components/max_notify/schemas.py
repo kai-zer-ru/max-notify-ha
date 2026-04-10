@@ -1,4 +1,4 @@
-"""Voluptuous schemas for Max Notify services (send_message, send_photo, etc.)."""
+"""Voluptuous schemas for MaxNotify services (send_message, send_photo, etc.)."""
 
 from __future__ import annotations
 
