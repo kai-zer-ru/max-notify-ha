@@ -53,6 +53,39 @@
         }
       }
     },
+    "send_text_to_all": {
+      "name": "Send text to all (experimental)",
+      "description": "Send a text message to all configured MaxNotify recipients across all integrations.",
+      "fields": {
+        "message": {
+          "name": "Message",
+          "description": "Text of the message to send."
+        },
+        "title": {
+          "name": "Title",
+          "description": "Optional message title/heading."
+        },
+        "format": {
+          "name": "Format",
+          "description": "Text format: text, markdown, or html. Overrides integration message format for this send."
+        },
+        "send_keyboard": {
+          "name": "Send keyboard",
+          "description": "When enabled (default), the integration default inline keyboard is used if you omit Buttons or leave it empty; non-empty Buttons replace it. When disabled, only non-empty Buttons from this call are attached."
+        },
+        "buttons": {
+          "name": "Buttons",
+          "description": "Custom inline buttons. Formats: object map (Text -> payload), list of objects (text, payload), or rows of objects (type: callback|message|link, text, payload/url). Link buttons require http(s) URLs only. How they combine with the default keyboard is controlled by Send keyboard."
+        },
+        "notify": {
+          "name": "Notify",
+          "description": "If disabled, send without notifying recipients (silent)."
+        },
+        "advanced": {
+          "name": "Advanced"
+        }
+      }
+    },
     "send_photo": {
       "name": "Send photo",
       "description": "Send a photo to Max chat(s). File: local path or image URL.",

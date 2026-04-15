@@ -3,6 +3,7 @@
 DOMAIN = "max_notify"
 
 SERVICE_SEND_MESSAGE = "send_message"
+SERVICE_SEND_TEXT_TO_ALL = "send_text_to_all"
 SERVICE_SEND_PHOTO = "send_photo"
 SERVICE_SEND_DOCUMENT = "send_document"
 SERVICE_SEND_VIDEO = "send_video"

@@ -64,6 +64,42 @@ send_message:
           selector:
             object:
 
+send_text_to_all:
+  fields:
+    message:
+      required: true
+      selector:
+        text:
+          multiline: true
+    title:
+      example: "Заголовок"
+      selector:
+        text:
+          multiline: true
+    advanced:
+      collapsed: true
+      fields:
+        format:
+          selector:
+            select:
+              options:
+                - text
+                - markdown
+                - html
+              mode: dropdown
+        send_keyboard:
+          default: true
+          selector:
+            boolean:
+        buttons:
+          example: >
+            {"Button 1":"button_1","Button 2":"button_2"} или
+            [{"text":"Button 1","payload":"button_1"},{"text":"Button 2","payload":"button_2"}] или
+            [[{"type":"link","text":"Откройте сайт","url":"https://example.com"}]] (только http/https) или
+            [{"Ряд 1 / Кнопка 1":"r1_b1"},{"Ряд 2 / Кнопка 1":"r2_b1","Ряд 2 / Кнопка 2":"r2_b2"}]
+          selector:
+            object:
+
 send_photo:
   fields:
     file:

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import time
+from collections.abc import Mapping
 from typing import Any
 from urllib.parse import urlparse
 
@@ -40,6 +41,7 @@ from .const import (
     SERVICE_SEND_DOCUMENT,
     SERVICE_SEND_MESSAGE,
     SERVICE_SEND_PHOTO,
+    SERVICE_SEND_TEXT_TO_ALL,
     SERVICE_SEND_VIDEO,
     URL_AUTH_TYPE_BASIC,
     URL_AUTH_TYPE_BEARER,
@@ -52,6 +54,7 @@ from .schemas import (
     SERVICE_SEND_DOCUMENT_SCHEMA,
     SERVICE_SEND_MESSAGE_SCHEMA,
     SERVICE_SEND_PHOTO_SCHEMA,
+    SERVICE_SEND_TEXT_TO_ALL_SCHEMA,
     SERVICE_SEND_VIDEO_SCHEMA,
 )
 
@@ -150,13 +153,19 @@ def _notify_allowed_user_ids(entry: ConfigEntry) -> set[int]:
 
 
 def register_send_message_service(hass: HomeAssistant) -> None:
-    """Register max_notify services (send_message, send_photo, send_document, send_video, delete_message, edit_message)."""
+    """Register max_notify services (send_message, send_text_to_all, send_photo, send_document, send_video, delete_message, edit_message)."""
     _LOGGER.debug("Registering MaxNotify services")
     hass.services.async_register(
         DOMAIN,
         SERVICE_SEND_MESSAGE,
         async_send_message_handler,
         schema=SERVICE_SEND_MESSAGE_SCHEMA,
+    )
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_SEND_TEXT_TO_ALL,
+        async_send_text_to_all_handler,
+        schema=SERVICE_SEND_TEXT_TO_ALL_SCHEMA,
     )
     hass.services.async_register(
         DOMAIN,
@@ -189,8 +198,13 @@ def register_send_message_service(hass: HomeAssistant) -> None:
         schema=SERVICE_EDIT_MESSAGE_SCHEMA,
     )
     _LOGGER.info(
-        "Registered services %s.%s, %s.%s, %s.%s, %s.%s, %s.%s, %s.%s",
-        DOMAIN, SERVICE_SEND_MESSAGE, DOMAIN, SERVICE_SEND_PHOTO,
+        "Registered services %s.%s, %s.%s, %s.%s, %s.%s, %s.%s, %s.%s, %s.%s",
+        DOMAIN,
+        SERVICE_SEND_MESSAGE,
+        DOMAIN,
+        SERVICE_SEND_TEXT_TO_ALL,
+        DOMAIN,
+        SERVICE_SEND_PHOTO,
         DOMAIN, SERVICE_SEND_DOCUMENT, DOMAIN, SERVICE_SEND_VIDEO,
         DOMAIN, SERVICE_DELETE_MESSAGE, DOMAIN, SERVICE_EDIT_MESSAGE,
     )
@@ -728,6 +742,100 @@ async def async_send_message_handler(service: ServiceCall) -> None:
             title=title,
             message_format=message_format,
         )
+
+
+async def async_send_text_to_all_handler(service: ServiceCall) -> None:
+    """Handle max_notify.send_text_to_all: send to all configured recipients in all MaxNotify entries."""
+    hass = service.hass
+    data = service.data
+    message = data["message"]
+    title = data.get("title")
+    message_format = data.get("format")
+    send_kb = data.get(CONF_SEND_KEYBOARD, True)
+    buttons_provided = "buttons" in data
+
+    from .helpers import resolve_service_inline_keyboard
+    from .notify import send_message_with_buttons, send_plain_message
+
+    entries = hass.config_entries.async_entries(DOMAIN)
+    _LOGGER.debug(
+        "async_send_text_to_all_handler: message_len=%s title=%s format=%s send_keyboard=%s buttons_present=%s entries=%s",
+        len(message) if isinstance(message, str) else None,
+        bool(title),
+        message_format,
+        send_kb,
+        buttons_provided,
+        len(entries),
+    )
+    if not entries:
+        _LOGGER.warning("send_text_to_all: no %s config entries configured", DOMAIN)
+        return
+
+    total_recipients = 0
+    ok_sends = 0
+    failed_sends = 0
+    for entry in entries:
+        subentries = getattr(entry, "subentries", None) or {}
+        if not subentries:
+            _LOGGER.debug(
+                "send_text_to_all: skip entry_id=%s (no subentries)", entry.entry_id
+            )
+            continue
+        all_buttons = resolve_service_inline_keyboard(
+            entry.options,
+            send_keyboard=send_kb,
+            buttons_provided=buttons_provided,
+            buttons_raw=data.get("buttons"),
+        )
+        _LOGGER.debug(
+            "send_text_to_all: entry_id=%s title=%s recipients=%s with_buttons=%s",
+            entry.entry_id,
+            entry.title,
+            len(subentries),
+            bool(all_buttons),
+        )
+        for subentry in subentries.values():
+            rec = getattr(subentry, "data", None)
+            if not isinstance(rec, Mapping) or not rec:
+                continue
+            total_recipients += 1
+            try:
+                if all_buttons:
+                    await send_message_with_buttons(
+                        hass,
+                        entry,
+                        dict(rec),
+                        message,
+                        all_buttons,
+                        title=title,
+                        message_format=message_format,
+                    )
+                else:
+                    await send_plain_message(
+                        hass,
+                        entry,
+                        dict(rec),
+                        message,
+                        title=title,
+                        message_format=message_format,
+                    )
+                ok_sends += 1
+            except Exception as e:
+                failed_sends += 1
+                _LOGGER.error(
+                    "send_text_to_all: failed for entry_id=%s recipient=%s: %s",
+                    entry.entry_id,
+                    dict(rec),
+                    e,
+                    exc_info=True,
+                )
+
+    _LOGGER.info(
+        "send_text_to_all: done (recipients=%s ok=%s failed=%s)",
+        total_recipients,
+        ok_sends,
+        failed_sends,
+    )
 
 
 async def _send_photo_or_document(
