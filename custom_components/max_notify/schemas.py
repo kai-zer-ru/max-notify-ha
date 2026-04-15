@@ -45,6 +45,7 @@ SERVICE_SEND_MESSAGE_SCHEMA = vol.Schema(
     {
         vol.Required("message"): cv.string,
         vol.Optional("title"): cv.string,
+        vol.Optional("format"): vol.In(["text", "markdown", "html"]),
         vol.Optional("notify", default=True): cv.boolean,
         vol.Optional(CONF_SEND_KEYBOARD, default=True): cv.boolean,
         vol.Optional("buttons"): vol.Any(dict, list),
@@ -61,6 +62,7 @@ SERVICE_SEND_PHOTO_SCHEMA = vol.Schema(
     {
         vol.Required("file"): cv.string,
         vol.Optional("caption"): cv.string,
+        vol.Optional("format"): vol.In(["text", "markdown", "html"]),
         vol.Optional(CONF_SEND_KEYBOARD, default=True): cv.boolean,
         vol.Optional("buttons"): vol.Any(dict, list),
         vol.Optional("notify", default=True): cv.boolean,
@@ -83,6 +85,7 @@ SERVICE_SEND_DOCUMENT_SCHEMA = vol.Schema(
     {
         vol.Required("file"): cv.string,
         vol.Optional("caption"): cv.string,
+        vol.Optional("format"): vol.In(["text", "markdown", "html"]),
         vol.Optional(CONF_SEND_KEYBOARD, default=True): cv.boolean,
         vol.Optional("buttons"): vol.Any(dict, list),
         vol.Optional("notify", default=True): cv.boolean,
@@ -105,6 +108,7 @@ SERVICE_SEND_VIDEO_SCHEMA = vol.Schema(
     {
         vol.Required("file"): cv.string,
         vol.Optional("caption"): cv.string,
+        vol.Optional("format"): vol.In(["text", "markdown", "html"]),
         vol.Optional(CONF_SEND_KEYBOARD, default=True): cv.boolean,
         vol.Optional("buttons"): vol.Any(dict, list),
         vol.Optional("notify", default=True): cv.boolean,

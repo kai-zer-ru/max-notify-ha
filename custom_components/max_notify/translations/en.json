@@ -17,6 +17,10 @@
           "name": "Title",
           "description": "Optional message title/heading."
         },
+        "format": {
+          "name": "Format",
+          "description": "Text format: text, markdown, or html. Overrides integration message format for this send."
+        },
         "send_keyboard": {
           "name": "Send keyboard",
           "description": "When enabled (default), the integration default inline keyboard is used if you omit Buttons or leave it empty; non-empty Buttons replace it. When disabled, only non-empty Buttons from this call are attached."
@@ -61,6 +65,10 @@
         "caption": {
           "name": "Caption",
           "description": "Optional caption for the photo."
+        },
+        "format": {
+          "name": "Format",
+          "description": "Caption text format: text, markdown, or html."
         },
         "entity_id": {
           "name": "Notify entity",
@@ -139,6 +147,10 @@
           "name": "Caption",
           "description": "Optional caption for the document."
         },
+        "format": {
+          "name": "Format",
+          "description": "Caption text format: text, markdown, or html."
+        },
         "entity_id": {
           "name": "Notify entity",
           "description": "MaxNotify notify entity to send to."
@@ -215,6 +227,10 @@
         "caption": {
           "name": "Caption",
           "description": "Optional caption for the video."
+        },
+        "format": {
+          "name": "Format",
+          "description": "Caption text format: text, markdown, or html."
         },
         "entity_id": {
           "name": "Notify entity",

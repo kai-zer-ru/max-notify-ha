@@ -46,6 +46,7 @@ from .const import (
     CONF_A161_LAST_INCOMING_AT,
     CONF_CHAT_ID,
     CONF_MESSAGE_FORMAT,
+    CONF_RECIPIENT_ID,
     CONF_USER_ID,
     DOMAIN,
     API_REQUEST_RETRY_DELAYS,
@@ -890,6 +891,18 @@ async def _get_message_url_and_recipient(
     base_url = _api_base_url_for_entry(entry)
     uid = recipient.get(CONF_USER_ID)
     cid = recipient.get(CONF_CHAT_ID)
+    rid = recipient.get(CONF_RECIPIENT_ID)
+    # Backward/alt compatibility: some flows may pass only recipient_id.
+    if (uid is None or int(uid or 0) == 0) and (cid is None or int(cid or 0) == 0):
+        try:
+            n = int(rid) if rid is not None else 0
+        except (TypeError, ValueError):
+            n = 0
+        if n != 0:
+            if n > 0:
+                uid = n
+            else:
+                cid = n
     if uid is not None and int(uid) != 0:
         resolved = await _resolve_dialog_chat_id(hass, entry, token, int(uid))
         if resolved is not None:
@@ -1289,6 +1302,7 @@ async def send_message_with_buttons(
     message: str,
     buttons: list[list[dict[str, Any]]],
     title: str | None = None,
+    message_format: str | None = None,
 ) -> None:
     """Send a message with inline keyboard to Max (POST /messages with attachments)."""
     token = entry.data.get(CONF_ACCESS_TOKEN)
@@ -1306,7 +1320,7 @@ async def send_message_with_buttons(
         _LOGGER.warning("Message truncated from %d to %d characters", len(text), MAX_MESSAGE_LENGTH)
         text = text[:MAX_MESSAGE_LENGTH]
 
-    msg_format = entry.data.get(CONF_MESSAGE_FORMAT, "text")
+    msg_format = message_format or entry.data.get(CONF_MESSAGE_FORMAT, "text")
     payload: dict[str, Any] = {"text": text}
     if msg_format != "text":
         payload["format"] = msg_format
@@ -1359,6 +1373,7 @@ async def send_plain_message(
     recipient: dict[str, Any],
     message: str,
     title: str | None = None,
+    message_format: str | None = None,
 ) -> None:
     """Send a plain text message (without inline keyboard) directly to chat_id/user_id."""
     token = entry.data.get(CONF_ACCESS_TOKEN)
@@ -1383,7 +1398,7 @@ async def send_plain_message(
         )
         text = text[:MAX_MESSAGE_LENGTH]
 
-    msg_format = entry.data.get(CONF_MESSAGE_FORMAT, "text")
+    msg_format = message_format or entry.data.get(CONF_MESSAGE_FORMAT, "text")
     payload: dict[str, Any] = {"text": text}
     if msg_format != "text":
         payload["format"] = msg_format
@@ -1439,6 +1454,7 @@ async def upload_image_and_send(
     url_auth_password: str | None = None,
     url_auth_token: str | None = None,
     url_basic_auth: str | None = None,
+    message_format: str | None = None,
 ) -> None:
     """Upload image/file to Max (POST /uploads) and send (POST /messages)."""
     token = entry.data.get(CONF_ACCESS_TOKEN)
@@ -1539,7 +1555,7 @@ async def upload_image_and_send(
                     "payload": {"buttons": _normalize_buttons_for_api(buttons)},
                 }
             )
-        msg_format_a161 = entry.data.get(CONF_MESSAGE_FORMAT, "text")
+        msg_format_a161 = message_format or entry.data.get(CONF_MESSAGE_FORMAT, "text")
         payload_a161: dict[str, Any] = {
             "text": (caption or "")[:MAX_MESSAGE_LENGTH],
             "attachments": attachments_a161,
@@ -1633,7 +1649,7 @@ async def upload_image_and_send(
 
     await asyncio.sleep(FILE_UPLOAD_DELAY)
 
-    msg_format = entry.data.get(CONF_MESSAGE_FORMAT, "text")
+    msg_format = message_format or entry.data.get(CONF_MESSAGE_FORMAT, "text")
     attachments: list[dict[str, Any]] = [
         {"type": "file" if as_document else "image", "payload": attachment_payload}
     ]
@@ -1688,6 +1704,7 @@ async def upload_video_and_send(
     url_auth_password: str | None = None,
     url_auth_token: str | None = None,
     url_basic_auth: str | None = None,
+    message_format: str | None = None,
 ) -> None:
     """Upload video to Max (POST /uploads?type=video) and send (POST /messages)."""
     token = entry.data.get(CONF_ACCESS_TOKEN)
@@ -1880,7 +1897,7 @@ async def upload_video_and_send(
         _LOGGER.error("Max API video upload failed: %s", e)
         return
 
-    msg_format = entry.data.get(CONF_MESSAGE_FORMAT, "text")
+    msg_format = message_format or entry.data.get(CONF_MESSAGE_FORMAT, "text")
 
     if is_notify_a161_entry(entry):
         # Same as official Max: transcode needs time; retries handle attachment.not.ready.

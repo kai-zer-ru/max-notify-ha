@@ -26,6 +26,14 @@ send_message:
     advanced:
       collapsed: true
       fields:
+        format:
+          selector:
+            select:
+              options:
+                - text
+                - markdown
+                - html
+              mode: dropdown
         send_keyboard:
           default: true
           selector:
@@ -82,6 +90,14 @@ send_photo:
     advanced:
       collapsed: true
       fields:
+        format:
+          selector:
+            select:
+              options:
+                - text
+                - markdown
+                - html
+              mode: dropdown
         send_keyboard:
           default: true
           selector:
@@ -193,6 +209,14 @@ send_video:
     advanced:
       collapsed: true
       fields:
+        format:
+          selector:
+            select:
+              options:
+                - text
+                - markdown
+                - html
+              mode: dropdown
         send_keyboard:
           default: true
           selector:
@@ -304,6 +328,14 @@ send_document:
     advanced:
       collapsed: true
       fields:
+        format:
+          selector:
+            select:
+              options:
+                - text
+                - markdown
+                - html
+              mode: dropdown
         send_keyboard:
           default: true
           selector:

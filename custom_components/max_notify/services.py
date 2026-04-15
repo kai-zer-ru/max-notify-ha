@@ -529,6 +529,7 @@ async def async_send_message_handler(service: ServiceCall) -> None:
     data = service.data
     message = data["message"]
     title = data.get("title")
+    message_format = data.get("format")
     send_kb = data.get(CONF_SEND_KEYBOARD, True)
     buttons_provided = "buttons" in data
     entity_ids = data.get(ATTR_ENTITY_ID)
@@ -604,17 +605,43 @@ async def async_send_message_handler(service: ServiceCall) -> None:
         if all_buttons:
             for cid in chat_ids or []:
                 await send_message_with_buttons(
-                    hass, entry, {CONF_CHAT_ID: cid}, message, all_buttons, title=title
+                    hass,
+                    entry,
+                    {CONF_CHAT_ID: cid},
+                    message,
+                    all_buttons,
+                    title=title,
+                    message_format=message_format,
                 )
             for uid in user_ids or []:
                 await send_message_with_buttons(
-                    hass, entry, {CONF_USER_ID: uid}, message, all_buttons, title=title
+                    hass,
+                    entry,
+                    {CONF_USER_ID: uid},
+                    message,
+                    all_buttons,
+                    title=title,
+                    message_format=message_format,
                 )
             return
         for cid in chat_ids or []:
-            await send_plain_message(hass, entry, {CONF_CHAT_ID: cid}, message, title=title)
+            await send_plain_message(
+                hass,
+                entry,
+                {CONF_CHAT_ID: cid},
+                message,
+                title=title,
+                message_format=message_format,
+            )
         for uid in user_ids or []:
-            await send_plain_message(hass, entry, {CONF_USER_ID: uid}, message, title=title)
+            await send_plain_message(
+                hass,
+                entry,
+                {CONF_USER_ID: uid},
+                message,
+                title=title,
+                message_format=message_format,
+            )
         return
 
     resolved = _resolve_entity_ids(
@@ -630,7 +657,7 @@ async def async_send_message_handler(service: ServiceCall) -> None:
 
     reg = er.async_get(hass)
     from .helpers import resolve_service_inline_keyboard
-    from .notify import send_message_with_buttons
+    from .notify import send_message_with_buttons, send_plain_message
 
     with_keyboard: list[str] = []
     without_keyboard: list[str] = []
@@ -673,26 +700,34 @@ async def async_send_message_handler(service: ServiceCall) -> None:
         )
         if all_buttons:
             await send_message_with_buttons(
-                hass, entry, dict(subentry.data), message, all_buttons, title=title
+                hass,
+                entry,
+                dict(subentry.data),
+                message,
+                all_buttons,
+                title=title,
+                message_format=message_format,
             )
 
-    if not without_keyboard:
-        return
-
-    service_data: dict[str, Any] = {
-        "message": message,
-        ATTR_ENTITY_ID: without_keyboard,
-    }
-    if title is not None:
-        service_data["title"] = title
-
-    await hass.services.async_call(
-        "notify",
-        "send_message",
-        service_data,
-        blocking=True,
-        context=service.context,
-    )
+    for eid in without_keyboard:
+        entity_entry = reg.async_get(eid)
+        if not entity_entry or not entity_entry.config_entry_id or not entity_entry.config_subentry_id:
+            continue
+        entry = hass.config_entries.async_get_entry(entity_entry.config_entry_id)
+        if not entry or entry.domain != DOMAIN:
+            continue
+        subentries = getattr(entry, "subentries", None) or {}
+        subentry = subentries.get(entity_entry.config_subentry_id)
+        if not subentry:
+            continue
+        await send_plain_message(
+            hass,
+            entry,
+            dict(subentry.data),
+            message,
+            title=title,
+            message_format=message_format,
+        )
 
 
 async def _send_photo_or_document(
@@ -702,6 +737,7 @@ async def _send_photo_or_document(
 ) -> None:
     file_path_or_url = data["file"].strip()
     caption = data.get("caption")
+    message_format = data.get("format")
     disable_ssl = data.get(CONF_DISABLE_SSL, False)
     send_kb = data.get(CONF_SEND_KEYBOARD, True)
     buttons_provided = "buttons" in data
@@ -798,6 +834,7 @@ async def _send_photo_or_document(
             caption,
             as_document=as_document,
             buttons=all_buttons,
+            message_format=message_format,
             count_requests=count_requests,
             disable_ssl=disable_ssl,
             url_auth_type=auth_type,
@@ -825,6 +862,7 @@ async def _send_video(
 ) -> None:
     file_path_or_url = data["file"].strip()
     caption = data.get("caption")
+    message_format = data.get("format")
     disable_ssl = data.get(CONF_DISABLE_SSL, False)
     send_kb = data.get(CONF_SEND_KEYBOARD, True)
     buttons_provided = "buttons" in data
@@ -918,6 +956,7 @@ async def _send_video(
             file_path_or_url,
             caption=caption,
             buttons=all_buttons,
+            message_format=message_format,
             count_requests=count_requests,
             disable_ssl=disable_ssl,
             url_auth_type=auth_type,
