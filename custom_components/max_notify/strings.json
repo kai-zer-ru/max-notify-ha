@@ -426,6 +426,20 @@
           "updates_interval": " "
         }
       },
+      "a161_inactivity_period": {
+        "title": "notify.a161.ru: inactivity period",
+        "description": "Choose how long without incoming messages and without sends that include buttons before receive mode is switched to Send only (service policy).",
+        "data": {
+          "a161_inactivity_period_days": "Period"
+        },
+        "options": {
+          "period_days": {
+            "1": "1 day",
+            "2": "2 days",
+            "3": "3 days"
+          }
+        }
+      },
       "user": {
         "title": "MaxNotify: Bot token",
         "description": "Enter the bot access token, message format, and receive mode. For Send only, no extra fields are needed.\n\nFor WebHook to become available in the list, configure an external HTTPS URL for Home Assistant (Settings → System → Network). See https://www.home-assistant.io/docs/configuration/basic/\n\nWhile a WebHook subscription is active in Max, Long Polling is unavailable, and vice versa — see https://dev.max.ru/docs-api/methods/POST/subscriptions",
@@ -568,6 +582,7 @@
       "invalid_button_text": "Enter a button label.",
       "invalid_button_url": "Enter an http(s) URL for link buttons.",
       "invalid_updates_interval": "Enter a polling interval from 2 to 30 seconds.",
+      "invalid_a161_inactivity_period": "Choose 1, 2, or 3 days.",
       "a161_polling_requires_buttons_switched_send_only": "No buttons configured. Receive mode was switched to Send only. Add at least one button to use Polling."
     },
     "abort": {
@@ -605,6 +620,20 @@
         "description": "Set polling interval in seconds for /updates queue. Default: {default_seconds} s.",
         "data": {
           "updates_interval": " "
+        }
+      },
+      "a161_inactivity_period": {
+        "title": "notify.a161.ru: inactivity period",
+        "description": "Choose how long without incoming messages and without sends that include buttons before receive mode is switched to Send only (service policy).",
+        "data": {
+          "a161_inactivity_period_days": "Period"
+        },
+        "options": {
+          "period_days": {
+            "1": "1 day",
+            "2": "2 days",
+            "3": "3 days"
+          }
         }
       },
       "init": {
@@ -756,6 +785,7 @@
       "webhook_blocked_by_polling_other_entry": "Another MaxNotify integration already uses Long Polling with this bot token. Stop Long Polling there or use another token before enabling WebHook here.",
       "webhook_requires_external_https_url": "WebHook requires an external HTTPS URL for Home Assistant (Settings → System → Network, or Home Assistant Cloud). Configure it first, then choose WebHook again.",
       "invalid_updates_interval": "Enter a polling interval from 2 to 30 seconds.",
+      "invalid_a161_inactivity_period": "Choose 1, 2, or 3 days.",
       "a161_polling_requires_buttons_switched_send_only": "No buttons configured. Receive mode was switched to Send only. Add at least one button to use Polling."
     }
   },

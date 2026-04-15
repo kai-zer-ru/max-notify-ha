@@ -473,6 +473,20 @@
           "updates_interval": " "
         }
       },
+      "a161_inactivity_period": {
+        "title": "notify.a161.ru: период неактивности",
+        "description": "Выберите период, по истечени которого будет отключено получение сообщений (ограничение сервиса)",
+        "data": {
+          "a161_inactivity_period_days": "Период"
+        },
+        "options": {
+          "period_days": {
+            "1": "1 сутки",
+            "2": "2 суток",
+            "3": "3 суток"
+          }
+        }
+      },
       "user": {
         "title": "MaxNotify: токен бота",
         "description": "Введите токен доступа бота, формат сообщений и режим приёма. При «Только отправка» дополнительные поля не нужны.\n\nЧтобы режим WebHook стал доступен в списке выбора, настройте внешний HTTPS-URL Home Assistant (Настройки → Система → Сеть). См. https://www.home-assistant.io/docs/configuration/basic/\n\nПока в Max активна подписка WebHook, Long Polling недоступен, и наоборот — см. https://dev.max.ru/docs-api/methods/POST/subscriptions",
@@ -615,6 +629,7 @@
       "invalid_button_text": "Введите подпись на кнопке.",
       "invalid_button_url": "Для кнопки-ссылки укажите URL с http:// или https://.",
       "invalid_updates_interval": "Введите интервал опроса от 2 до 30 секунд.",
+      "invalid_a161_inactivity_period": "Выберите 1, 2 или 3 суток.",
       "a161_polling_requires_buttons_switched_send_only": "Кнопки не настроены. Режим приёма автоматически переключен на «Только отправка». Добавьте хотя бы одну кнопку, чтобы использовать Polling."
     },
     "abort": {
@@ -652,6 +667,20 @@
         "description": "Укажите интервал опроса очереди /updates в секундах. По умолчанию: {default_seconds} с.",
         "data": {
           "updates_interval": " "
+        }
+      },
+      "a161_inactivity_period": {
+        "title": "notify.a161.ru: период неактивности",
+        "description": "Выберите период, по истечени которого будет отключено получение сообщений (ограничение сервиса)",
+        "data": {
+          "a161_inactivity_period_days": "Период"
+        },
+        "options": {
+          "period_days": {
+            "1": "1 сутки",
+            "2": "2 суток",
+            "3": "3 суток"
+          }
         }
       },
       "init": {
@@ -803,6 +832,7 @@
       "webhook_blocked_by_polling_other_entry": "Другая интеграция MaxNotify уже использует Long Polling с этим токеном бота. Сначала отключите Long Polling там или используйте другой токен.",
       "webhook_requires_external_https_url": "Для WebHook нужен внешний HTTPS-адрес Home Assistant (Настройки → Система → Сеть или Nabu Casa). Сначала настройте URL, затем снова выберите WebHook.",
       "invalid_updates_interval": "Введите интервал опроса от 2 до 30 секунд.",
+      "invalid_a161_inactivity_period": "Выберите 1, 2 или 3 суток.",
       "a161_polling_requires_buttons_switched_send_only": "Кнопки не настроены. Режим приёма автоматически переключен на «Только отправка». Добавьте хотя бы одну кнопку, чтобы использовать Polling."
     }
   },

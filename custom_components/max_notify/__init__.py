@@ -5,8 +5,9 @@ from __future__ import annotations
 import json
 import logging
 import re
-from pathlib import Path
 import time
+from pathlib import Path
+from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import __version__ as HA_VERSION
@@ -22,11 +23,15 @@ from .const import (
     CONF_INTEGRATION_TYPE,
     CONF_RECEIVE_MODE,
     CONF_WEBHOOK_SECRET,
+    CONF_A161_INACTIVITY_PERIOD_DAYS,
     CONF_A161_LAST_BUTTON_SEND_AT,
+    CONF_A161_LAST_INCOMING_AT,
     CONF_A161_POLLING_GRACE_STARTED_AT,
     DOMAIN,
     INTEGRATION_TYPE_OFFICIAL,
-    NOTIFY_A161_POLLING_GRACE_SECONDS,
+    NOTIFY_A161_INACTIVITY_PERIOD_DAYS_DEFAULT,
+    NOTIFY_A161_INACTIVITY_PERIOD_DAYS_MAX,
+    NOTIFY_A161_INACTIVITY_PERIOD_DAYS_MIN,
     RECEIVE_MODE_POLLING,
     RECEIVE_MODE_SEND_ONLY,
     RECEIVE_MODE_WEBHOOK,
@@ -98,35 +103,45 @@ async def _async_register_service_once(hass: HomeAssistant) -> None:
     _ensure_service_registered(hass)
 
 
+def _a161_effective_inactivity_days(options: dict[str, Any]) -> int:
+    """Clamp stored notify.a161.ru inactivity period (days) to 1..3."""
+    try:
+        d = int(options.get(CONF_A161_INACTIVITY_PERIOD_DAYS, NOTIFY_A161_INACTIVITY_PERIOD_DAYS_DEFAULT) or 0)
+    except (TypeError, ValueError):
+        d = NOTIFY_A161_INACTIVITY_PERIOD_DAYS_DEFAULT
+    return min(NOTIFY_A161_INACTIVITY_PERIOD_DAYS_MAX, max(NOTIFY_A161_INACTIVITY_PERIOD_DAYS_MIN, d))
+
+
 async def _async_ensure_a161_polling_grace(hass: HomeAssistant, entry: ConfigEntry) -> None:
-    """Auto-switch a161 polling to send_only after grace period without button sends."""
+    """Auto-switch a161 polling to send_only after inactivity (no incoming, no sends with buttons)."""
     if not is_notify_a161_entry(entry):
         return
     options = dict(entry.options or {})
     if options.get(CONF_RECEIVE_MODE) != RECEIVE_MODE_POLLING:
+        dirty = False
         if int(options.get(CONF_A161_POLLING_GRACE_STARTED_AT, 0) or 0) > 0:
             options[CONF_A161_POLLING_GRACE_STARTED_AT] = 0
+            dirty = True
+        if dirty:
             hass.config_entries.async_update_entry(entry, options=options)
-        return
-    buttons = options.get(CONF_BUTTONS)
-    has_buttons = bool(isinstance(buttons, list) and buttons)
-    if has_buttons:
-        # Polling with configured buttons: grace scenario is not needed.
-        if int(options.get(CONF_A161_POLLING_GRACE_STARTED_AT, 0) or 0) > 0:
-            options[CONF_A161_POLLING_GRACE_STARTED_AT] = 0
-            hass.config_entries.async_update_entry(entry, options=options)
-        return
-    now_ts = int(time.time())
-    started_at = int(options.get(CONF_A161_POLLING_GRACE_STARTED_AT, 0) or 0)
-    if started_at <= 0:
-        options[CONF_A161_POLLING_GRACE_STARTED_AT] = now_ts
-        hass.config_entries.async_update_entry(entry, options=options)
-        return
-    if (now_ts - started_at) < NOTIFY_A161_POLLING_GRACE_SECONDS:
         return
 
-    last_send = int(options.get(CONF_A161_LAST_BUTTON_SEND_AT, 0) or 0)
-    if last_send > started_at:
+    now_ts = int(time.time())
+    days = _a161_effective_inactivity_days(options)
+    period_sec = days * 86400
+
+    last_in = int(options.get(CONF_A161_LAST_INCOMING_AT, 0) or 0)
+    last_btn = int(options.get(CONF_A161_LAST_BUTTON_SEND_AT, 0) or 0)
+    last_act = max(last_in, last_btn)
+
+    if last_act <= 0:
+        options[CONF_A161_LAST_INCOMING_AT] = now_ts
+        if int(options.get(CONF_A161_POLLING_GRACE_STARTED_AT, 0) or 0) > 0:
+            options[CONF_A161_POLLING_GRACE_STARTED_AT] = 0
+        hass.config_entries.async_update_entry(entry, options=options)
+        return
+
+    if (now_ts - last_act) < period_sec:
         return
 
     options[CONF_RECEIVE_MODE] = RECEIVE_MODE_SEND_ONLY
@@ -144,14 +159,14 @@ async def _async_ensure_a161_polling_grace(hass: HomeAssistant, entry: ConfigEnt
         if lang.startswith("ru"):
             title = "MaxNotify: режим приёма изменён"
             message = (
-                "За последние 24 часа не было отправлено сообщений с кнопками, "
-                "поэтому режим приёма автоматически переключён на «Только отправка»."
+                f"В течение {days} сут. не было входящих сообщений и отправок с кнопками "
+                f"(ограничение сервиса). Режим приёма переключён на «Только отправка»."
             )
         else:
             title = "MaxNotify: receive mode changed"
             message = (
-                "No messages with buttons were sent in the last 24 hours, "
-                "so receive mode was automatically switched to Send only."
+                f"No incoming messages and no messages with buttons for {days} day(s) "
+                f"(service policy). Receive mode was switched to Send only."
             )
         persistent_notification.async_create(
             hass,

@@ -43,6 +43,7 @@ from .const import (
     CHATS_PAGE_SIZE,
     CONF_ACCESS_TOKEN,
     CONF_A161_LAST_BUTTON_SEND_AT,
+    CONF_A161_LAST_INCOMING_AT,
     CONF_CHAT_ID,
     CONF_MESSAGE_FORMAT,
     CONF_USER_ID,
@@ -141,6 +142,15 @@ def _mark_a161_button_send(hass: HomeAssistant, entry: ConfigEntry) -> None:
     marks[entry.entry_id] = now_ts
     new_options = dict(entry.options or {})
     new_options[CONF_A161_LAST_BUTTON_SEND_AT] = int(now_ts)
+    hass.config_entries.async_update_entry(entry, options=new_options)
+
+
+def mark_a161_incoming_activity(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Update last incoming activity time for notify.a161.ru (polling inactivity guard)."""
+    if not is_notify_a161_entry(entry):
+        return
+    new_options = dict(entry.options or {})
+    new_options[CONF_A161_LAST_INCOMING_AT] = int(time.time())
     hass.config_entries.async_update_entry(entry, options=new_options)
 
 

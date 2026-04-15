@@ -417,6 +417,11 @@ async def async_process_update(
             window = CALLBACK_DEDUPE_WINDOW if (update.get("update_type") == "message_callback") else DEDUPE_WINDOW_DEFAULT
             recent[dedupe_key] = now + window
 
+        if is_notify_a161_entry(entry):
+            from .notify import mark_a161_incoming_activity
+
+            mark_a161_incoming_activity(hass, entry)
+
         # Подробный лог \"как есть\" для отладки команд, кнопок и идентификаторов чатов
         if _LOGGER.isEnabledFor(logging.DEBUG):
             try:

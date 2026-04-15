@@ -35,6 +35,7 @@ except ImportError:
 from .api import validate_token
 from .const import (
     CONF_ACCESS_TOKEN,
+    CONF_A161_INACTIVITY_PERIOD_DAYS,
     CONF_BUTTONS,
     CONF_BUTTON_PAYLOAD,
     CONF_BUTTON_URL,
@@ -56,6 +57,9 @@ from .const import (
     DOMAIN,
     INTEGRATION_TYPE_NOTIFY_A161,
     INTEGRATION_TYPE_OFFICIAL,
+    NOTIFY_A161_INACTIVITY_PERIOD_DAYS_DEFAULT,
+    NOTIFY_A161_INACTIVITY_PERIOD_DAYS_MAX,
+    NOTIFY_A161_INACTIVITY_PERIOD_DAYS_MIN,
     NOTIFY_A161_UPDATES_INTERVAL_MAX_SECONDS,
     NOTIFY_A161_UPDATES_INTERVAL_MIN_SECONDS,
     NOTIFY_A161_UPDATES_INTERVAL_SECONDS,
@@ -180,6 +184,7 @@ class MaxNotifyConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self._remove_button_label_to_value: dict[str, str] = {}
         self._a161_polling_requested: bool = False
         self._updates_interval: int = NOTIFY_A161_UPDATES_INTERVAL_SECONDS
+        self._a161_inactivity_period_days: int = NOTIFY_A161_INACTIVITY_PERIOD_DAYS_DEFAULT
 
     async def async_step_user(self, user_input: dict[str, Any] | None = None) -> FlowResult:
         """Entry point: choose integration type then run corresponding setup."""
@@ -456,6 +461,8 @@ class MaxNotifyConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     CONF_RECEIVE_MODE: self._receive_mode,
                     CONF_WEBHOOK_SECRET: self._webhook_secret,
                     CONF_BUTTONS: self._buttons_rows,
+                    CONF_UPDATES_INTERVAL: self._updates_interval,
+                    CONF_A161_INACTIVITY_PERIOD_DAYS: self._a161_inactivity_period_days,
                 }
                 mode_title = await get_receive_mode_title(self.hass, self._receive_mode)
                 base_title = f"MaxNotify (notify.a161.ru, {mode_title})"
@@ -516,7 +523,7 @@ class MaxNotifyConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 errors["base"] = "invalid_updates_interval"
             else:
                 self._updates_interval = interval
-                return await self.async_step_receive_options_menu(None)
+                return await self.async_step_a161_inactivity_period(None)
         return self.async_show_form(
             step_id="updates_interval",
             data_schema=self.add_suggested_values_to_schema(
@@ -542,6 +549,58 @@ class MaxNotifyConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             description_placeholders={
                 "default_seconds": str(NOTIFY_A161_UPDATES_INTERVAL_SECONDS),
             },
+        )
+
+    async def async_step_a161_inactivity_period(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """notify.a161.ru: choose inactivity period before keyboard setup (polling only)."""
+        errors: dict[str, str] = {}
+        step_id = "a161_inactivity_period"
+        category = "config"
+        try:
+            trans = await async_get_translations(
+                self.hass, self.hass.config.language, category, [DOMAIN]
+            )
+        except Exception:
+            trans = {}
+        day_keys = [str(d) for d in range(NOTIFY_A161_INACTIVITY_PERIOD_DAYS_MIN, NOTIFY_A161_INACTIVITY_PERIOD_DAYS_MAX + 1)]
+        day_labels = get_option_labels(trans, category, step_id, "period_days", day_keys)
+        choice_labels = [day_labels[k] for k in day_keys]
+        label_to_int = {day_labels[k]: int(k) for k in day_keys}
+        if user_input is not None:
+            raw = user_input.get(CONF_A161_INACTIVITY_PERIOD_DAYS)
+            days = label_to_int.get(raw)
+            if days is None:
+                try:
+                    cand = int(raw)
+                except (TypeError, ValueError):
+                    cand = 0
+                days = cand if cand in (1, 2, 3) else None
+            if days is None:
+                errors["base"] = "invalid_a161_inactivity_period"
+            else:
+                self._a161_inactivity_period_days = days
+                return await self.async_step_receive_options_menu(None)
+        suggested_int = min(
+            NOTIFY_A161_INACTIVITY_PERIOD_DAYS_MAX,
+            max(NOTIFY_A161_INACTIVITY_PERIOD_DAYS_MIN, int(self._a161_inactivity_period_days)),
+        )
+        suggested_label = day_labels[str(suggested_int)]
+        return self.async_show_form(
+            step_id=step_id,
+            data_schema=self.add_suggested_values_to_schema(
+                vol.Schema(
+                    {
+                        vol.Required(
+                            CONF_A161_INACTIVITY_PERIOD_DAYS,
+                            default=suggested_label,
+                        ): vol.In(choice_labels),
+                    }
+                ),
+                {CONF_A161_INACTIVITY_PERIOD_DAYS: suggested_label},
+            ),
+            errors=errors,
         )
 
     async def async_step_receive_options_menu(
@@ -762,9 +821,12 @@ class MaxNotifyConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         CONF_RECEIVE_MODE: self._receive_mode,
                         CONF_WEBHOOK_SECRET: self._webhook_secret,
                         CONF_BUTTONS: self._buttons_rows,
-                    CONF_UPDATES_INTERVAL: self._updates_interval,
+                        CONF_UPDATES_INTERVAL: self._updates_interval,
                     }
                     if self._integration_type == INTEGRATION_TYPE_NOTIFY_A161:
+                        options[CONF_A161_INACTIVITY_PERIOD_DAYS] = (
+                            self._a161_inactivity_period_days
+                        )
                         mode_title = await get_receive_mode_title(
                             self.hass, self._receive_mode
                         )
@@ -1075,6 +1137,7 @@ class MaxNotifyOptionsFlow(OptionsFlow):
         self._opt_edit_label_to_value: dict[str, str] = {}
         self._a161_polling_requested: bool = False
         self._pending_updates_interval: int = NOTIFY_A161_UPDATES_INTERVAL_SECONDS
+        self._pending_a161_inactivity_days: int | None = None
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
@@ -1318,13 +1381,20 @@ class MaxNotifyOptionsFlow(OptionsFlow):
                 }
                 self._opt_buttons = normalize_buttons((entry.options or {}).get(CONF_BUTTONS))
                 return await self.async_step_updates_interval(None)
+            prev_opts = entry.options or {}
             new_options = {
                 CONF_RECEIVE_MODE: new_receive_mode,
                 CONF_WEBHOOK_SECRET: "",
                 CONF_BUTTONS: [],
                 CONF_UPDATES_INTERVAL: int(
-                    (entry.options or {}).get(
+                    prev_opts.get(
                         CONF_UPDATES_INTERVAL, NOTIFY_A161_UPDATES_INTERVAL_SECONDS
+                    )
+                ),
+                CONF_A161_INACTIVITY_PERIOD_DAYS: int(
+                    prev_opts.get(
+                        CONF_A161_INACTIVITY_PERIOD_DAYS,
+                        NOTIFY_A161_INACTIVITY_PERIOD_DAYS_DEFAULT,
                     )
                 ),
             }
@@ -1361,7 +1431,7 @@ class MaxNotifyOptionsFlow(OptionsFlow):
                 errors["base"] = "invalid_updates_interval"
             else:
                 self._pending_updates_interval = interval
-                return await self.async_step_buttons_menu(None)
+                return await self.async_step_a161_inactivity_period(None)
         suggested = self._pending_updates_interval or int(
             (entry.options or {}).get(
                 CONF_UPDATES_INTERVAL, NOTIFY_A161_UPDATES_INTERVAL_SECONDS
@@ -1392,6 +1462,71 @@ class MaxNotifyOptionsFlow(OptionsFlow):
             description_placeholders={
                 "default_seconds": str(NOTIFY_A161_UPDATES_INTERVAL_SECONDS),
             },
+        )
+
+    async def async_step_a161_inactivity_period(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """notify.a161.ru options: inactivity period (polling)."""
+        errors: dict[str, str] = {}
+        entry = self.config_entry
+        step_id = "a161_inactivity_period"
+        category = "options"
+        try:
+            trans = await async_get_translations(
+                self.hass, self.hass.config.language, category, [DOMAIN]
+            )
+        except Exception:
+            trans = {}
+        day_keys = [str(d) for d in range(NOTIFY_A161_INACTIVITY_PERIOD_DAYS_MIN, NOTIFY_A161_INACTIVITY_PERIOD_DAYS_MAX + 1)]
+        day_labels = get_option_labels(trans, category, step_id, "period_days", day_keys)
+        choice_labels = [day_labels[k] for k in day_keys]
+        label_to_int = {day_labels[k]: int(k) for k in day_keys}
+        if user_input is not None:
+            raw = user_input.get(CONF_A161_INACTIVITY_PERIOD_DAYS)
+            days = label_to_int.get(raw)
+            if days is None:
+                try:
+                    cand = int(raw)
+                except (TypeError, ValueError):
+                    cand = 0
+                days = cand if cand in (1, 2, 3) else None
+            if days is None:
+                errors["base"] = "invalid_a161_inactivity_period"
+            else:
+                self._pending_a161_inactivity_days = days
+                return await self.async_step_buttons_menu(None)
+        if self._pending_a161_inactivity_days is not None:
+            suggested_int = self._pending_a161_inactivity_days
+        else:
+            try:
+                suggested_int = int(
+                    (entry.options or {}).get(
+                        CONF_A161_INACTIVITY_PERIOD_DAYS,
+                        NOTIFY_A161_INACTIVITY_PERIOD_DAYS_DEFAULT,
+                    )
+                )
+            except (TypeError, ValueError):
+                suggested_int = NOTIFY_A161_INACTIVITY_PERIOD_DAYS_DEFAULT
+        suggested_int = min(
+            NOTIFY_A161_INACTIVITY_PERIOD_DAYS_MAX,
+            max(NOTIFY_A161_INACTIVITY_PERIOD_DAYS_MIN, suggested_int),
+        )
+        suggested_label = day_labels[str(suggested_int)]
+        return self.async_show_form(
+            step_id=step_id,
+            data_schema=self.add_suggested_values_to_schema(
+                vol.Schema(
+                    {
+                        vol.Required(
+                            CONF_A161_INACTIVITY_PERIOD_DAYS,
+                            default=suggested_label,
+                        ): vol.In(choice_labels),
+                    }
+                ),
+                {CONF_A161_INACTIVITY_PERIOD_DAYS: suggested_label},
+            ),
+            errors=errors,
         )
 
     async def async_step_buttons_menu(
@@ -1698,6 +1833,23 @@ class MaxNotifyOptionsFlow(OptionsFlow):
             CONF_BUTTONS: self._opt_buttons,
             CONF_UPDATES_INTERVAL: self._pending_updates_interval,
         }
+        if is_notify_a161_entry(entry):
+            if self._pending_a161_inactivity_days is not None:
+                days_out = self._pending_a161_inactivity_days
+            else:
+                try:
+                    days_out = int(
+                        (entry.options or {}).get(
+                            CONF_A161_INACTIVITY_PERIOD_DAYS,
+                            NOTIFY_A161_INACTIVITY_PERIOD_DAYS_DEFAULT,
+                        )
+                    )
+                except (TypeError, ValueError):
+                    days_out = NOTIFY_A161_INACTIVITY_PERIOD_DAYS_DEFAULT
+            new_options[CONF_A161_INACTIVITY_PERIOD_DAYS] = min(
+                NOTIFY_A161_INACTIVITY_PERIOD_DAYS_MAX,
+                max(NOTIFY_A161_INACTIVITY_PERIOD_DAYS_MIN, int(days_out)),
+            )
         if (
             self._pending_data.get(CONF_INTEGRATION_TYPE)
             == INTEGRATION_TYPE_NOTIFY_A161
