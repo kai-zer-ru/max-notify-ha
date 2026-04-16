@@ -78,6 +78,10 @@
           "name": "File",
           "description": "Local path (/config/..., /media/...) or image URL (http/https)."
         },
+        "files": {
+          "name": "Files",
+          "description": "List of local paths or URLs. Sends multiple attachments in one message."
+        },
         "caption": {
           "name": "Caption",
           "description": "Optional caption for the photo."
@@ -133,7 +137,7 @@
     },
     "send_document": {
       "name": "Send document",
-      "description": "Send a file as document to Max chat(s). May preserve quality vs. send_photo.",
+      "description": "Send one file as document to Max chat(s). May preserve quality vs. send_photo.",
       "fields": {
         "file": {
           "name": "File",
@@ -199,6 +203,10 @@
         "file": {
           "name": "File",
           "description": "Local path or video URL (mp4, mov, webm, mkv)."
+        },
+        "files": {
+          "name": "Files",
+          "description": "List of local paths or URLs. Sends multiple attachments in one message."
         },
         "caption": {
           "name": "Caption",
@@ -734,6 +742,7 @@
       "notify_a161_polling_requires_buttons_switched_send_only": "No buttons configured. Receive mode was switched to Send only. Add at least one button to use Polling."
     }
   },
+  "attachments_count_limit_exceeded": "{provider} allows up to {max_count} attachments per message in integration settings; requested: {actual_count}.",
   "config_subentries": {
     "recipient": {
       "abort": {

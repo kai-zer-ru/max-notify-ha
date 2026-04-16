@@ -79,6 +79,10 @@
           "name": "File",
           "description": "Local path (/config/..., /media/...) or image URL (http/https)."
         },
+        "files": {
+          "name": "Files",
+          "description": "List of local paths or URLs. Sends multiple attachments in one message."
+        },
         "caption": {
           "name": "Caption",
           "description": "Optional caption for the photo."
@@ -134,7 +138,7 @@
     },
     "send_document": {
       "name": "Send document",
-      "description": "Send a file as document to Max chat(s). May preserve quality vs. send_photo.",
+      "description": "Send one file as document to Max chat(s). May preserve quality vs. send_photo.",
       "fields": {
         "file": {
           "name": "File",
@@ -200,6 +204,10 @@
         "file": {
           "name": "File",
           "description": "Local path or video URL (mp4, mov, webm, mkv)."
+        },
+        "files": {
+          "name": "Files",
+          "description": "List of local paths or URLs. Sends multiple attachments in one message."
         },
         "caption": {
           "name": "Caption",
@@ -324,6 +332,7 @@
   "third_party_video_too_large": "{provider} accepts video up to {max_mib} MB; this file is about {size_mib} MB.",
   "third_party_upload_no_url": "{provider}: upload step returned no URL.",
   "third_party_video_upload_incomplete": "{provider}: video upload response must contain url and token.",
+  "attachments_count_limit_exceeded": "{provider} allows up to {max_count} attachments per message (files + inline keyboard); requested: {actual_count}.",
   "link_button_url_http_https_only": "Link button URL must use http or https (received: {url}).",
   "exceptions": {
     "invalid_notify_entity": {
@@ -364,6 +373,9 @@
     },
     "third_party_video_upload_incomplete": {
       "message": "{provider}: video upload response must contain url and token."
+    },
+    "attachments_count_limit_exceeded": {
+      "message": "{provider} allows up to {max_count} attachments per message in integration settings; requested: {actual_count}."
     },
     "link_button_url_http_https_only": {
       "message": "Link button URL must use http or https (received: {url})."

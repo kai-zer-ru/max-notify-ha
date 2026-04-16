@@ -10,6 +10,10 @@ from custom_components.max_notify.providers.capabilities import IntegrationCapab
 from custom_components.max_notify.providers.official.capabilities import (
     OFFICIAL_CAPABILITIES,
 )
+from custom_components.max_notify.providers.official.const import (
+    OFFICIAL_MAX_UPLOAD_BYTES,
+)
+from custom_components.max_notify.providers.registry import get_provider
 from custom_components.max_notify.providers.registry import (
     get_capabilities,
     register_capabilities,
@@ -39,3 +43,8 @@ def test_register_custom_capabilities(mock_config_entry) -> None:
     caps = get_capabilities(mock_config_entry)
     assert caps.supports_send_video is False
     assert caps.supports_group_chats is False
+
+
+def test_official_reports_upload_limit(mock_config_entry) -> None:
+    mock_config_entry.data[CONF_INTEGRATION_TYPE] = INTEGRATION_TYPE_OFFICIAL
+    assert get_provider(mock_config_entry).max_attachment_upload_bytes() == OFFICIAL_MAX_UPLOAD_BYTES

@@ -5,6 +5,7 @@ from unittest.mock import patch
 import pytest
 
 from custom_components.max_notify.providers.official.webhook_api import (
+    extract_webhook_updates_from_payload,
     subscription_urls_from_payload,
 )
 from custom_components.max_notify.webhook import webhook_entry_can_receive
@@ -29,6 +30,29 @@ from custom_components.max_notify.webhook import webhook_entry_can_receive
 )
 def test_subscription_urls_from_payload(payload, expected):
     assert subscription_urls_from_payload(payload) == expected
+
+
+@pytest.mark.parametrize(
+    ("payload", "expected_count", "expected_type"),
+    [
+        ({"updates": [{"update_type": "message_created", "message": {}}]}, 1, "message_created"),
+        ({"update_type": "message_created", "message": {}}, 1, "message_created"),
+        (
+            {"message_created": {"message": {"body": {"text": "hello"}}}},
+            1,
+            "message_created",
+        ),
+        (
+            {"event": {"update_type": "message_callback", "callback": {"payload": "ok"}}},
+            1,
+            "message_callback",
+        ),
+    ],
+)
+def test_extract_webhook_updates_from_payload(payload, expected_count, expected_type):
+    updates = extract_webhook_updates_from_payload(payload)
+    assert len(updates) == expected_count
+    assert updates[0]["update_type"] == expected_type
 
 
 class TestWebhookEntryCanReceive:

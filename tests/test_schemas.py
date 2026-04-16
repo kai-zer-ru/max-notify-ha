@@ -6,6 +6,7 @@ import pytest
 import voluptuous as vol
 
 from custom_components.max_notify.schemas import (
+    SERVICE_SEND_DOCUMENT_SCHEMA,
     SERVICE_SEND_MESSAGE_SCHEMA,
     SERVICE_SEND_VIDEO_SCHEMA,
     SERVICE_DELETE_MESSAGE_SCHEMA,
@@ -138,4 +139,34 @@ class TestSendVideoSchema:
             "disable_ssl": True,
         })
         assert data["disable_ssl"] is True
+
+    def test_accepts_files_list(self) -> None:
+        data = SERVICE_SEND_VIDEO_SCHEMA({
+            "files": ["/tmp/v1.mp4", "/tmp/v2.mp4"],
+            "count_requests": 3,
+        })
+        assert data["files"] == ["/tmp/v1.mp4", "/tmp/v2.mp4"]
+
+    def test_file_and_files_together_invalid(self) -> None:
+        with pytest.raises(vol.MultipleInvalid):
+            SERVICE_SEND_VIDEO_SCHEMA({
+                "file": "/tmp/v.mp4",
+                "files": ["/tmp/v2.mp4"],
+            })
+
+
+class TestSendDocumentSchema:
+    """Тесты SERVICE_SEND_DOCUMENT_SCHEMA (только один file)."""
+
+    def test_requires_single_file(self) -> None:
+        with pytest.raises(vol.MultipleInvalid):
+            SERVICE_SEND_DOCUMENT_SCHEMA({})
+
+    def test_rejects_files_list(self) -> None:
+        with pytest.raises(vol.MultipleInvalid):
+            SERVICE_SEND_DOCUMENT_SCHEMA({"files": ["/tmp/doc1.pdf"]})
+
+    def test_accepts_single_file(self) -> None:
+        data = SERVICE_SEND_DOCUMENT_SCHEMA({"file": "/tmp/doc1.pdf"})
+        assert data["file"] == "/tmp/doc1.pdf"
 

@@ -104,8 +104,8 @@ async def upload_image_and_send(
     entry: ConfigEntry,
     recipient: dict[str, Any],
     file_path_or_url: str,
+    file_paths_or_urls: list[str] | None = None,
     caption: str | None = None,
-    as_document: bool = False,
     buttons: list[list[dict[str, Any]]] | None = None,
     count_requests: int | None = None,
     notify: bool = True,
@@ -117,12 +117,8 @@ async def upload_image_and_send(
     message_format: str | None = None,
 ) -> None:
     caps = get_capabilities(entry)
-    if as_document:
-        if not caps.supports_send_document:
-            raise_provider_feature_not_supported(entry, feature="send_document")
-    else:
-        if not caps.supports_send_photo:
-            raise_provider_feature_not_supported(entry, feature="send_photo")
+    if not caps.supports_send_photo:
+        raise_provider_feature_not_supported(entry, feature="send_photo")
     if buttons:
         if not caps.supports_inline_keyboard:
             raise_provider_feature_not_supported(entry, feature="inline_keyboard")
@@ -131,8 +127,48 @@ async def upload_image_and_send(
         entry,
         recipient,
         file_path_or_url,
+        file_paths_or_urls=file_paths_or_urls,
         caption=caption,
-        as_document=as_document,
+        buttons=buttons,
+        count_requests=count_requests,
+        notify=notify,
+        disable_ssl=disable_ssl,
+        url_auth_type=url_auth_type,
+        url_auth_login=url_auth_login,
+        url_auth_password=url_auth_password,
+        url_auth_token=url_auth_token,
+        message_format=message_format,
+    )
+
+async def upload_document_and_send(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    recipient: dict[str, Any],
+    file_path_or_url: str,
+    file_paths_or_urls: list[str] | None = None,
+    caption: str | None = None,
+    buttons: list[list[dict[str, Any]]] | None = None,
+    count_requests: int | None = None,
+    notify: bool = True,
+    disable_ssl: bool = False,
+    url_auth_type: str | None = None,
+    url_auth_login: str | None = None,
+    url_auth_password: str | None = None,
+    url_auth_token: str | None = None,
+    message_format: str | None = None,
+) -> None:
+    caps = get_capabilities(entry)
+    if not caps.supports_send_document:
+        raise_provider_feature_not_supported(entry, feature="send_document")
+    if buttons and not caps.supports_inline_keyboard:
+        raise_provider_feature_not_supported(entry, feature="inline_keyboard")
+    await get_provider(entry).async_upload_document_and_send(
+        hass,
+        entry,
+        recipient,
+        file_path_or_url,
+        file_paths_or_urls=file_paths_or_urls,
+        caption=caption,
         buttons=buttons,
         count_requests=count_requests,
         notify=notify,
@@ -150,6 +186,7 @@ async def upload_video_and_send(
     entry: ConfigEntry,
     recipient: dict[str, Any],
     file_path_or_url: str,
+    file_paths_or_urls: list[str] | None = None,
     caption: str | None = None,
     buttons: list[list[dict[str, Any]]] | None = None,
     count_requests: int | None = None,
@@ -172,6 +209,7 @@ async def upload_video_and_send(
         entry,
         recipient,
         file_path_or_url,
+        file_paths_or_urls=file_paths_or_urls,
         caption=caption,
         buttons=buttons,
         count_requests=count_requests,

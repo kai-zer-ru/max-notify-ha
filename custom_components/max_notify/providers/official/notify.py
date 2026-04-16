@@ -101,17 +101,19 @@ def build_upload_url(base_url: str, api_path_uploads: str, api_version: str, upl
 
 def build_media_payload(
     *,
-    attachment_payload: dict[str, Any],
+    attachment_payloads: list[dict[str, Any]],
     caption: str | None,
     max_message_length: int,
     message_format: str,
     buttons_api: list[list[dict[str, Any]]] | None,
-    as_document: bool,
+    attachment_type: str,
 ) -> dict[str, Any]:
     """Тело сообщения для официального API после загрузки изображения/документа."""
-    attachments: list[dict[str, Any]] = [
-        {"type": "file" if as_document else "image", "payload": attachment_payload}
-    ]
+    if attachment_type not in ("image", "file"):
+        attachment_type = "image"
+    attachments: list[dict[str, Any]] = []
+    for attachment_payload in attachment_payloads:
+        attachments.append({"type": attachment_type, "payload": attachment_payload})
     if buttons_api:
         attachments.append(
             {
@@ -130,16 +132,16 @@ def build_media_payload(
 
 def build_video_payload(
     *,
-    video_token: str,
+    video_tokens: list[str],
     caption: str | None,
     max_message_length: int,
     message_format: str,
     buttons_api: list[list[dict[str, Any]]] | None,
 ) -> dict[str, Any]:
     """Тело сообщения для официального API после загрузки видео."""
-    attachments: list[dict[str, Any]] = [
-        {"type": "video", "payload": {"token": video_token}}
-    ]
+    attachments: list[dict[str, Any]] = []
+    for video_token in video_tokens:
+        attachments.append({"type": "video", "payload": {"token": video_token}})
     if buttons_api:
         attachments.append(
             {

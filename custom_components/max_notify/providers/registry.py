@@ -77,6 +77,7 @@ NOTIFY_A161_PROVIDER = NotifyA161IntegrationProvider(
     supports_receive_polling=NOTIFY_A161_CAPABILITIES.supports_receive_polling,
     supports_receive_long_polling=NOTIFY_A161_CAPABILITIES.supports_receive_long_polling,
     allow_multiple_config_entries_same_token=False,
+    max_attachments_per_message_limit=None,
 )
 
 OFFICIAL_PROVIDER = OfficialIntegrationProvider(
@@ -92,6 +93,7 @@ OFFICIAL_PROVIDER = OfficialIntegrationProvider(
     translation_prefix_keys=None,
     supports_receive_polling=OFFICIAL_CAPABILITIES.supports_receive_polling,
     supports_receive_long_polling=OFFICIAL_CAPABILITIES.supports_receive_long_polling,
+    max_attachments_per_message_limit=None,
 )
 
 INTEGRATION_TYPES: tuple[str, ...] = (

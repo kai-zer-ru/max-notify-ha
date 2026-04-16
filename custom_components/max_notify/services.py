@@ -25,6 +25,7 @@ from .notify import (
     delete_message,
     edit_message,
     recipient_dict_from_subentry,
+    upload_document_and_send,
     send_plain_message,
     send_message_with_buttons,
     upload_image_and_send,
@@ -34,6 +35,7 @@ from .const import (
     CONF_CONFIG_ENTRY_ID,
     CONF_COUNT_REQUESTS,
     CONF_DISABLE_SSL,
+    CONF_FILES,
     CONF_URL_AUTH_LOGIN,
     CONF_URL_AUTH_PASSWORD,
     CONF_URL_AUTH_TOKEN,
@@ -75,7 +77,7 @@ def _has_url_userinfo(file_path_or_url: str) -> bool:
 
 
 def _normalize_url_auth_data(
-    data: dict[str, Any], file_path_or_url: str
+    data: dict[str, Any], file_path_or_url: str | list[str]
 ) -> tuple[str | None, str | None, str | None, str | None]:
     """Проверить и нормализовать поля авторизации URL в данных сервиса."""
     auth_type_raw = data.get(CONF_URL_AUTH_TYPE)
@@ -89,7 +91,15 @@ def _normalize_url_auth_data(
     )
     auth_token = str(auth_token_raw).strip() if auth_token_raw is not None else None
 
-    has_url_credentials = file_path_or_url.startswith(("http://", "https://")) and _has_url_userinfo(file_path_or_url)
+    sources = (
+        [file_path_or_url]
+        if isinstance(file_path_or_url, str)
+        else list(file_path_or_url)
+    )
+    has_url_credentials = any(
+        src.startswith(("http://", "https://")) and _has_url_userinfo(src)
+        for src in sources
+    )
     has_basic_pair = bool(auth_login) or bool(auth_password)
     has_token = bool(auth_token)
     any_auth_input = has_url_credentials or has_basic_pair or has_token
@@ -127,6 +137,27 @@ def _normalize_url_auth_data(
             )
 
     return auth_type, auth_login, auth_password, auth_token
+
+
+def _extract_service_files(data: dict[str, Any]) -> list[str]:
+    """Извлечь список файлов из service.data (file или files)."""
+    if CONF_FILES in data:
+        files_raw = data.get(CONF_FILES)
+        if not isinstance(files_raw, list):
+            raise ServiceValidationError("files must be a list")
+        files: list[str] = []
+        for item in files_raw:
+            if not isinstance(item, str):
+                raise ServiceValidationError("files must contain only strings")
+            val = item.strip()
+            if val:
+                files.append(val)
+    else:
+        file_one = str(data["file"]).strip()
+        files = [file_one] if file_one else []
+    if not files:
+        raise ServiceValidationError("At least one file is required")
+    return files
 
 
 def _ensure_capability(entry: ConfigEntry, ok: bool, *, feature: str) -> None:
@@ -627,12 +658,11 @@ async def async_send_text_to_all_handler(service: ServiceCall) -> None:
     )
 
 
-async def _send_photo_or_document(
+async def _send_photo(
     hass: HomeAssistant,
     data: dict[str, Any],
-    as_document: bool,
 ) -> None:
-    file_path_or_url = data["file"].strip()
+    file_paths_or_urls = _extract_service_files(data)
     caption = data.get("caption")
     message_format = data.get("format")
     disable_ssl = data.get(CONF_DISABLE_SSL, False)
@@ -640,17 +670,17 @@ async def _send_photo_or_document(
     buttons_provided = "buttons" in data
     count_requests = data.get(CONF_COUNT_REQUESTS)
     auth_type, auth_login, auth_password, auth_token = _normalize_url_auth_data(
-        data, file_path_or_url
+        data, file_paths_or_urls
     )
     entity_ids = data.get(ATTR_ENTITY_ID)
     config_entry_id = data.get(CONF_CONFIG_ENTRY_ID)
 
     _LOGGER.debug(
-        "_send_photo_or_document: as_document=%s, file=%s, caption_present=%s, "
+        "_send_photo: file=%s, files_count=%s, caption_present=%s, "
         "entity_ids=%s, config_entry_id=%s, count_requests=%s, "
         "disable_ssl=%s, auth_type=%s, buttons_present=%s",
-        as_document,
-        file_path_or_url,
+        file_paths_or_urls[0],
+        len(file_paths_or_urls),
         bool(caption),
         entity_ids,
         config_entry_id,
@@ -684,10 +714,7 @@ async def _send_photo_or_document(
         if not subentry:
             continue
         caps = get_capabilities(entry)
-        if as_document:
-            _ensure_capability(entry, caps.supports_send_document, feature="send_document")
-        else:
-            _ensure_capability(entry, caps.supports_send_photo, feature="send_photo")
+        _ensure_capability(entry, caps.supports_send_photo, feature="send_photo")
         all_buttons = resolve_service_inline_keyboard(
             entry.options,
             send_keyboard=send_kb,
@@ -700,9 +727,9 @@ async def _send_photo_or_document(
             hass,
             entry,
             recipient_dict_from_subentry(subentry),
-            file_path_or_url,
-            caption,
-            as_document=as_document,
+            file_paths_or_urls[0],
+            file_paths_or_urls=file_paths_or_urls,
+            caption=caption,
             buttons=all_buttons,
             count_requests=count_requests,
             disable_ssl=disable_ssl,
@@ -715,21 +742,108 @@ async def _send_photo_or_document(
         )
 
 
+async def _send_document(
+    hass: HomeAssistant,
+    data: dict[str, Any],
+) -> None:
+    if CONF_FILES in data:
+        raise ServiceValidationError(
+            "send_document supports only one file; use 'file' field"
+        )
+    file_paths_or_urls = _extract_service_files(data)
+    if len(file_paths_or_urls) != 1:
+        raise ServiceValidationError("send_document supports only one file")
+    caption = data.get("caption")
+    message_format = data.get("format")
+    disable_ssl = data.get(CONF_DISABLE_SSL, False)
+    send_kb = data.get(CONF_SEND_KEYBOARD, True)
+    buttons_provided = "buttons" in data
+    count_requests = data.get(CONF_COUNT_REQUESTS)
+    auth_type, auth_login, auth_password, auth_token = _normalize_url_auth_data(
+        data, file_paths_or_urls
+    )
+    entity_ids = data.get(ATTR_ENTITY_ID)
+    config_entry_id = data.get(CONF_CONFIG_ENTRY_ID)
+
+    _LOGGER.debug(
+        "_send_document: file=%s, files_count=%s, caption_present=%s, "
+        "entity_ids=%s, config_entry_id=%s, count_requests=%s, "
+        "disable_ssl=%s, auth_type=%s, buttons_present=%s",
+        file_paths_or_urls[0],
+        len(file_paths_or_urls),
+        bool(caption),
+        entity_ids,
+        config_entry_id,
+        count_requests,
+        disable_ssl,
+        auth_type,
+        buttons_provided,
+    )
+
+    resolved = _resolve_entity_ids(
+        hass,
+        entity_ids=entity_ids,
+        config_entry_id=config_entry_id,
+    )
+    if not resolved:
+        return
+
+    reg = er.async_get(hass)
+    for eid in resolved:
+        entity_entry = reg.async_get(eid)
+        if not entity_entry or not entity_entry.config_entry_id or not entity_entry.config_subentry_id:
+            _LOGGER.warning("Skip entity %s: no config entry/subentry", eid)
+            continue
+        entry = hass.config_entries.async_get_entry(entity_entry.config_entry_id)
+        if not entry or entry.domain != DOMAIN:
+            continue
+        subentries = getattr(entry, "subentries", None) or {}
+        subentry = subentries.get(entity_entry.config_subentry_id)
+        if not subentry:
+            continue
+        caps = get_capabilities(entry)
+        _ensure_capability(entry, caps.supports_send_document, feature="send_document")
+        all_buttons = resolve_service_inline_keyboard(
+            entry.options,
+            send_keyboard=send_kb,
+            buttons_provided=buttons_provided,
+            buttons_raw=data.get("buttons"),
+        )
+        if all_buttons:
+            _ensure_capability(entry, caps.supports_inline_keyboard, feature="inline_keyboard")
+        await upload_document_and_send(
+            hass,
+            entry,
+            recipient_dict_from_subentry(subentry),
+            file_paths_or_urls[0],
+            file_paths_or_urls=file_paths_or_urls,
+            caption=caption,
+            buttons=all_buttons,
+            count_requests=count_requests,
+            disable_ssl=disable_ssl,
+            url_auth_type=auth_type,
+            url_auth_login=auth_login,
+            url_auth_password=auth_password,
+            url_auth_token=auth_token,
+            message_format=message_format,
+        )
+
+
 async def async_send_photo_handler(service: ServiceCall) -> None:
     """Обработка max_notify.send_photo: изображение каждой цели."""
-    await _send_photo_or_document(service.hass, service.data, as_document=False)
+    await _send_photo(service.hass, service.data)
 
 
 async def async_send_document_handler(service: ServiceCall) -> None:
     """Обработка max_notify.send_document: файл как документ каждой цели."""
-    await _send_photo_or_document(service.hass, service.data, as_document=True)
+    await _send_document(service.hass, service.data)
 
 
 async def _send_video(
     hass: HomeAssistant,
     data: dict[str, Any],
 ) -> None:
-    file_path_or_url = data["file"].strip()
+    file_paths_or_urls = _extract_service_files(data)
     caption = data.get("caption")
     message_format = data.get("format")
     disable_ssl = data.get(CONF_DISABLE_SSL, False)
@@ -739,13 +853,14 @@ async def _send_video(
     config_entry_id = data.get(CONF_CONFIG_ENTRY_ID)
     count_requests = data.get(CONF_COUNT_REQUESTS)
     auth_type, auth_login, auth_password, auth_token = _normalize_url_auth_data(
-        data, file_path_or_url
+        data, file_paths_or_urls
     )
 
     _LOGGER.debug(
-        "_send_video: file=%s, caption_present=%s, entity_ids=%s, "
+        "_send_video: file=%s, files_count=%s, caption_present=%s, entity_ids=%s, "
         "config_entry_id=%s, count_requests=%s, disable_ssl=%s, auth_type=%s, buttons_present=%s",
-        file_path_or_url,
+        file_paths_or_urls[0],
+        len(file_paths_or_urls),
         bool(caption),
         entity_ids,
         config_entry_id,
@@ -792,7 +907,8 @@ async def _send_video(
             hass,
             entry,
             recipient_dict_from_subentry(subentry),
-            file_path_or_url,
+            file_paths_or_urls[0],
+            file_paths_or_urls=file_paths_or_urls,
             caption=caption,
             buttons=all_buttons,
             count_requests=count_requests,

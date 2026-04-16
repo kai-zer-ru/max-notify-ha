@@ -108,17 +108,19 @@ async def with_pace_lock(
 
 def build_media_payload(
     *,
-    upload_response: dict[str, Any],
+    upload_responses: list[dict[str, Any]],
     caption: str | None,
     max_message_length: int,
     message_format: str,
     buttons_api: list[list[dict[str, Any]]] | None,
-    as_document: bool,
+    attachment_type: str,
 ) -> dict[str, Any]:
     """Тело сообщения a161 после загрузки изображения/документа."""
-    attachments: list[dict[str, Any]] = [
-        {"type": "file" if as_document else "image", "payload": upload_response}
-    ]
+    if attachment_type not in ("image", "file"):
+        attachment_type = "image"
+    attachments: list[dict[str, Any]] = []
+    for upload_response in upload_responses:
+        attachments.append({"type": attachment_type, "payload": upload_response})
     if buttons_api:
         attachments.append(
             {
@@ -137,16 +139,16 @@ def build_media_payload(
 
 def build_video_payload(
     *,
-    video_token: str,
+    video_tokens: list[str],
     caption: str | None,
     max_message_length: int,
     message_format: str,
     buttons_api: list[list[dict[str, Any]]] | None,
 ) -> dict[str, Any]:
     """Тело сообщения a161 после загрузки видео."""
-    attachments: list[dict[str, Any]] = [
-        {"type": "video", "payload": {"token": str(video_token)}}
-    ]
+    attachments: list[dict[str, Any]] = []
+    for video_token in video_tokens:
+        attachments.append({"type": "video", "payload": {"token": str(video_token)}})
     if buttons_api:
         attachments.append(
             {

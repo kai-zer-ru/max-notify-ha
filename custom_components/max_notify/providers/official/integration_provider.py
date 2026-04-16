@@ -12,6 +12,7 @@ from ..setup_common import (
     async_run_primary_config_shared_step,
     is_primary_config_shared_step,
 )
+from .const import OFFICIAL_MAX_UPLOAD_BYTES
 from .api import sync_bot_commands, validate_token
 from .config_flow import config_receive_mode_keys, options_receive_mode_keys
 if TYPE_CHECKING:
@@ -32,6 +33,9 @@ def _entry_has_subentry_recipient(entry: ConfigEntry, recipient_id: int) -> bool
 
 
 class OfficialIntegrationProvider(MaxNotifyIntegrationProvider):
+    def max_attachment_upload_bytes(self) -> int | None:
+        return OFFICIAL_MAX_UPLOAD_BYTES
+
     async def async_resolve_message_post_url(
         self,
         hass: HomeAssistant,
@@ -310,8 +314,8 @@ class OfficialIntegrationProvider(MaxNotifyIntegrationProvider):
         entry: ConfigEntry,
         recipient: dict[str, Any],
         file_path_or_url: str,
+        file_paths_or_urls: list[str] | None = None,
         caption: str | None = None,
-        as_document: bool = False,
         buttons: list[list[dict[str, Any]]] | None = None,
         count_requests: int | None = None,
         notify: bool = True,
@@ -329,8 +333,46 @@ class OfficialIntegrationProvider(MaxNotifyIntegrationProvider):
             entry,
             recipient,
             file_path_or_url,
+            file_paths_or_urls=file_paths_or_urls,
             caption=caption,
-            as_document=as_document,
+            buttons=buttons,
+            count_requests=count_requests,
+            notify=notify,
+            disable_ssl=disable_ssl,
+            url_auth_type=url_auth_type,
+            url_auth_login=url_auth_login,
+            url_auth_password=url_auth_password,
+            url_auth_token=url_auth_token,
+            message_format=message_format,
+        )
+
+    async def async_upload_document_and_send(
+        self,
+        hass: HomeAssistant,
+        entry: ConfigEntry,
+        recipient: dict[str, Any],
+        file_path_or_url: str,
+        file_paths_or_urls: list[str] | None = None,
+        caption: str | None = None,
+        buttons: list[list[dict[str, Any]]] | None = None,
+        count_requests: int | None = None,
+        notify: bool = True,
+        disable_ssl: bool = False,
+        url_auth_type: str | None = None,
+        url_auth_login: str | None = None,
+        url_auth_password: str | None = None,
+        url_auth_token: str | None = None,
+        message_format: str | None = None,
+    ) -> None:
+        from .. import notify_outbound
+
+        await notify_outbound.upload_document_and_send(
+            hass,
+            entry,
+            recipient,
+            file_path_or_url,
+            file_paths_or_urls=file_paths_or_urls,
+            caption=caption,
             buttons=buttons,
             count_requests=count_requests,
             notify=notify,
@@ -348,6 +390,7 @@ class OfficialIntegrationProvider(MaxNotifyIntegrationProvider):
         entry: ConfigEntry,
         recipient: dict[str, Any],
         file_path_or_url: str,
+        file_paths_or_urls: list[str] | None = None,
         caption: str | None = None,
         buttons: list[list[dict[str, Any]]] | None = None,
         count_requests: int | None = None,
@@ -366,6 +409,7 @@ class OfficialIntegrationProvider(MaxNotifyIntegrationProvider):
             entry,
             recipient,
             file_path_or_url,
+            file_paths_or_urls=file_paths_or_urls,
             caption=caption,
             buttons=buttons,
             count_requests=count_requests,

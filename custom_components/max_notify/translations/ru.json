@@ -79,6 +79,10 @@
           "name": "Файл",
           "description": "Локальный путь (/config/..., /media/...) или URL изображения (http/https)."
         },
+        "files": {
+          "name": "Файлы",
+          "description": "Список локальных путей или URL. Отправляет несколько вложений одним сообщением."
+        },
         "caption": {
           "name": "Подпись",
           "description": "Необязательная подпись к фото."
@@ -134,7 +138,7 @@
     },
     "send_document": {
       "name": "Отправить документ",
-      "description": "Отправить файл как документ в чат(ы) Max. Может сохранить качество по сравнению с фото.",
+      "description": "Отправить один файл как документ в чат(ы) Max. Может сохранить качество по сравнению с фото.",
       "fields": {
         "file": {
           "name": "Файл",
@@ -200,6 +204,10 @@
         "file": {
           "name": "Файл",
           "description": "Локальный путь или URL видео (mp4, mov, webm, mkv)."
+        },
+        "files": {
+          "name": "Файлы",
+          "description": "Список локальных путей или URL. Отправляет несколько вложений одним сообщением."
         },
         "caption": {
           "name": "Подпись",
@@ -324,6 +332,7 @@
   "third_party_video_too_large": "У провайдера {provider} максимальный размер видео — {max_mib} МБ; этот файл — около {size_mib} МБ.",
   "third_party_upload_no_url": "{provider}: шаг загрузки не вернул URL.",
   "third_party_video_upload_incomplete": "{provider}: в ответе загрузки видео должны быть url и token.",
+  "attachments_count_limit_exceeded": "Для {provider} действует лимит {max_count} вложений на сообщение (файлы + inline-клавиатура); запрошено: {actual_count}.",
   "link_button_url_http_https_only": "URL кнопки-ссылки должен быть только http или https (получено: {url}).",
   "exceptions": {
     "invalid_notify_entity": {
@@ -364,6 +373,9 @@
     },
     "third_party_video_upload_incomplete": {
       "message": "{provider}: в ответе загрузки видео должны быть url и token."
+    },
+    "attachments_count_limit_exceeded": {
+      "message": "Для {provider} в настройках интеграции задан лимит {max_count} вложений на сообщение; запрошено: {actual_count}."
     },
     "link_button_url_http_https_only": {
       "message": "URL кнопки-ссылки должен быть только http или https (получено: {url})."

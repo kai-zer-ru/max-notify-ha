@@ -15,6 +15,7 @@ from custom_components.max_notify.providers.notify_a161.capabilities import (
 )
 from custom_components.max_notify.providers.notify_a161.const import (
     ACCESS_TOKEN_EXPECTED_LENGTH,
+    NOTIFY_A161_MAX_UPLOAD_BYTES,
 )
 from custom_components.max_notify.providers.registry import (
     get_capabilities,
@@ -63,6 +64,11 @@ def test_a161_access_token_expected_length(mock_config_entry) -> None:
 def test_official_access_token_expected_length(mock_config_entry) -> None:
     mock_config_entry.data[CONF_INTEGRATION_TYPE] = INTEGRATION_TYPE_OFFICIAL
     assert get_provider(mock_config_entry).access_token_expected_length() is None
+
+
+def test_a161_reports_upload_limit(mock_config_entry) -> None:
+    mock_config_entry.data[CONF_INTEGRATION_TYPE] = INTEGRATION_TYPE_NOTIFY_A161
+    assert get_provider(mock_config_entry).max_attachment_upload_bytes() == NOTIFY_A161_MAX_UPLOAD_BYTES
 
 
 def test_unknown_type_provider_prefix() -> None:

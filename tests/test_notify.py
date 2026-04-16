@@ -12,6 +12,8 @@ from custom_components.max_notify.notify import (
     delete_message,
     edit_message,
     recipient_dict_from_subentry,
+    upload_document_and_send,
+    upload_image_and_send,
 )
 from custom_components.max_notify.providers.notify_outbound import (
     _extract_message_id_from_response,
@@ -264,3 +266,74 @@ class TestEditMessage:
             assert result is True
             called_url = mock_ctx.put.call_args[0][0]
             assert "message_id=mid.abc" in called_url
+
+
+@pytest.mark.asyncio
+class TestUploadDispatch:
+    """Тесты маршрутизации upload_* в notify.py."""
+
+    async def test_upload_image_routes_to_provider(self, hass, mock_config_entry) -> None:
+        with patch(
+            "custom_components.max_notify.notify.get_provider"
+        ) as mock_get_provider:
+            provider = MagicMock()
+            provider.async_upload_image_and_send = AsyncMock()
+            mock_get_provider.return_value = provider
+
+            await upload_image_and_send(
+                hass,
+                mock_config_entry,
+                {"recipient_id": 1},
+                "/tmp/photo.jpg",
+                file_paths_or_urls=["/tmp/photo.jpg", "/tmp/photo2.jpg"],
+                caption="cap",
+            )
+
+            provider.async_upload_image_and_send.assert_awaited_once()
+            call = provider.async_upload_image_and_send.await_args
+            assert call.kwargs["file_paths_or_urls"] == ["/tmp/photo.jpg", "/tmp/photo2.jpg"]
+
+    async def test_upload_document_routes_to_provider(self, hass, mock_config_entry) -> None:
+        with patch(
+            "custom_components.max_notify.notify.get_provider"
+        ) as mock_get_provider:
+            provider = MagicMock()
+            provider.async_upload_document_and_send = AsyncMock()
+            mock_get_provider.return_value = provider
+
+            await upload_document_and_send(
+                hass,
+                mock_config_entry,
+                {"recipient_id": 1},
+                "/tmp/doc.pdf",
+                file_paths_or_urls=["/tmp/doc.pdf"],
+                caption="doc",
+            )
+
+            provider.async_upload_document_and_send.assert_awaited_once()
+
+    async def test_upload_document_rejects_without_capability(
+        self, hass, mock_config_entry
+    ) -> None:
+        with patch(
+            "custom_components.max_notify.notify.get_capabilities"
+        ) as mock_caps, patch(
+            "custom_components.max_notify.notify.get_provider"
+        ) as mock_get_provider:
+            caps = MagicMock()
+            caps.supports_send_document = False
+            caps.supports_inline_keyboard = True
+            mock_caps.return_value = caps
+            provider = MagicMock()
+            provider.async_upload_document_and_send = AsyncMock()
+            mock_get_provider.return_value = provider
+
+            with pytest.raises(ServiceValidationError) as exc:
+                await upload_document_and_send(
+                    hass,
+                    mock_config_entry,
+                    {"recipient_id": 1},
+                    "/tmp/doc.pdf",
+                )
+            assert exc.value.translation_key == "provider_feature_not_supported"
+            provider.async_upload_document_and_send.assert_not_called()

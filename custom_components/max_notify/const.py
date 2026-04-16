@@ -26,6 +26,7 @@ CONF_MESSAGE_FORMAT = "message_format"
 # Compatibility target fields for stored subentries and raw provider payloads.
 CONF_RECIPIENT_ID = "recipient_id"
 CONF_COUNT_REQUESTS = "count_requests"
+CONF_FILES = "files"
 CONF_DISABLE_SSL = "disable_ssl"
 CONF_URL_AUTH_TYPE = "url_auth_type"
 CONF_URL_AUTH_LOGIN = "url_auth_login"
@@ -101,6 +102,11 @@ CONF_ACTION = "action"
 CONF_SEND_KEYBOARD = "send_keyboard"
 
 MAX_MESSAGE_LENGTH = 4000
+MAX_ATTACHMENTS_PER_MESSAGE = 12
+MAX_INLINE_KEYBOARD_ROWS = 30
+MAX_INLINE_KEYBOARD_TOTAL_BUTTONS = 210
+MAX_INLINE_KEYBOARD_BUTTONS_PER_ROW = 7
+MAX_INLINE_KEYBOARD_SPECIAL_BUTTONS_PER_ROW = 3
 CHATS_PAGE_SIZE = 100
 
 FILE_UPLOAD_DELAY = 1.5

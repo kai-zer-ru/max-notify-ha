@@ -34,11 +34,16 @@ from ..const import (
     CONF_MESSAGE_FORMAT,
     CONF_RECIPIENT_ID,
     DOMAIN,
+    FILE_UPLOAD_DELAY,
+    FILE_DOWNLOAD_TIMEOUT,
+    FILE_READY_RETRY_DELAYS,
     LOG_LABEL_THIRD_PARTY_MEDIA,
     LOG_LABEL_THIRD_PARTY_VIDEO,
-    FILE_UPLOAD_DELAY,
-    FILE_READY_RETRY_DELAYS,
-    FILE_DOWNLOAD_TIMEOUT,
+    MAX_INLINE_KEYBOARD_BUTTONS_PER_ROW,
+    MAX_INLINE_KEYBOARD_ROWS,
+    MAX_INLINE_KEYBOARD_SPECIAL_BUTTONS_PER_ROW,
+    MAX_INLINE_KEYBOARD_TOTAL_BUTTONS,
+    MAX_ATTACHMENTS_PER_MESSAGE,
     MAX_MESSAGE_LENGTH,
     URL_AUTH_TYPE_BASIC,
     URL_AUTH_TYPE_BEARER,
@@ -105,6 +110,97 @@ _KNOWN_MEDIA_OR_DOC_EXTS = frozenset(
 )
 # Временные HTTP-коды при скачивании видео по URL (ещё обрабатывается, перегруз и т.д.).
 _RETRYABLE_VIDEO_DOWNLOAD_STATUSES = frozenset({400, 404, 408, 429, 500, 502, 503, 504})
+_INLINE_KEYBOARD_SPECIAL_ROW_TYPES = frozenset(
+    {"link", "open_app", "request_geo_location", "request_contact"}
+)
+
+
+def _normalize_file_sources(
+    file_path_or_url: str,
+    file_paths_or_urls: list[str] | None,
+) -> list[str]:
+    """Сформировать непустой список вложений из одиночного/множественного ввода."""
+    raw = file_paths_or_urls if file_paths_or_urls is not None else [file_path_or_url]
+    out = [str(item).strip() for item in raw if str(item).strip()]
+    if not out:
+        raise ServiceValidationError("At least one attachment file is required")
+    return out
+
+
+def _payload_attachments_summary(payload: dict[str, Any]) -> tuple[int, list[str]]:
+    """Краткая сводка по вложениям payload для логирования."""
+    attachments = payload.get("attachments")
+    if not isinstance(attachments, list):
+        return 0, []
+    types: list[str] = []
+    for item in attachments:
+        if isinstance(item, dict):
+            item_type = item.get("type")
+            if isinstance(item_type, str):
+                types.append(item_type)
+    return len(attachments), types
+
+
+def _validate_attachments_count_limit(
+    entry: ConfigEntry,
+    *,
+    file_sources: list[str],
+    has_inline_keyboard: bool = False,
+    is_document: bool = False,
+) -> None:
+    """Проверить лимиты количества вложений до загрузки."""
+    prov = get_provider(entry)
+    if is_document and len(file_sources) > 1:
+        _LOGGER.error(
+            "Document attachments limit exceeded: entry_id=%s provider=%s max_documents=1 actual=%s",
+            entry.entry_id,
+            prov.label,
+            len(file_sources),
+        )
+        raise ServiceValidationError(
+            "send_document supports only one file in a single message"
+        )
+    actual_with_keyboard = len(file_sources) + (1 if has_inline_keyboard else 0)
+    if actual_with_keyboard > MAX_ATTACHMENTS_PER_MESSAGE:
+        _LOGGER.error(
+            "Global attachments limit exceeded: entry_id=%s provider=%s max=%s actual=%s files=%s keyboard=%s",
+            entry.entry_id,
+            prov.label,
+            MAX_ATTACHMENTS_PER_MESSAGE,
+            actual_with_keyboard,
+            len(file_sources),
+            has_inline_keyboard,
+        )
+        raise ServiceValidationError(
+            translation_domain=DOMAIN,
+            translation_key="attachments_count_limit_exceeded",
+            translation_placeholders={
+                "provider": prov.label,
+                "max_count": str(MAX_ATTACHMENTS_PER_MESSAGE),
+                "actual_count": str(actual_with_keyboard),
+            },
+        )
+    max_count = prov.max_attachments_per_message(entry)
+    if max_count is None:
+        return
+    if actual_with_keyboard <= max_count:
+        return
+    _LOGGER.error(
+        "Attachment count exceeds provider code limit: entry_id=%s provider=%s configured_limit=%s actual=%s",
+        entry.entry_id,
+        prov.label,
+        max_count,
+        actual_with_keyboard,
+    )
+    raise ServiceValidationError(
+        translation_domain=DOMAIN,
+        translation_key="attachments_count_limit_exceeded",
+        translation_placeholders={
+            "provider": prov.label,
+            "max_count": str(max_count),
+            "actual_count": str(actual_with_keyboard),
+        },
+    )
 
 
 def _mark_after_send_with_keyboard(hass: HomeAssistant, entry: ConfigEntry) -> None:
@@ -832,6 +928,16 @@ async def _post_message_with_retry(
         last_error: str | None = None
         n = len(retry_delays) + 1 if count_requests is None else count_requests
         n = max(n, len(API_REQUEST_RETRY_DELAYS) + 1)
+        att_count, att_types = _payload_attachments_summary(payload)
+        _LOGGER.info(
+            "Sending %s message: url=%s attempts=%s attachments=%s attachment_types=%s payload=%s",
+            log_label,
+            url,
+            n,
+            att_count,
+            att_types,
+            payload,
+        )
         for attempt in range(n):
             try:
                 async with session.post(
@@ -1034,6 +1140,7 @@ def _message_id_candidates(message_id: str) -> str | None:
 def _normalize_buttons_for_api(buttons: list[list[dict[str, Any]]]) -> list[list[dict[str, Any]]]:
     """Кнопки сервиса в формат Max API (callback/message/link)."""
     out: list[list[dict[str, Any]]] = []
+    total_buttons = 0
     for row in buttons:
         api_row: list[dict[str, Any]] = []
         for btn in row:
@@ -1058,7 +1165,27 @@ def _normalize_buttons_for_api(buttons: list[list[dict[str, Any]]]) -> list[list
                 b["url"] = url
             api_row.append(b)
         if api_row:
+            max_row = MAX_INLINE_KEYBOARD_BUTTONS_PER_ROW
+            if any(
+                str(btn.get("type", "")).strip().lower()
+                in _INLINE_KEYBOARD_SPECIAL_ROW_TYPES
+                for btn in api_row
+            ):
+                max_row = min(max_row, MAX_INLINE_KEYBOARD_SPECIAL_BUTTONS_PER_ROW)
+            if len(api_row) > max_row:
+                raise ServiceValidationError(
+                    f"Inline keyboard row has {len(api_row)} buttons; max is {max_row}"
+                )
             out.append(api_row)
+            total_buttons += len(api_row)
+    if len(out) > MAX_INLINE_KEYBOARD_ROWS:
+        raise ServiceValidationError(
+            f"Inline keyboard has {len(out)} rows; max is {MAX_INLINE_KEYBOARD_ROWS}"
+        )
+    if total_buttons > MAX_INLINE_KEYBOARD_TOTAL_BUTTONS:
+        raise ServiceValidationError(
+            f"Inline keyboard has {total_buttons} buttons; max is {MAX_INLINE_KEYBOARD_TOTAL_BUTTONS}"
+        )
     return out
 
 
@@ -1349,13 +1476,14 @@ async def send_plain_message(
     )
 
 
-async def upload_image_and_send(
+async def _upload_media_and_send(
     hass: HomeAssistant,
     entry: ConfigEntry,
     recipient: dict[str, Any],
     file_path_or_url: str,
+    file_paths_or_urls: list[str] | None = None,
     caption: str | None = None,
-    as_document: bool = False,
+    attachment_type: str = "image",
     buttons: list[list[dict[str, Any]]] | None = None,
     count_requests: int | None = None,
     notify: bool = True,
@@ -1366,8 +1494,29 @@ async def upload_image_and_send(
     url_auth_token: str | None = None,
     message_format: str | None = None,
 ) -> None:
-    """Загрузить изображение/файл в Max (POST /uploads) и отправить (POST /messages)."""
+    """Загрузить photo/document в Max (POST /uploads) и отправить (POST /messages)."""
     _ = notify
+    if attachment_type not in ("image", "file"):
+        attachment_type = "image"
+    as_document = attachment_type == "file"
+    file_sources = _normalize_file_sources(file_path_or_url, file_paths_or_urls)
+    prov = get_provider(entry)
+    has_inline_keyboard = bool(buttons)
+    _LOGGER.info(
+        "Preparing media send: entry_id=%s provider=%s attachment_type=%s files_count=%s keyboard=%s files=%s",
+        entry.entry_id,
+        prov.label,
+        attachment_type,
+        len(file_sources),
+        has_inline_keyboard,
+        file_sources,
+    )
+    _validate_attachments_count_limit(
+        entry,
+        file_sources=file_sources,
+        has_inline_keyboard=has_inline_keyboard,
+        is_document=as_document,
+    )
     token = entry.data.get(CONF_ACCESS_TOKEN)
     if not token:
         _LOGGER.error("No access token in config entry")
@@ -1384,92 +1533,120 @@ async def upload_image_and_send(
     session = async_get_clientsession(hass)
     headers = {"Authorization": token}
 
-    upload_type = "file" if as_document else "image"
+    upload_type = attachment_type
 
-    prov = get_provider(entry)
+    max_up = prov.max_attachment_upload_bytes()
+    if max_up is None:
+        raise ServiceValidationError(
+            f"{prov.label} must define max_attachment_upload_bytes() for media uploads"
+        )
+    max_up_effective = max_up
+
+    upload_payloads: list[dict[str, Any]] = []
     if not prov.shares_platform_bot_token_pool:
-        read_out = await _async_read_media_body_for_upload(
-            hass,
-            session,
-            file_path_or_url,
-            as_document=as_document,
-            url_auth_type=url_auth_type,
-            url_auth_login=url_auth_login,
-            url_auth_password=url_auth_password,
-            url_auth_token=url_auth_token,
-            disable_ssl=disable_ssl,
+        _LOGGER.debug(
+            "Using third-party upload flow: provider=%s files_count=%s",
+            prov.label,
+            len(file_sources),
         )
-        if read_out is None:
-            return
-        body, content_type, filename = read_out
-
-        if not body:
-            _LOGGER.error("Image data is empty")
-            return
-
-        max_up = prov.max_attachment_upload_bytes()
-        if max_up is not None and len(body) > max_up:
-            raise ServiceValidationError(
-                translation_domain=DOMAIN,
-                translation_key="third_party_attachment_too_large",
-                translation_placeholders={
-                    "provider": prov.label,
-                    "max_mib": str(max_up // (1024 * 1024)),
-                    "size_mib": f"{len(body) / (1024 * 1024):.2f}",
-                },
+        for file_source in file_sources:
+            read_out = await _async_read_media_body_for_upload(
+                hass,
+                session,
+                file_source,
+                as_document=as_document,
+                url_auth_type=url_auth_type,
+                url_auth_login=url_auth_login,
+                url_auth_password=url_auth_password,
+                url_auth_token=url_auth_token,
+                disable_ssl=disable_ssl,
             )
-        upload_req_url = prov.build_upload_url(
-            _api_base_url_for_entry(entry), API_PATH_UPLOADS, upload_type
-        )
-        data = await _request_upload_url_json_with_retry(
-            session,
-            upload_req_url,
-            headers=headers,
-            disable_ssl=disable_ssl,
-            timeout_s=15,
-            op_label=f"{prov.label} upload URL request",
-        )
-        upload_url = data.get("url")
-        if not upload_url:
-            raise ServiceValidationError(
-                translation_domain=DOMAIN,
-                translation_key="third_party_upload_no_url",
-                translation_placeholders={"provider": prov.label},
+            if read_out is None:
+                return
+            body, content_type, filename = read_out
+
+            if not body:
+                _LOGGER.error("Image data is empty")
+                return
+
+            if len(body) > max_up_effective:
+                raise ServiceValidationError(
+                    translation_domain=DOMAIN,
+                    translation_key="third_party_attachment_too_large",
+                    translation_placeholders={
+                        "provider": prov.label,
+                        "max_mib": str(max_up_effective // (1024 * 1024)),
+                        "size_mib": f"{len(body) / (1024 * 1024):.2f}",
+                    },
+                )
+
+            upload_req_url = prov.build_upload_url(
+                _api_base_url_for_entry(entry), API_PATH_UPLOADS, upload_type
             )
-        try:
-            form = aiohttp.FormData()
-            form.add_field("data", body, filename=filename, content_type=content_type)
-            async with session.post(
-                upload_url,
-                data=form,
+            data = await _request_upload_url_json_with_retry(
+                session,
+                upload_req_url,
                 headers=headers,
-                timeout=aiohttp.ClientTimeout(total=120),
-                ssl=_request_ssl(disable_ssl),
-            ) as resp:
-                if resp.status >= 400:
-                    text = await resp.text()
-                    _LOGGER.error(
-                        "%s file upload failed: status=%s body=%s",
-                        prov.label,
-                        resp.status,
-                        text[:500],
-                    )
-                    return
-                upload_resp = await _parse_upload_response(resp)
-        except (aiohttp.ClientError, ValueError) as e:
-            _LOGGER.error("%s file upload failed: %s", prov.label, e)
-            return
-        if not prov.upload_step2_response_ok(upload_resp):
-            _LOGGER.error("%s upload response unexpected: %s", prov.label, upload_resp)
-            return
+                disable_ssl=disable_ssl,
+                timeout_s=15,
+                op_label=f"{prov.label} upload URL request",
+            )
+            upload_url = data.get("url")
+            if not upload_url:
+                raise ServiceValidationError(
+                    translation_domain=DOMAIN,
+                    translation_key="third_party_upload_no_url",
+                    translation_placeholders={"provider": prov.label},
+                )
+            try:
+                form = aiohttp.FormData()
+                form.add_field("data", body, filename=filename, content_type=content_type)
+                async with session.post(
+                    upload_url,
+                    data=form,
+                    headers=headers,
+                    timeout=aiohttp.ClientTimeout(total=120),
+                    ssl=_request_ssl(disable_ssl),
+                ) as resp:
+                    if resp.status >= 400:
+                        text = await resp.text()
+                        _LOGGER.error(
+                            "%s file upload failed: status=%s body=%s",
+                            prov.label,
+                            resp.status,
+                            text[:500],
+                        )
+                        return
+                    upload_resp = await _parse_upload_response(resp)
+            except (aiohttp.ClientError, ValueError) as e:
+                _LOGGER.error("%s file upload failed: %s", prov.label, e)
+                return
+            if not prov.upload_step2_response_ok(upload_resp):
+                _LOGGER.error("%s upload response unexpected: %s", prov.label, upload_resp)
+                return
+            upload_payloads.append(upload_resp)
+            _LOGGER.debug(
+                "%s upload step2 accepted for source=%s; accumulated_upload_payloads=%s",
+                prov.label,
+                file_source,
+                len(upload_payloads),
+            )
         msg_format_tp = message_format or entry.data.get(CONF_MESSAGE_FORMAT, "text")
         payload_tp = prov.build_media_message_payload(
-            upload_payload=upload_resp,
+            upload_payloads=upload_payloads,
             caption=caption,
             max_message_length=MAX_MESSAGE_LENGTH,
             message_format=msg_format_tp,
             buttons_api=_normalize_buttons_for_api(buttons) if buttons else None,
-            as_document=as_document,
+            attachment_type=attachment_type,
+        )
+        att_count_tp, att_types_tp = _payload_attachments_summary(payload_tp)
+        _LOGGER.info(
+            "Built third-party media payload: provider=%s attachments=%s attachment_types=%s payload=%s",
+            prov.label,
+            att_count_tp,
+            att_types_tp,
+            payload_tp,
         )
 
         store_rid = _coerce_recipient_id_for_message_store(recipient)
@@ -1500,79 +1677,95 @@ async def upload_image_and_send(
         )
         return
 
-    upload_req_url = prov.build_upload_url(
-        _api_base_url_for_entry(entry), API_PATH_UPLOADS, upload_type
-    )
-    data = await _request_upload_url_json_with_retry(
-        session,
-        upload_req_url,
-        headers=headers,
-        disable_ssl=disable_ssl,
-        timeout_s=10,
-        op_label="Max API upload URL request",
-    )
+    for file_source in file_sources:
+        upload_req_url = prov.build_upload_url(
+            _api_base_url_for_entry(entry), API_PATH_UPLOADS, upload_type
+        )
+        data = await _request_upload_url_json_with_retry(
+            session,
+            upload_req_url,
+            headers=headers,
+            disable_ssl=disable_ssl,
+            timeout_s=10,
+            op_label="Max API upload URL request",
+        )
 
-    upload_url = data.get("url")
-    if not upload_url:
-        raise ServiceValidationError("Max API upload response has no url")
+        upload_url = data.get("url")
+        if not upload_url:
+            raise ServiceValidationError("Max API upload response has no url")
 
-    read_out = await _async_read_media_body_for_upload(
-        hass,
-        session,
-        file_path_or_url,
-        as_document=as_document,
-        url_auth_type=url_auth_type,
-        url_auth_login=url_auth_login,
-        url_auth_password=url_auth_password,
-        url_auth_token=url_auth_token,
-        disable_ssl=disable_ssl,
-    )
-    if read_out is None:
-        return
-    body, content_type, filename = read_out
+        read_out = await _async_read_media_body_for_upload(
+            hass,
+            session,
+            file_source,
+            as_document=as_document,
+            url_auth_type=url_auth_type,
+            url_auth_login=url_auth_login,
+            url_auth_password=url_auth_password,
+            url_auth_token=url_auth_token,
+            disable_ssl=disable_ssl,
+        )
+        if read_out is None:
+            return
+        body, content_type, filename = read_out
 
-    if not body:
-        _LOGGER.error("Image data is empty")
-        return
+        if not body:
+            _LOGGER.error("Image data is empty")
+            return
+        if len(body) > max_up_effective:
+            raise ServiceValidationError(
+                f"Attachment size exceeds provider limit ({max_up_effective} bytes)"
+            )
 
-    try:
-        form = aiohttp.FormData()
-        form.add_field("data", body, filename=filename, content_type=content_type)
-        async with session.post(
-            upload_url,
-            data=form,
-            headers={"Authorization": token},
-            timeout=aiohttp.ClientTimeout(total=60),
-            ssl=_request_ssl(disable_ssl),
-        ) as resp:
-            if resp.status >= 400:
-                text = await resp.text()
-                _LOGGER.error("Max API file upload failed: status=%s body=%s", resp.status, text[:300])
-                return
-            upload_resp = await _parse_upload_response(resp)
-    except (aiohttp.ClientError, ValueError) as e:
-        _LOGGER.error("Max API file upload failed: %s", e)
-        return
+        try:
+            form = aiohttp.FormData()
+            form.add_field("data", body, filename=filename, content_type=content_type)
+            async with session.post(
+                upload_url,
+                data=form,
+                headers={"Authorization": token},
+                timeout=aiohttp.ClientTimeout(total=60),
+                ssl=_request_ssl(disable_ssl),
+            ) as resp:
+                if resp.status >= 400:
+                    text = await resp.text()
+                    _LOGGER.error("Max API file upload failed: status=%s body=%s", resp.status, text[:300])
+                    return
+                upload_resp = await _parse_upload_response(resp)
+        except (aiohttp.ClientError, ValueError) as e:
+            _LOGGER.error("Max API file upload failed: %s", e)
+            return
 
-    if not isinstance(upload_resp, dict) or not upload_resp:
-        _LOGGER.error("Max API upload response is not a non-empty dict: %s", type(upload_resp))
-        return
-    if not _upload_response_has_token(upload_resp):
-        _LOGGER.error("Max API upload response has no token: %s", upload_resp)
-        return
-
-    attachment_payload = _attachment_payload_from_upload_response(upload_resp)
+        if not isinstance(upload_resp, dict) or not upload_resp:
+            _LOGGER.error("Max API upload response is not a non-empty dict: %s", type(upload_resp))
+            return
+        if not _upload_response_has_token(upload_resp):
+            _LOGGER.error("Max API upload response has no token: %s", upload_resp)
+            return
+        upload_payloads.append(_attachment_payload_from_upload_response(upload_resp))
+        _LOGGER.debug(
+            "Official upload accepted for source=%s; accumulated_upload_payloads=%s",
+            file_source,
+            len(upload_payloads),
+        )
 
     await asyncio.sleep(FILE_UPLOAD_DELAY)
 
     msg_format = message_format or entry.data.get(CONF_MESSAGE_FORMAT, "text")
     payload = prov.build_media_message_payload(
-        upload_payload=attachment_payload,
+        upload_payloads=upload_payloads,
         caption=caption,
         max_message_length=MAX_MESSAGE_LENGTH,
         message_format=msg_format,
         buttons_api=_normalize_buttons_for_api(buttons) if buttons else None,
-        as_document=as_document,
+        attachment_type=attachment_type,
+    )
+    att_count, att_types = _payload_attachments_summary(payload)
+    _LOGGER.info(
+        "Built official media payload: attachments=%s attachment_types=%s payload=%s",
+        att_count,
+        att_types,
+        payload,
     )
     # Отключено: Max не отключает push/звук по notify: false.
     # if not notify:
@@ -1603,11 +1796,12 @@ async def upload_image_and_send(
     )
 
 
-async def upload_video_and_send(
+async def upload_image_and_send(
     hass: HomeAssistant,
     entry: ConfigEntry,
     recipient: dict[str, Any],
     file_path_or_url: str,
+    file_paths_or_urls: list[str] | None = None,
     caption: str | None = None,
     buttons: list[list[dict[str, Any]]] | None = None,
     count_requests: int | None = None,
@@ -1619,58 +1813,77 @@ async def upload_video_and_send(
     url_auth_token: str | None = None,
     message_format: str | None = None,
 ) -> None:
-    """Загрузить видео в Max (POST /uploads?type=video) и отправить (POST /messages)."""
-    _ = notify
-    token = entry.data.get(CONF_ACCESS_TOKEN)
-    if not token:
-        _LOGGER.error("No access token in config entry")
-        return
-    result = await _get_message_url_and_recipient(hass, entry, token, recipient)
-    if not result:
-        _LOGGER.error("Could not resolve recipient for video")
-        return
-    msg_url, _ = result
-    store_vid = _coerce_recipient_id_for_message_store(recipient)
-
-    session = async_get_clientsession(hass)
-    headers = {"Authorization": token}
-
-    upload_url: str | None = None
-    video_token: str | None = None
-
-    prov = get_provider(entry)
-    upload_req_url = prov.build_upload_url(
-        _api_base_url_for_entry(entry), API_PATH_UPLOADS, "video"
-    )
-    data = await _request_upload_url_json_with_retry(
-        session,
-        upload_req_url,
-        headers=headers,
+    """Загрузить изображение в Max (POST /uploads) и отправить (POST /messages)."""
+    await _upload_media_and_send(
+        hass,
+        entry,
+        recipient,
+        file_path_or_url,
+        file_paths_or_urls=file_paths_or_urls,
+        caption=caption,
+        attachment_type="image",
+        buttons=buttons,
+        count_requests=count_requests,
+        notify=notify,
         disable_ssl=disable_ssl,
-        timeout_s=15,
-        op_label=(
-            f"{prov.label} video upload URL request"
-            if not prov.shares_platform_bot_token_pool
-            else "Max API video upload URL request"
-        ),
+        url_auth_type=url_auth_type,
+        url_auth_login=url_auth_login,
+        url_auth_password=url_auth_password,
+        url_auth_token=url_auth_token,
+        message_format=message_format,
     )
-    upload_url = data.get("url")
-    video_token = data.get("token")
-    if not prov.shares_platform_bot_token_pool:
-        if not upload_url or not video_token:
-            raise ServiceValidationError(
-                translation_domain=DOMAIN,
-                translation_key="third_party_video_upload_incomplete",
-                translation_placeholders={"provider": prov.label},
-            )
-    else:
-        if not upload_url:
-            raise ServiceValidationError("Max API upload response has no url")
-        if not video_token:
-            raise ServiceValidationError(
-                "Max API upload response has no token (required for video)"
-            )
 
+
+async def upload_document_and_send(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    recipient: dict[str, Any],
+    file_path_or_url: str,
+    file_paths_or_urls: list[str] | None = None,
+    caption: str | None = None,
+    buttons: list[list[dict[str, Any]]] | None = None,
+    count_requests: int | None = None,
+    notify: bool = True,
+    disable_ssl: bool = False,
+    url_auth_type: str | None = None,
+    url_auth_login: str | None = None,
+    url_auth_password: str | None = None,
+    url_auth_token: str | None = None,
+    message_format: str | None = None,
+) -> None:
+    """Загрузить документ в Max (POST /uploads) и отправить (POST /messages)."""
+    await _upload_media_and_send(
+        hass,
+        entry,
+        recipient,
+        file_path_or_url,
+        file_paths_or_urls=file_paths_or_urls,
+        caption=caption,
+        attachment_type="file",
+        buttons=buttons,
+        count_requests=count_requests,
+        notify=notify,
+        disable_ssl=disable_ssl,
+        url_auth_type=url_auth_type,
+        url_auth_login=url_auth_login,
+        url_auth_password=url_auth_password,
+        url_auth_token=url_auth_token,
+        message_format=message_format,
+    )
+
+
+async def _read_video_body_for_upload(
+    hass: HomeAssistant,
+    session: aiohttp.ClientSession,
+    file_path_or_url: str,
+    *,
+    disable_ssl: bool,
+    url_auth_type: str | None,
+    url_auth_login: str | None,
+    url_auth_password: str | None,
+    url_auth_token: str | None,
+) -> tuple[bytes, str, str] | None:
+    """Считать видео из URL/файла; вернуть body/content-type/filename."""
     file_path_or_url = file_path_or_url.strip()
     content_type = "video/mp4"
     filename = "video.mp4"
@@ -1683,7 +1896,6 @@ async def upload_video_and_send(
         delays = list(VIDEO_URL_DOWNLOAD_RETRY_DELAYS)
         max_attempts = 1 + len(delays)
         body = b""
-        content_type = "video/mp4"
         filename = "video"
         try:
             for attempt in range(max_attempts):
@@ -1711,14 +1923,8 @@ async def upload_video_and_send(
                                 filename.lower().endswith(ext)
                                 for ext in _VIDEO_EXT_TO_CONTENT_TYPE
                             ):
-                                ext = "mp4" if content_type == "video/mp4" else "mp4"
-                                filename = f"{filename}.{ext}"
+                                filename = f"{filename}.mp4"
                             body = await r.read()
-                            _LOGGER.debug(
-                                "Downloaded video from URL: %d bytes, content_type=%s",
-                                len(body),
-                                content_type,
-                            )
                             break
                         err_text = (await r.text())[:300]
                         will_retry = (
@@ -1726,86 +1932,163 @@ async def upload_video_and_send(
                             and r.status in _RETRYABLE_VIDEO_DOWNLOAD_STATUSES
                         )
                         if will_retry:
-                            wait_s = delays[attempt]
-                            _LOGGER.warning(
-                                "Download video attempt %s/%s: status=%s, retry in %ss; body=%s",
-                                attempt + 1,
-                                max_attempts,
-                                r.status,
-                                wait_s,
-                                err_text,
-                            )
-                            await asyncio.sleep(wait_s)
+                            await asyncio.sleep(delays[attempt])
                             continue
-                        _LOGGER.error(
-                            "Download video failed: status=%s body=%s",
-                            r.status,
-                            err_text,
-                        )
-                        return
+                        _LOGGER.error("Download video failed: status=%s body=%s", r.status, err_text)
+                        return None
                 except aiohttp.ClientError as e:
                     if attempt < max_attempts - 1:
-                        wait_s = delays[attempt]
-                        _LOGGER.warning(
-                            "Download video attempt %s/%s failed (%s), retry in %ss",
-                            attempt + 1,
-                            max_attempts,
-                            e,
-                            wait_s,
-                        )
-                        await asyncio.sleep(wait_s)
+                        await asyncio.sleep(delays[attempt])
                         continue
                     _LOGGER.error("Download video failed: %s", e)
-                    return
+                    return None
         except asyncio.CancelledError:
             raise
     else:
         content_type = _content_type_from_path_video(file_path_or_url)
         filename = file_path_or_url.rsplit("/", 1)[-1].rsplit("\\", 1)[-1] or "video.mp4"
         if not any(filename.lower().endswith(ext) for ext in _VIDEO_EXT_TO_CONTENT_TYPE):
-            filename = f"video.mp4"
+            filename = "video.mp4"
         try:
             body = await hass.async_add_executor_job(_read_file_bytes, file_path_or_url, hass.config.config_dir)
         except (OSError, ValueError) as e:
             _LOGGER.error("Read video file failed: %s", e)
-            return
-
+            return None
     if not body:
         _LOGGER.error("Video data is empty")
-        return
+        return None
+    return body, content_type, filename
 
+
+async def upload_video_and_send(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    recipient: dict[str, Any],
+    file_path_or_url: str,
+    file_paths_or_urls: list[str] | None = None,
+    caption: str | None = None,
+    buttons: list[list[dict[str, Any]]] | None = None,
+    count_requests: int | None = None,
+    notify: bool = True,
+    disable_ssl: bool = False,
+    url_auth_type: str | None = None,
+    url_auth_login: str | None = None,
+    url_auth_password: str | None = None,
+    url_auth_token: str | None = None,
+    message_format: str | None = None,
+) -> None:
+    """Загрузить видео в Max (POST /uploads?type=video) и отправить (POST /messages)."""
+    _ = notify
+    file_sources = _normalize_file_sources(file_path_or_url, file_paths_or_urls)
+    _validate_attachments_count_limit(
+        entry,
+        file_sources=file_sources,
+        has_inline_keyboard=bool(buttons),
+        is_document=False,
+    )
+    token = entry.data.get(CONF_ACCESS_TOKEN)
+    if not token:
+        _LOGGER.error("No access token in config entry")
+        return
+    result = await _get_message_url_and_recipient(hass, entry, token, recipient)
+    if not result:
+        _LOGGER.error("Could not resolve recipient for video")
+        return
+    msg_url, _ = result
+    store_vid = _coerce_recipient_id_for_message_store(recipient)
+
+    session = async_get_clientsession(hass)
+    headers = {"Authorization": token}
+
+    prov = get_provider(entry)
     max_vid = prov.max_attachment_upload_bytes()
-    if not prov.shares_platform_bot_token_pool and max_vid is not None and len(body) > max_vid:
+    if max_vid is None:
         raise ServiceValidationError(
-            translation_domain=DOMAIN,
-            translation_key="third_party_video_too_large",
-            translation_placeholders={
-                "provider": prov.label,
-                "max_mib": str(max_vid // (1024 * 1024)),
-                "size_mib": f"{len(body) / (1024 * 1024):.2f}",
-            },
+            f"{prov.label} must define max_attachment_upload_bytes() for video uploads"
         )
+    max_vid_effective = max_vid
+    video_tokens: list[str] = []
 
-    try:
-        form = aiohttp.FormData()
-        form.add_field("data", body, filename=filename, content_type=content_type)
-        async with session.post(
-            upload_url,
-            data=form,
+    for file_source in file_sources:
+        upload_req_url = prov.build_upload_url(
+            _api_base_url_for_entry(entry), API_PATH_UPLOADS, "video"
+        )
+        data = await _request_upload_url_json_with_retry(
+            session,
+            upload_req_url,
             headers=headers,
-            timeout=aiohttp.ClientTimeout(total=UPLOAD_VIDEO_TIMEOUT),
-            ssl=_request_ssl(disable_ssl),
-        ) as resp:
-            if resp.status >= 400:
-                text = await resp.text()
-                _LOGGER.error(
-                    "Video file upload failed: status=%s body=%s", resp.status, text[:300]
+            disable_ssl=disable_ssl,
+            timeout_s=15,
+            op_label=(
+                f"{prov.label} video upload URL request"
+                if not prov.shares_platform_bot_token_pool
+                else "Max API video upload URL request"
+            ),
+        )
+        upload_url = data.get("url")
+        video_token = data.get("token")
+        if not prov.shares_platform_bot_token_pool:
+            if not upload_url or not video_token:
+                raise ServiceValidationError(
+                    translation_domain=DOMAIN,
+                    translation_key="third_party_video_upload_incomplete",
+                    translation_placeholders={"provider": prov.label},
                 )
-                return
-            _LOGGER.debug("Video upload to storage completed: status=%s", resp.status)
-    except (aiohttp.ClientError, ValueError) as e:
-        _LOGGER.error("Max API video upload failed: %s", e)
-        return
+        else:
+            if not upload_url:
+                raise ServiceValidationError("Max API upload response has no url")
+            if not video_token:
+                raise ServiceValidationError(
+                    "Max API upload response has no token (required for video)"
+                )
+
+        read_out = await _read_video_body_for_upload(
+            hass,
+            session,
+            file_source,
+            disable_ssl=disable_ssl,
+            url_auth_type=url_auth_type,
+            url_auth_login=url_auth_login,
+            url_auth_password=url_auth_password,
+            url_auth_token=url_auth_token,
+        )
+        if read_out is None:
+            return
+        body, content_type, filename = read_out
+
+        if len(body) > max_vid_effective:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="third_party_video_too_large",
+                translation_placeholders={
+                    "provider": prov.label,
+                    "max_mib": str(max_vid_effective // (1024 * 1024)),
+                    "size_mib": f"{len(body) / (1024 * 1024):.2f}",
+                },
+            )
+
+        try:
+            form = aiohttp.FormData()
+            form.add_field("data", body, filename=filename, content_type=content_type)
+            async with session.post(
+                upload_url,
+                data=form,
+                headers=headers,
+                timeout=aiohttp.ClientTimeout(total=UPLOAD_VIDEO_TIMEOUT),
+                ssl=_request_ssl(disable_ssl),
+            ) as resp:
+                if resp.status >= 400:
+                    text = await resp.text()
+                    _LOGGER.error(
+                        "Video file upload failed: status=%s body=%s", resp.status, text[:300]
+                    )
+                    return
+                _LOGGER.debug("Video upload to storage completed: status=%s", resp.status)
+        except (aiohttp.ClientError, ValueError) as e:
+            _LOGGER.error("Max API video upload failed: %s", e)
+            return
+
+        video_tokens.append(str(video_token))
 
     msg_format = message_format or entry.data.get(CONF_MESSAGE_FORMAT, "text")
 
@@ -1813,7 +2096,7 @@ async def upload_video_and_send(
         # Как у официального Max: транскодирование занимает время; повторы ловят attachment.not.ready.
         await asyncio.sleep(VIDEO_PROCESSING_DELAY)
         payload_tp = prov.build_video_message_payload(
-            video_token=str(video_token),
+            video_tokens=video_tokens,
             caption=caption,
             max_message_length=MAX_MESSAGE_LENGTH,
             message_format=msg_format,
@@ -1848,7 +2131,7 @@ async def upload_video_and_send(
 
     await asyncio.sleep(VIDEO_PROCESSING_DELAY)
     payload = prov.build_video_message_payload(
-        video_token=str(video_token),
+        video_tokens=video_tokens,
         caption=caption,
         max_message_length=MAX_MESSAGE_LENGTH,
         message_format=msg_format,

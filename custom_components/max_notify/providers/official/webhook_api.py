@@ -17,11 +17,40 @@ from ...const import (
     CONF_RECEIVE_MODE,
     CONF_WEBHOOK_SECRET,
     RECEIVE_MODE_WEBHOOK,
+    UPDATE_MESSAGE_CALLBACK,
+    UPDATE_MESSAGE_CREATED,
     WEBHOOK_SECRET_HEADER,
 )
 from ...updates import async_process_update
 
 _LOGGER = logging.getLogger(__name__)
+
+
+def extract_webhook_updates_from_payload(body: Any) -> list[dict[str, Any]]:
+    """Нормализовать входящий WebHook payload в список updates."""
+    if not isinstance(body, dict):
+        return []
+
+    raw_updates = body.get("updates")
+    if isinstance(raw_updates, list):
+        return [u for u in raw_updates if isinstance(u, dict)]
+
+    if "update_type" in body and isinstance(body.get("update_type"), str):
+        return [body]
+
+    for container_key in ("update", "event", "data"):
+        candidate = body.get(container_key)
+        if isinstance(candidate, dict) and isinstance(candidate.get("update_type"), str):
+            return [candidate]
+
+    for update_type in (UPDATE_MESSAGE_CREATED, UPDATE_MESSAGE_CALLBACK):
+        candidate = body.get(update_type)
+        if isinstance(candidate, dict):
+            normalized = dict(candidate)
+            normalized.setdefault("update_type", update_type)
+            return [normalized]
+
+    return []
 
 
 def subscription_urls_from_payload(data: Any) -> list[str]:
@@ -299,11 +328,13 @@ async def async_handle_inbound_webhook_post(
     if not isinstance(body, dict):
         return web.Response(status=400, text="body must be object")
 
-    updates = []
-    if "update_type" in body and "message" in body:
-        updates.append(body)
-    elif "updates" in body and isinstance(body["updates"], list):
-        updates = [u for u in body["updates"] if isinstance(u, dict)]
+    updates = extract_webhook_updates_from_payload(body)
+    if not updates:
+        _LOGGER.warning(
+            "WebHook payload does not contain recognized update format: entry_id=%s keys=%s",
+            entry.entry_id,
+            sorted(body.keys()),
+        )
 
     for one in updates:
         hass.async_create_task(async_process_update(hass, entry, one))

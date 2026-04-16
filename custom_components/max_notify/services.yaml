@@ -90,10 +90,13 @@ send_text_to_all:
 send_photo:
   fields:
     file:
-      required: true
       description: "Local path (/config/..., /media/...) or image URL (http/https)"
       selector:
         text:
+    files:
+      description: "List of local paths/URLs to send in one message (instead of file)"
+      selector:
+        object:
     caption:
       selector:
         text:
@@ -183,10 +186,13 @@ send_photo:
 send_video:
   fields:
     file:
-      required: true
       description: "Local path (/config/..., /media/...) or video URL (mp4, mov, webm, mkv)"
       selector:
         text:
+    files:
+      description: "List of local paths/URLs to send in one message (instead of file)"
+      selector:
+        object:
     caption:
       selector:
         text:

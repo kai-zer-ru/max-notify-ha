@@ -15,6 +15,7 @@ from ..const import (
     CONF_BUTTONS,
     CONF_INTEGRATION_TYPE,
     CONF_UPDATES_INTERVAL,
+    CONF_WEBHOOK_SECRET,
     DOMAIN,
     POLLING_LIMIT,
     POLLING_TIMEOUT,
@@ -52,6 +53,7 @@ class MaxNotifyIntegrationProvider:
         "supports_receive_polling",
         "supports_receive_long_polling",
         "allow_multiple_config_entries_same_token",
+        "max_attachments_per_message_limit",
     )
 
     def __init__(
@@ -75,6 +77,7 @@ class MaxNotifyIntegrationProvider:
         supports_receive_polling: bool = False,
         supports_receive_long_polling: bool = False,
         allow_multiple_config_entries_same_token: bool = True,
+        max_attachments_per_message_limit: int | None = None,
     ) -> None:
         self.integration_type = integration_type
         self.label = label
@@ -96,6 +99,7 @@ class MaxNotifyIntegrationProvider:
         self.allow_multiple_config_entries_same_token = (
             allow_multiple_config_entries_same_token
         )
+        self.max_attachments_per_message_limit = max_attachments_per_message_limit
 
     @property
     def translation_prefix(self) -> str:
@@ -245,8 +249,28 @@ class MaxNotifyIntegrationProvider:
         entry: ConfigEntry,
         recipient: dict[str, Any],
         file_path_or_url: str,
+        file_paths_or_urls: list[str] | None = None,
         caption: str | None = None,
-        as_document: bool = False,
+        buttons: list[list[dict[str, Any]]] | None = None,
+        count_requests: int | None = None,
+        notify: bool = True,
+        disable_ssl: bool = False,
+        url_auth_type: str | None = None,
+        url_auth_login: str | None = None,
+        url_auth_password: str | None = None,
+        url_auth_token: str | None = None,
+        message_format: str | None = None,
+    ) -> None:
+        return None
+
+    async def async_upload_document_and_send(
+        self,
+        hass: HomeAssistant,
+        entry: ConfigEntry,
+        recipient: dict[str, Any],
+        file_path_or_url: str,
+        file_paths_or_urls: list[str] | None = None,
+        caption: str | None = None,
         buttons: list[list[dict[str, Any]]] | None = None,
         count_requests: int | None = None,
         notify: bool = True,
@@ -265,6 +289,7 @@ class MaxNotifyIntegrationProvider:
         entry: ConfigEntry,
         recipient: dict[str, Any],
         file_path_or_url: str,
+        file_paths_or_urls: list[str] | None = None,
         caption: str | None = None,
         buttons: list[list[dict[str, Any]]] | None = None,
         count_requests: int | None = None,
@@ -504,6 +529,11 @@ class MaxNotifyIntegrationProvider:
         """Лимит тела вложения при загрузке; None — без проверки на уровне интеграции."""
         return None
 
+    def max_attachments_per_message(self, entry: ConfigEntry) -> int | None:
+        """Лимит количества вложений на сообщение; None — без проверки."""
+        _ = entry
+        return self.max_attachments_per_message_limit
+
     def mark_after_send_with_keyboard(
         self, hass: HomeAssistant, entry: ConfigEntry
     ) -> None:
@@ -519,11 +549,13 @@ class MaxNotifyIntegrationProvider:
         pending_inactivity_days: int | None,
     ) -> dict[str, Any]:
         """Итоговые options для ``opt_next``. Переопределяется провайдером при доп. полях."""
-        return {
+        out: dict[str, Any] = {
             **pending_options,
             CONF_BUTTONS: opt_buttons,
             CONF_UPDATES_INTERVAL: int(pending_updates_interval),
+            CONF_WEBHOOK_SECRET: pending_options.get(CONF_WEBHOOK_SECRET, ""),
         }
+        return out
 
     async def options_finalize_pending_title(
         self,
@@ -551,33 +583,33 @@ class MaxNotifyIntegrationProvider:
     def build_media_message_payload(
         self,
         *,
-        upload_payload: dict[str, Any],
+        upload_payloads: list[dict[str, Any]],
         caption: str | None,
         max_message_length: int,
         message_format: str,
         buttons_api: list[list[dict[str, Any]]] | None,
-        as_document: bool,
+        attachment_type: str,
     ) -> dict[str, Any]:
         return official_notify.build_media_payload(
-            attachment_payload=upload_payload,
+            attachment_payloads=upload_payloads,
             caption=caption,
             max_message_length=max_message_length,
             message_format=message_format,
             buttons_api=buttons_api,
-            as_document=as_document,
+            attachment_type=attachment_type,
         )
 
     def build_video_message_payload(
         self,
         *,
-        video_token: str,
+        video_tokens: list[str],
         caption: str | None,
         max_message_length: int,
         message_format: str,
         buttons_api: list[list[dict[str, Any]]] | None,
     ) -> dict[str, Any]:
         return official_notify.build_video_payload(
-            video_token=video_token,
+            video_tokens=video_tokens,
             caption=caption,
             max_message_length=max_message_length,
             message_format=message_format,
