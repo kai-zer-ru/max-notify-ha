@@ -2,7 +2,7 @@
   "services": {
     "send_message": {
       "name": "Send message",
-      "description": "Send a text message to Max chat(s). Choose notify entity and/or integration with chat/user ID.",
+      "description": "Send a text message to Max. Pick a MaxNotify notify entity or integration (if you have only one entry, entity is enough).",
       "fields": {
         "entity_id": {
           "name": "Notify entity",
@@ -16,29 +16,13 @@
           "name": "Title",
           "description": "Optional message title/heading."
         },
-        "format": {
-          "name": "Format",
-          "description": "Text format: text, markdown, or html. Overrides integration message format for this send."
-        },
         "send_keyboard": {
           "name": "Send keyboard",
           "description": "When enabled (default), the integration default inline keyboard is used if you omit Buttons or leave it empty; non-empty Buttons replace it. When disabled, only non-empty Buttons from this call are attached."
         },
         "config_entry_id": {
           "name": "Integration",
-          "description": "MaxNotify integration to use when sending by chat_id/user_id (if several integrations exist)."
-        },
-        "recipient_id": {
-          "name": "Recipient ID",
-          "description": "Universal recipient ID: positive — personal chat (User ID), negative — group (Chat ID)."
-        },
-        "chat_id": {
-          "name": "Chat ID (deprecated)",
-          "description": "Deprecated: prefer using recipient_id for both personal chats and groups. Chat ID: positive — personal chat (User ID), negative — group. Will be removed in version 1.5.0."
-        },
-        "user_id": {
-          "name": "User ID (deprecated)",
-          "description": "Deprecated: prefer using recipient_id. User ID for personal chat (alternative to positive chat_id). Will be removed in version 1.5.0."
+          "description": "MaxNotify config entry when you have several; targets are that entry's notify entities."
         },
         "buttons": {
           "name": "Buttons",
@@ -98,29 +82,13 @@
           "name": "Caption",
           "description": "Optional caption for the photo."
         },
-        "format": {
-          "name": "Format",
-          "description": "Caption text format: text, markdown, or html."
-        },
         "entity_id": {
           "name": "Notify entity",
           "description": "MaxNotify notify entity to send to. You can select multiple."
         },
         "config_entry_id": {
           "name": "Integration",
-          "description": "MaxNotify integration when sending by chat_id/user_id."
-        },
-        "recipient_id": {
-          "name": "Recipient ID",
-          "description": "Universal recipient ID: positive — personal chat (User ID), negative — group (Chat ID)."
-        },
-        "chat_id": {
-          "name": "Chat ID (deprecated)",
-          "description": "Deprecated: prefer using recipient_id. Chat ID: positive — personal, negative — group. Will be removed in version 1.5.0."
-        },
-        "user_id": {
-          "name": "User ID (deprecated)",
-          "description": "Deprecated: prefer using recipient_id. User ID for personal chat. Will be removed in version 1.5.0."
+          "description": "MaxNotify config entry when you have several."
         },
         "disable_ssl": {
           "name": "Disable SSL verification",
@@ -141,10 +109,6 @@
         "url_auth_token": {
           "name": "URL auth token",
           "description": "Token for bearer auth."
-        },
-        "url_basic_auth": {
-          "name": "Basic auth for file URL (deprecated)",
-          "description": "Deprecated. Use url_auth_type=basic with url_auth_login/url_auth_password. Legacy format: login:password. Will be removed in version 1.5.0."
         },
         "count_requests": {
           "name": "Count requests",
@@ -179,29 +143,13 @@
           "name": "Caption",
           "description": "Optional caption for the document."
         },
-        "format": {
-          "name": "Format",
-          "description": "Caption text format: text, markdown, or html."
-        },
         "entity_id": {
           "name": "Notify entity",
           "description": "MaxNotify notify entity to send to."
         },
         "config_entry_id": {
           "name": "Integration",
-          "description": "MaxNotify integration when sending by chat_id/user_id."
-        },
-        "recipient_id": {
-          "name": "Recipient ID",
-          "description": "Universal recipient ID: positive — personal chat (User ID), negative — group (Chat ID)."
-        },
-        "chat_id": {
-          "name": "Chat ID (deprecated)",
-          "description": "Deprecated: prefer using recipient_id. Chat ID: positive — personal, negative — group. Will be removed in version 1.5.0."
-        },
-        "user_id": {
-          "name": "User ID (deprecated)",
-          "description": "Deprecated: prefer using recipient_id. User ID for personal chat. Will be removed in version 1.5.0."
+          "description": "MaxNotify config entry when you have several."
         },
         "disable_ssl": {
           "name": "Disable SSL verification",
@@ -222,10 +170,6 @@
         "url_auth_token": {
           "name": "URL auth token",
           "description": "Token for bearer auth."
-        },
-        "url_basic_auth": {
-          "name": "Basic auth for file URL (deprecated)",
-          "description": "Deprecated. Use url_auth_type=basic with url_auth_login/url_auth_password. Legacy format: login:password. Will be removed in version 1.5.0."
         },
         "count_requests": {
           "name": "Count requests",
@@ -260,29 +204,13 @@
           "name": "Caption",
           "description": "Optional caption for the video."
         },
-        "format": {
-          "name": "Format",
-          "description": "Caption text format: text, markdown, or html."
-        },
         "entity_id": {
           "name": "Notify entity",
           "description": "MaxNotify notify entity to send to."
         },
         "config_entry_id": {
           "name": "Integration",
-          "description": "MaxNotify integration when sending by chat_id/user_id."
-        },
-        "recipient_id": {
-          "name": "Recipient ID",
-          "description": "Universal recipient ID: positive — personal chat (User ID), negative — group (Chat ID)."
-        },
-        "chat_id": {
-          "name": "Chat ID (deprecated)",
-          "description": "Deprecated: prefer using recipient_id. Chat ID: positive — personal, negative — group. Will be removed in version 1.5.0."
-        },
-        "user_id": {
-          "name": "User ID (deprecated)",
-          "description": "Deprecated: prefer using recipient_id. User ID for personal chat. Will be removed in version 1.5.0."
+          "description": "MaxNotify config entry when you have several."
         },
         "disable_ssl": {
           "name": "Disable SSL verification",
@@ -303,10 +231,6 @@
         "url_auth_token": {
           "name": "URL auth token",
           "description": "Token for bearer auth."
-        },
-        "url_basic_auth": {
-          "name": "Basic auth for file URL (deprecated)",
-          "description": "Deprecated. Use url_auth_type=basic with url_auth_login/url_auth_password. Legacy format: login:password. Will be removed in version 1.5.0."
         },
         "count_requests": {
           "name": "Count requests",
@@ -340,18 +264,6 @@
         "entity_id": {
           "name": "Notify entity",
           "description": "MaxNotify notify entity. Can be used instead of config_entry_id."
-        },
-        "recipient_id": {
-          "name": "Recipient ID",
-          "description": "Universal recipient ID: positive — personal chat (User ID), negative — group (Chat ID)."
-        },
-        "chat_id": {
-          "name": "Chat ID (deprecated)",
-          "description": "Deprecated: prefer using recipient_id. Chat ID: positive — personal, negative — group. Will be removed in version 1.5.0."
-        },
-        "user_id": {
-          "name": "User ID (deprecated)",
-          "description": "Deprecated: prefer using recipient_id. User ID for personal chat. Will be removed in version 1.5.0."
         },
         "config_entry_id": {
           "name": "Integration",
@@ -391,18 +303,6 @@
           "name": "Notify entity",
           "description": "MaxNotify notify entity. Can be used instead of config_entry_id."
         },
-        "recipient_id": {
-          "name": "Recipient ID",
-          "description": "Universal recipient ID: positive — personal chat (User ID), negative — group (Chat ID)."
-        },
-        "chat_id": {
-          "name": "Chat ID (deprecated)",
-          "description": "Deprecated: prefer using recipient_id. Chat ID: positive — personal, negative — group. Will be removed in version 1.5.0."
-        },
-        "user_id": {
-          "name": "User ID (deprecated)",
-          "description": "Deprecated: prefer using recipient_id. User ID for personal chat. Will be removed in version 1.5.0."
-        },
         "config_entry_id": {
           "name": "Integration",
           "description": "MaxNotify integration to use (required if multiple exist)."
@@ -413,80 +313,16 @@
   "config": {
     "receive_mode_title": {
       "send_only": "Send only",
-      "polling": "Long Polling",
+      "long_polling": "Long Polling",
+      "polling": "Polling queue",
       "webhook": "WebHook"
     },
     "step": {
       "integration_type": {
         "title": "Choose integration type",
-        "description": "Choose how to connect: official Max API or notify.a161.ru proxy service.",
+        "description": "Choose how you want to connect.",
         "data": {
           "integration_type": "Integration type"
-        },
-        "options": {
-          "integration_type": {
-            "official": "Official Max API (platform-api.max.ru)",
-            "notify_a161": "notify.a161.ru (text-only self notifications)"
-          }
-        }
-      },
-      "notify_info": {
-        "title": "notify.a161.ru setup",
-        "description": "Before continuing: open {notify_site_url}, send \"Хочу подключиться\" to the service bot and save your user_id and token. Then click Submit to enter credentials in Home Assistant. user_id is tied to token and cannot be changed later in integration settings."
-      },
-      "notify_user": {
-        "title": "notify.a161.ru: token",
-        "description": "Enter token, message format, and receive mode, then user_id.\n\nReceive mode: Send only or Polling updates queue.",
-        "data": {
-          "access_token": "Access token",
-          "message_format": "Message format",
-          "receive_mode": "Receive mode"
-        },
-        "data_description": {
-          "access_token": "Token from notify.a161.ru bot (36 characters).",
-          "message_format": "Text, Markdown or HTML."
-        },
-        "options": {
-          "message_format": {
-            "text": "Text",
-            "markdown": "Markdown",
-            "html": "HTML"
-          },
-          "receive_mode": {
-            "send_only": "Send only",
-            "polling": "Polling queue"
-          }
-        }
-      },
-      "notify_recipient": {
-        "title": "notify.a161.ru: user_id",
-        "description": "Enter your user_id (positive number). It is tied to the token and cannot be changed later in integration settings.",
-        "data": {
-          "recipient_id": "User ID"
-        },
-        "data_description": {
-          "recipient_id": "Use only a positive number from notify.a161.ru bot response."
-        }
-      },
-      "updates_interval": {
-        "title": "notify.a161.ru: updates polling interval",
-        "description": "Set polling interval in seconds for /updates queue. Default: {default_seconds} s.",
-        "data": {
-          "updates_interval": " "
-        }
-      },
-      "a161_inactivity_period": {
-        "title": "notify.a161.ru: inactivity period",
-        "description": "Choose how long without incoming messages and without sends that include buttons before receive mode is switched to Send only (service policy).",
-        "data": {
-          "a161_inactivity_period_days": "Period"
-        },
-        "options": {
-          "period_days": {
-            "1": "1 day",
-            "2": "2 days",
-            "3": "3 days"
-          }
         }
       },
       "user": {
@@ -514,7 +350,7 @@
           },
           "receive_mode": {
             "send_only": "Send only",
-            "polling": "Long Polling",
+            "long_polling": "Long Polling",
             "webhook": "WebHook"
           }
         }
@@ -612,45 +448,22 @@
         "data_description": {
           "button_to_remove": ""
         }
-      }
-    },
-    "error": {
-      "invalid_token": "Token cannot be empty",
-      "invalid_notify_token_length": "notify.a161.ru token must be 36 characters long.",
-      "invalid_auth": "Invalid token. Check the token in the MAX platform Integration section.",
-      "cannot_connect": "Failed to connect to Max API. Check your network and try again.",
-      "polling_subscription_list_failed": "Could not read WebHook subscriptions from Max API. Check the network and try again.",
-      "polling_webhook_subscriptions_remain": "Long Polling cannot be used while a WebHook subscription is active on Max. Remove WebHook subscriptions (or choose Send only / WebHook in settings), then try again. See https://dev.max.ru/docs-api/methods/POST/subscriptions",
-      "polling_blocked_by_webhook_other_entry": "Another MaxNotify integration already uses WebHook with this bot token. Stop WebHook there or use another token before enabling Long Polling here.",
-      "webhook_blocked_by_polling_other_entry": "Another MaxNotify integration already uses Long Polling with this bot token. Stop Long Polling there or use another token before enabling WebHook here.",
-      "webhook_requires_external_https_url": "WebHook requires an external HTTPS URL for Home Assistant (Settings → System → Network, or Home Assistant Cloud). Configure it first, then choose WebHook again.",
-      "unknown": "An unknown error occurred",
-      "invalid_id_format": "Enter an integer (positive — personal chat, negative — group)",
-      "notify_user_only": "For notify.a161.ru use only positive recipient IDs (user_id).",
-      "invalid_command_name": "Enter a command name (no slash).",
-      "invalid_button_text": "Enter a button label.",
-      "invalid_button_url": "Enter an http(s) URL for link buttons.",
-      "invalid_updates_interval": "Enter a polling interval from 2 to 30 seconds.",
-      "invalid_a161_inactivity_period": "Choose 1, 2, or 3 days.",
-      "a161_polling_requires_buttons_switched_send_only": "No buttons configured. Receive mode was switched to Send only. Add at least one button to use Polling."
-    },
-    "abort": {
-      "already_configured": "This configuration is already added",
-      "reconfigure_successful": "Reconfiguration successful",
-      "unsupported_ha_version": "This integration requires Home Assistant Core {minimum_ha_version} or newer. Update Home Assistant and try again."
-    }
-  },
-  "options": {
-    "step": {
-      "init_notify": {
-        "title": "notify.a161.ru settings",
-        "description": "Message format and receive mode.\n\nReceive mode: Send only or Polling updates queue.\n\nTo change the API token, remove this integration and add it again. user_id stays fixed from initial setup.",
+      },
+      "notify_a161_notify_info": {
+        "title": "{provider_label}",
+        "description": "Before continuing: open {provider_site_url}, send \"Хочу подключиться\" to the service bot and save your user_id and token. Then click Submit to enter credentials in Home Assistant. user_id is tied to token and cannot be changed later in integration settings."
+      },
+      "notify_a161_notify_user": {
+        "title": "{provider_label} — token",
+        "description": "Enter token, message format, and receive mode, then user_id.\n\nReceive mode: Send only or Polling updates queue.",
         "data": {
+          "access_token": "Access token",
           "message_format": "Message format",
           "receive_mode": "Receive mode"
         },
         "data_description": {
-          "message_format": "Plain text, Markdown or HTML"
+          "access_token": "Token from the {provider_label} bot ({token_length} characters).",
+          "message_format": "Text, Markdown or HTML."
         },
         "options": {
           "message_format": {
@@ -664,16 +477,26 @@
           }
         }
       },
-      "updates_interval": {
-        "title": "notify.a161.ru: updates polling interval",
+      "notify_a161_notify_recipient": {
+        "title": "{provider_label} — user ID",
+        "description": "Enter your user_id (positive number). It is tied to the token and cannot be changed later in integration settings.",
+        "data": {
+          "recipient_id": "User ID"
+        },
+        "data_description": {
+          "recipient_id": "Use only a positive user ID from the {provider_label} bot response."
+        }
+      },
+      "notify_a161_updates_interval": {
+        "title": "{provider_label} — updates polling interval",
         "description": "Set polling interval in seconds for /updates queue. Default: {default_seconds} s.",
         "data": {
           "updates_interval": " "
         }
       },
-      "a161_inactivity_period": {
-        "title": "notify.a161.ru: inactivity period",
-        "description": "Choose how long without incoming messages and without sends that include buttons before receive mode is switched to Send only (service policy).",
+      "notify_a161_a161_inactivity_period": {
+        "title": "{provider_label}: inactivity period",
+        "description": "Choose after how many days without incoming messages and without sends with buttons receive mode is switched to Send only (service policy).",
         "data": {
           "a161_inactivity_period_days": "Period"
         },
@@ -684,7 +507,37 @@
             "3": "3 days"
           }
         }
-      },
+      }
+    },
+    "error": {
+      "invalid_token": "Token cannot be empty",
+      "invalid_auth": "Invalid token. Check the token in the MAX platform Integration section.",
+      "cannot_connect": "Failed to connect to Max API. Check your network and try again.",
+      "polling_subscription_list_failed": "Could not read WebHook subscriptions from Max API. Check the network and try again.",
+      "polling_webhook_subscriptions_remain": "Long Polling cannot be used while a WebHook subscription is active on Max. Remove WebHook subscriptions (or choose Send only / WebHook in settings), then try again. See https://dev.max.ru/docs-api/methods/POST/subscriptions",
+      "polling_blocked_by_webhook_other_entry": "Another MaxNotify integration already uses WebHook with this bot token. Stop WebHook there or use another token before enabling Long Polling here.",
+      "webhook_blocked_by_polling_other_entry": "Another MaxNotify integration already uses Long Polling with this bot token. Stop Long Polling there or use another token before enabling WebHook here.",
+      "webhook_requires_external_https_url": "WebHook requires an external HTTPS URL for Home Assistant (Settings → System → Network, or Home Assistant Cloud). Configure it first, then choose WebHook again.",
+      "unknown": "An unknown error occurred",
+      "invalid_id_format": "Enter an integer (positive — personal chat, negative — group)",
+      "invalid_command_name": "Enter a command name (no slash).",
+      "invalid_button_text": "Enter a button label.",
+      "invalid_button_url": "Enter an http(s) URL for link buttons.",
+      "notify_a161_invalid_notify_token_length": "Access token must be {token_length} characters long.",
+      "notify_a161_notify_user_only": "{provider_label} accepts only positive user_id values.",
+      "notify_a161_invalid_updates_interval": "Enter a polling interval from 2 to 30 seconds.",
+      "notify_a161_invalid_a161_inactivity_period": "Choose 1, 2, or 3 days.",
+      "notify_a161_polling_requires_buttons_switched_send_only": "No buttons configured. Receive mode was switched to Send only. Add at least one button to use Polling.",
+      "notify_a161_duplicate_token_not_allowed": "A MaxNotify integration with this token already exists. For {provider_label}, one token means one entry: remove the existing one or use a different token."
+    },
+    "abort": {
+      "already_configured": "This configuration is already added",
+      "reconfigure_successful": "Reconfiguration successful",
+      "unsupported_ha_version": "This integration requires Home Assistant Core {minimum_ha_version} or newer. Update Home Assistant and try again."
+    }
+  },
+  "options": {
+    "step": {
       "init": {
         "title": "MaxNotify settings",
         "description": "Token (optional), message format, receive mode.{webhook_url_paragraph}",
@@ -713,7 +566,7 @@
           },
           "receive_mode": {
             "send_only": "Send only",
-            "polling": "Long Polling",
+            "long_polling": "Long Polling",
             "webhook": "WebHook"
           }
         }
@@ -825,6 +678,49 @@
         "data_description": {
           "button_to_remove": ""
         }
+      },
+      "notify_a161_init_notify": {
+        "title": "{provider_label} — settings",
+        "description": "Message format and receive mode.\n\nReceive mode: Send only or Polling updates queue.\n\nTo change the API token, remove this integration and add it again. user_id stays fixed from initial setup.",
+        "data": {
+          "message_format": "Message format",
+          "receive_mode": "Receive mode"
+        },
+        "data_description": {
+          "message_format": "Plain text, Markdown or HTML"
+        },
+        "options": {
+          "message_format": {
+            "text": "Text",
+            "markdown": "Markdown",
+            "html": "HTML"
+          },
+          "receive_mode": {
+            "send_only": "Send only",
+            "polling": "Polling queue"
+          }
+        }
+      },
+      "notify_a161_updates_interval": {
+        "title": "{provider_label} — updates polling interval",
+        "description": "Set polling interval in seconds for /updates queue. Default: {default_seconds} s.",
+        "data": {
+          "updates_interval": " "
+        }
+      },
+      "notify_a161_a161_inactivity_period": {
+        "title": "{provider_label}: inactivity period",
+        "description": "Choose after how many days without incoming messages and without sends with buttons receive mode is switched to Send only (service policy).",
+        "data": {
+          "a161_inactivity_period_days": "Period"
+        },
+        "options": {
+          "period_days": {
+            "1": "1 day",
+            "2": "2 days",
+            "3": "3 days"
+          }
+        }
       }
     },
     "error": {
@@ -833,20 +729,21 @@
       "polling_blocked_by_webhook_other_entry": "Another MaxNotify integration already uses WebHook with this bot token. Stop WebHook there or use another token before enabling Long Polling here.",
       "webhook_blocked_by_polling_other_entry": "Another MaxNotify integration already uses Long Polling with this bot token. Stop Long Polling there or use another token before enabling WebHook here.",
       "webhook_requires_external_https_url": "WebHook requires an external HTTPS URL for Home Assistant (Settings → System → Network, or Home Assistant Cloud). Configure it first, then choose WebHook again.",
-      "invalid_updates_interval": "Enter a polling interval from 2 to 30 seconds.",
-      "invalid_a161_inactivity_period": "Choose 1, 2, or 3 days.",
-      "a161_polling_requires_buttons_switched_send_only": "No buttons configured. Receive mode was switched to Send only. Add at least one button to use Polling."
+      "notify_a161_invalid_updates_interval": "Enter a polling interval from 2 to 30 seconds.",
+      "notify_a161_invalid_a161_inactivity_period": "Choose 1, 2, or 3 days.",
+      "notify_a161_polling_requires_buttons_switched_send_only": "No buttons configured. Receive mode was switched to Send only. Add at least one button to use Polling."
     }
   },
   "config_subentries": {
     "recipient": {
       "abort": {
         "already_configured": "This ID is already added",
-        "notify_user_locked": "You cannot add chats for notify.a161.ru here. Add another MaxNotify integration to use a different recipient."
+        "notify_user_locked": "You cannot add chats in this integration entry. Add another MaxNotify integration for a different recipient."
       },
       "entry_type": "Chat ID",
       "error": {
-        "invalid_id_format": "Enter an integer (positive — personal chat, negative — group)"
+        "invalid_id_format": "Enter an integer (positive — personal chat, negative — group)",
+        "already_configured": "This ID is already added"
       },
       "initiate_flow": {
         "user": "Add chat"

@@ -1,0 +1,41 @@
+"""Реестр возможностей: официальный провайдер и произвольная регистрация."""
+
+from __future__ import annotations
+
+from custom_components.max_notify.const import (
+    CONF_INTEGRATION_TYPE,
+    INTEGRATION_TYPE_OFFICIAL,
+)
+from custom_components.max_notify.providers.capabilities import IntegrationCapabilities
+from custom_components.max_notify.providers.official.capabilities import (
+    OFFICIAL_CAPABILITIES,
+)
+from custom_components.max_notify.providers.registry import (
+    get_capabilities,
+    register_capabilities,
+    resolve_integration_type,
+)
+
+
+def test_resolve_official(mock_config_entry) -> None:
+    mock_config_entry.data[CONF_INTEGRATION_TYPE] = INTEGRATION_TYPE_OFFICIAL
+    mock_config_entry.title = "MaxNotify"
+    assert resolve_integration_type(mock_config_entry) == INTEGRATION_TYPE_OFFICIAL
+    assert get_capabilities(mock_config_entry) is OFFICIAL_CAPABILITIES
+    assert get_capabilities(mock_config_entry).supports_group_chats is True
+    assert get_capabilities(mock_config_entry).supports_inline_keyboard is True
+    assert get_capabilities(mock_config_entry).supports_receive_polling is False
+    assert get_capabilities(mock_config_entry).supports_receive_long_polling is True
+    assert get_capabilities(mock_config_entry).supports_receive_webhook is True
+
+
+def test_register_custom_capabilities(mock_config_entry) -> None:
+    mock_config_entry.data[CONF_INTEGRATION_TYPE] = "_test_provider_caps_only"
+    mock_config_entry.title = "Custom"
+    register_capabilities(
+        "_test_provider_caps_only",
+        IntegrationCapabilities(supports_send_video=False, supports_group_chats=False),
+    )
+    caps = get_capabilities(mock_config_entry)
+    assert caps.supports_send_video is False
+    assert caps.supports_group_chats is False

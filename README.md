@@ -38,6 +38,7 @@
   - [`max_notify.delete_message`](#service-delete-message)
   - [`max_notify.edit_message`](#service-edit-message)
 - [Включение режима отладки](#debug)
+- [Документация для разработчиков: новый провайдер](docs/PROVIDERS.md)
 - [Токен и ID](#token-ids)
 - [Ссылки](#links)
 

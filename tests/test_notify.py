@@ -1,4 +1,4 @@
-"""Tests for notify module."""
+"""Тесты модуля notify."""
 
 from __future__ import annotations
 
@@ -7,22 +7,22 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from homeassistant.exceptions import ServiceValidationError
 
-from custom_components.max_notify.const import (
-    API_BASE_URL_NOTIFY_A161,
-    INTEGRATION_TYPE_NOTIFY_A161,
-)
+from custom_components.max_notify.const import CONF_RECIPIENT_ID
 from custom_components.max_notify.notify import (
-    _extract_message_id_from_response,
-    _extract_url_and_basic_auth,
-    _normalize_buttons_for_api,
-    _message_id_candidates,
     delete_message,
     edit_message,
+    recipient_dict_from_subentry,
+)
+from custom_components.max_notify.providers.notify_outbound import (
+    _extract_message_id_from_response,
+    _extract_url_auth_source,
+    _message_id_candidates,
+    _normalize_buttons_for_api,
 )
 
 
 class TestNormalizeButtonsForApi:
-    """Tests for _normalize_buttons_for_api."""
+    """Тесты _normalize_buttons_for_api."""
 
     def test_empty_input(self) -> None:
         assert _normalize_buttons_for_api([]) == []
@@ -70,7 +70,7 @@ class TestNormalizeButtonsForApi:
 
 
 class TestExtractMessageIdFromResponse:
-    """Tests for _extract_message_id_from_response."""
+    """Тесты _extract_message_id_from_response."""
 
     def test_from_message_id(self) -> None:
         body = '{"message_id":"mid.abc123"}'
@@ -85,31 +85,22 @@ class TestExtractMessageIdFromResponse:
         assert _extract_message_id_from_response(body) == "xyz987"
 
 
-class TestExtractUrlAndBasicAuth:
-    """Tests for URL/userinfo and explicit basic auth parsing."""
-
-    def test_uses_explicit_basic_auth(self) -> None:
-        url, auth = _extract_url_and_basic_auth(
-            "http://camera.local/snapshot.jpg", "admin:12345678"
-        )
-        assert url == "http://camera.local/snapshot.jpg"
-        assert auth is not None
-        assert auth.login == "admin"
-        assert auth.password == "12345678"
+class TestExtractUrlAuthSource:
+    """Тесты URL user:pass@host и явных url_auth_login/password."""
 
     def test_uses_basic_auth_from_url(self) -> None:
-        url, auth = _extract_url_and_basic_auth(
+        url, user, password = _extract_url_auth_source(
             "http://admin:12345678@192.168.2.253/cgi-bin/snapshot.cgi?channel=1",
-            None,
+            auth_login=None,
+            auth_password=None,
         )
         assert url == "http://192.168.2.253/cgi-bin/snapshot.cgi?channel=1"
-        assert auth is not None
-        assert auth.login == "admin"
-        assert auth.password == "12345678"
+        assert user == "admin"
+        assert password == "12345678"
 
 
 class TestMessageIdCandidates:
-    """Tests for message_id fallback candidates."""
+    """Тесты запасных кандидатов message_id."""
 
     def test_mid_prefixed(self) -> None:
         assert _message_id_candidates("mid.abc") == "mid.abc"
@@ -121,14 +112,42 @@ class TestMessageIdCandidates:
         assert _message_id_candidates("   ") is None
 
 
+class TestRecipientDictFromSubentry:
+    """Тесты recipient_dict_from_subentry (пустой data + unique_id)."""
+
+    def test_uses_recipient_id_when_present(self) -> None:
+        sub = MagicMock()
+        sub.data = {CONF_RECIPIENT_ID: 3391555}
+        sub.unique_id = "user_3391555"
+        assert recipient_dict_from_subentry(sub) == {CONF_RECIPIENT_ID: 3391555}
+
+    def test_fills_from_user_unique_id(self) -> None:
+        sub = MagicMock()
+        sub.data = {}
+        sub.unique_id = "user_3391555"
+        assert recipient_dict_from_subentry(sub) == {CONF_RECIPIENT_ID: 3391555}
+
+    def test_fills_from_chat_unique_id(self) -> None:
+        sub = MagicMock()
+        sub.data = {}
+        sub.unique_id = "chat_-73199518591043"
+        assert recipient_dict_from_subentry(sub) == {CONF_RECIPIENT_ID: -73199518591043}
+
+    def test_empty_without_unique_id(self) -> None:
+        sub = MagicMock()
+        sub.data = {}
+        sub.unique_id = None
+        assert recipient_dict_from_subentry(sub) == {}
+
+
 @pytest.mark.asyncio
 class TestDeleteMessage:
-    """Tests for delete_message."""
+    """Тесты delete_message."""
 
     async def test_success(self, hass, mock_config_entry) -> None:
         mock_config_entry.data = {"access_token": "token", "message_format": "text"}
         with patch(
-            "custom_components.max_notify.notify.async_get_clientsession"
+            "custom_components.max_notify.providers.notify_outbound.async_get_clientsession"
         ) as mock_session:
             mock_resp = AsyncMock()
             mock_resp.status = 200
@@ -153,7 +172,7 @@ class TestDeleteMessage:
     async def test_normalizes_to_mid_prefix(self, hass, mock_config_entry) -> None:
         mock_config_entry.data = {"access_token": "token", "message_format": "text"}
         with patch(
-            "custom_components.max_notify.notify.async_get_clientsession"
+            "custom_components.max_notify.providers.notify_outbound.async_get_clientsession"
         ) as mock_session:
             ok = AsyncMock()
             ok.status = 200
@@ -169,39 +188,11 @@ class TestDeleteMessage:
             assert result is True
             called_url = mock_ctx.delete.call_args[0][0]
             assert "message_id=mid.abc" in called_url
-
-    async def test_notify_a161_delete_sends_request_without_api_version(
-        self, hass, mock_config_entry
-    ) -> None:
-        mock_config_entry.data = {
-            "access_token": "token",
-            "message_format": "text",
-            "integration_type": INTEGRATION_TYPE_NOTIFY_A161,
-        }
-        with patch(
-            "custom_components.max_notify.notify.async_get_clientsession"
-        ) as mock_session:
-            ok = AsyncMock()
-            ok.status = 200
-            ok.text = AsyncMock(return_value="{}")
-            ok.__aenter__ = AsyncMock(return_value=ok)
-            ok.__aexit__ = AsyncMock(return_value=None)
-
-            mock_ctx = MagicMock()
-            mock_ctx.delete = MagicMock(return_value=ok)
-            mock_session.return_value = mock_ctx
-
-            result = await delete_message(hass, mock_config_entry, "abc")
-            assert result is True
-            called_url = mock_ctx.delete.call_args[0][0]
-            assert called_url.startswith(API_BASE_URL_NOTIFY_A161)
-            assert "message_id=mid.abc" in called_url
-            assert "v=" not in called_url
 
 
 @pytest.mark.asyncio
 class TestEditMessage:
-    """Tests for edit_message."""
+    """Тесты edit_message."""
 
     async def test_no_changes_returns_false(self, hass, mock_config_entry) -> None:
         mock_config_entry.data = {"access_token": "t", "message_format": "text"}
@@ -211,7 +202,7 @@ class TestEditMessage:
     async def test_text_only(self, hass, mock_config_entry) -> None:
         mock_config_entry.data = {"access_token": "t", "message_format": "text"}
         with patch(
-            "custom_components.max_notify.notify.async_get_clientsession"
+            "custom_components.max_notify.providers.notify_outbound.async_get_clientsession"
         ) as mock_session:
             mock_resp = AsyncMock()
             mock_resp.status = 200
@@ -233,7 +224,7 @@ class TestEditMessage:
     async def test_remove_buttons(self, hass, mock_config_entry) -> None:
         mock_config_entry.data = {"access_token": "t", "message_format": "text"}
         with patch(
-            "custom_components.max_notify.notify.async_get_clientsession"
+            "custom_components.max_notify.providers.notify_outbound.async_get_clientsession"
         ) as mock_session:
             mock_resp = AsyncMock()
             mock_resp.status = 200
@@ -255,7 +246,7 @@ class TestEditMessage:
     async def test_normalizes_to_mid_prefix(self, hass, mock_config_entry) -> None:
         mock_config_entry.data = {"access_token": "t", "message_format": "text"}
         with patch(
-            "custom_components.max_notify.notify.async_get_clientsession"
+            "custom_components.max_notify.providers.notify_outbound.async_get_clientsession"
         ) as mock_session:
             ok = AsyncMock()
             ok.status = 200
@@ -273,33 +264,3 @@ class TestEditMessage:
             assert result is True
             called_url = mock_ctx.put.call_args[0][0]
             assert "message_id=mid.abc" in called_url
-
-    async def test_notify_a161_edit_sends_request_without_api_version(
-        self, hass, mock_config_entry
-    ) -> None:
-        mock_config_entry.data = {
-            "access_token": "t",
-            "message_format": "text",
-            "integration_type": INTEGRATION_TYPE_NOTIFY_A161,
-        }
-        with patch(
-            "custom_components.max_notify.notify.async_get_clientsession"
-        ) as mock_session:
-            mock_resp = AsyncMock()
-            mock_resp.status = 200
-            mock_resp.text = AsyncMock(return_value="{}")
-            mock_resp.__aenter__ = AsyncMock(return_value=mock_resp)
-            mock_resp.__aexit__ = AsyncMock(return_value=None)
-
-            mock_ctx = MagicMock()
-            mock_ctx.put = MagicMock(return_value=mock_resp)
-            mock_session.return_value = mock_ctx
-
-            result = await edit_message(
-                hass, mock_config_entry, "msg-1", text="New text"
-            )
-            assert result is True
-            called_url = mock_ctx.put.call_args[0][0]
-            assert called_url.startswith(API_BASE_URL_NOTIFY_A161)
-            assert "v=" not in called_url
-            assert "message_id=mid.msg-1" in called_url

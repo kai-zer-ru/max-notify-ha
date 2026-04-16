@@ -42,19 +42,6 @@ send_message:
           selector:
             config_entry:
               integration: max_notify
-        recipient_id:
-          # Положительное число — личный чат (User ID), отрицательное — группа (Chat ID)
-          example: "-12345 или 12345"
-          selector:
-            text:
-        chat_id:
-          example: "-12345 или 12345"
-          selector:
-            text:
-        user_id:
-          example: "3391555"
-          selector:
-            text:
         buttons:
           example: >
             {"Button 1":"button_1","Button 2":"button_2"} или
@@ -142,24 +129,6 @@ send_photo:
           selector:
             config_entry:
               integration: max_notify
-        recipient_id:
-          example: "-12345 или 12345"
-          selector:
-            text:
-        chat_id:
-          name: Chat ID (deprecated)
-          description: >
-            Deprecated. Use recipient_id instead.
-            Will be removed in version 1.5.0.
-          selector:
-            text:
-        user_id:
-          name: User ID (deprecated)
-          description: >
-            Deprecated. Use recipient_id instead.
-            Will be removed in version 1.5.0.
-          selector:
-            text:
         count_requests:
           name: Count requests
           description: >
@@ -200,14 +169,6 @@ send_photo:
             text:
         url_auth_token:
           name: URL auth token
-          selector:
-            text:
-        url_basic_auth:
-          name: Basic auth for file URL (deprecated)
-          description: >
-            Deprecated. Use url_auth_type=basic with url_auth_login/url_auth_password.
-            Legacy credentials format login:password.
-            Will be removed in version 1.5.0.
           selector:
             text:
         buttons:
@@ -261,24 +222,6 @@ send_video:
           selector:
             config_entry:
               integration: max_notify
-        recipient_id:
-          example: "-12345 или 12345"
-          selector:
-            text:
-        chat_id:
-          name: Chat ID (deprecated)
-          description: >
-            Deprecated. Use recipient_id instead.
-            Will be removed in version 1.5.0.
-          selector:
-            text:
-        user_id:
-          name: User ID (deprecated)
-          description: >
-            Deprecated. Use recipient_id instead.
-            Will be removed in version 1.5.0.
-          selector:
-            text:
         count_requests:
           name: Count requests
           description: >
@@ -319,14 +262,6 @@ send_video:
             text:
         url_auth_token:
           name: URL auth token
-          selector:
-            text:
-        url_basic_auth:
-          name: Basic auth for file URL (deprecated)
-          description: >
-            Deprecated. Use url_auth_type=basic with url_auth_login/url_auth_password.
-            Legacy credentials format login:password.
-            Will be removed in version 1.5.0.
           selector:
             text:
         buttons:
@@ -380,24 +315,6 @@ send_document:
           selector:
             config_entry:
               integration: max_notify
-        recipient_id:
-          example: "-12345 или 12345"
-          selector:
-            text:
-        chat_id:
-          name: Chat ID (deprecated)
-          description: >
-            Deprecated. Use recipient_id instead.
-            Will be removed in version 1.5.0.
-          selector:
-            text:
-        user_id:
-          name: User ID (deprecated)
-          description: >
-            Deprecated. Use recipient_id instead.
-            Will be removed in version 1.5.0.
-          selector:
-            text:
         count_requests:
           name: Count requests
           description: >
@@ -440,14 +357,6 @@ send_document:
           name: URL auth token
           selector:
             text:
-        url_basic_auth:
-          name: Basic auth for file URL (deprecated)
-          description: >
-            Deprecated. Use url_auth_type=basic with url_auth_login/url_auth_password.
-            Legacy credentials format login:password.
-            Will be removed in version 1.5.0.
-          selector:
-            text:
         buttons:
           example: >
             {"Button 1":"button_1","Button 2":"button_2"} или
@@ -470,23 +379,6 @@ delete_message:
             domain: notify
           multiple: true
           reorder: true
-    recipient_id:
-      selector:
-        text:
-    chat_id:
-      name: Chat ID (deprecated)
-      description: >
-        Deprecated. Use recipient_id instead.
-        Will be removed in version 1.5.0.
-      selector:
-        text:
-    user_id:
-      name: User ID (deprecated)
-      description: >
-        Deprecated. Use recipient_id instead.
-        Will be removed in version 1.5.0.
-      selector:
-        text:
     config_entry_id:
       selector:
         config_entry:
@@ -532,23 +424,6 @@ edit_message:
             domain: notify
           multiple: true
           reorder: true
-    recipient_id:
-      selector:
-        text:
-    chat_id:
-      name: Chat ID (deprecated)
-      description: >
-        Deprecated. Use recipient_id instead.
-        Will be removed in version 1.5.0.
-      selector:
-        text:
-    user_id:
-      name: User ID (deprecated)
-      description: >
-        Deprecated. Use recipient_id instead.
-        Will be removed in version 1.5.0.
-      selector:
-        text:
     config_entry_id:
       selector:
         config_entry:

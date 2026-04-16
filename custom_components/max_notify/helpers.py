@@ -1,4 +1,4 @@
-"""Helpers for config flow: unique entry title, commands/buttons normalization and display."""
+"""Вспомогательные функции для мастера настройки: уникальный заголовок, нормализация команд и кнопок."""
 
 from __future__ import annotations
 
@@ -6,17 +6,15 @@ from typing import Any
 
 import logging
 
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 
+from .const import normalize_access_token
 from .const import (
     CONF_ACCESS_TOKEN,
     CONF_BUTTONS,
-    CONF_INTEGRATION_TYPE,
     CONF_RECEIVE_MODE,
     DOMAIN,
-    INTEGRATION_TYPE_NOTIFY_A161,
-    INTEGRATION_TYPE_OFFICIAL,
+    RECEIVE_MODE_LONG_POLLING,
     RECEIVE_MODE_POLLING,
     RECEIVE_MODE_SEND_ONLY,
     RECEIVE_MODE_WEBHOOK,
@@ -25,126 +23,82 @@ from .const import (
 _LOGGER = logging.getLogger(__name__)
 
 
-def is_notify_a161_entry(entry: ConfigEntry) -> bool:
-    """True if the config entry uses notify.a161.ru (stored type or legacy title)."""
-    if entry.data.get(CONF_INTEGRATION_TYPE) == INTEGRATION_TYPE_NOTIFY_A161:
-        return True
-    title = entry.title or ""
-    return "notify.a161.ru" in title.lower()
-
-
-def normalize_access_token(token: str | None) -> str:
-    """Strip whitespace for comparisons (HA forms may differ in trailing spaces)."""
-    if token is None:
-        return ""
-    return str(token).strip()
-
-
-def same_official_token_entries(hass: HomeAssistant, token: str) -> list[ConfigEntry]:
-    """Config entries that use official Max API with this access token."""
-    token = normalize_access_token(token)
-    if not token:
-        return []
-    out: list[ConfigEntry] = []
-    for e in hass.config_entries.async_entries(DOMAIN):
-        if e.data.get(CONF_INTEGRATION_TYPE, INTEGRATION_TYPE_OFFICIAL) != INTEGRATION_TYPE_OFFICIAL:
-            continue
-        if normalize_access_token(e.data.get(CONF_ACCESS_TOKEN)) == token:
-            out.append(e)
-    return out
-
-
 def other_entry_has_receive_mode(
     hass: HomeAssistant,
     token: str,
     mode: str,
     exclude_entry_id: str | None,
 ) -> bool:
-    """True if another integration entry (same token) already uses this receive mode.
+    """True, если другая запись с тем же токеном уже в этом режиме приёма.
 
-    exclude_entry_id skips the current entry so the same integration can switch
-    between polling and WebHook without being blocked by itself.
+    exclude_entry_id исключает текущую запись, чтобы одна интеграция могла
+    переключаться между polling и WebHook без блокировки самой собой.
     """
-    for e in same_official_token_entries(hass, token):
+    from .providers.registry import get_provider
+
+    tok = normalize_access_token(token)
+    if not tok:
+        return False
+    for e in hass.config_entries.async_entries(DOMAIN):
+        if not get_provider(e).shares_platform_bot_token_pool:
+            continue
+        if normalize_access_token(e.data.get(CONF_ACCESS_TOKEN)) != tok:
+            continue
         if exclude_entry_id is not None and e.entry_id == exclude_entry_id:
             continue
-        if (e.options or {}).get(CONF_RECEIVE_MODE, RECEIVE_MODE_SEND_ONLY) == mode:
+        em = (e.options or {}).get(CONF_RECEIVE_MODE, RECEIVE_MODE_SEND_ONLY)
+        if mode == RECEIVE_MODE_LONG_POLLING and em in (
+            RECEIVE_MODE_LONG_POLLING,
+            RECEIVE_MODE_POLLING,
+        ):
+            return True
+        if em == mode:
             return True
     return False
 
 
-def is_official_max_platform_entry(entry: ConfigEntry) -> bool:
-    """Official Max API (platform-api.max.ru) only.
+def single_token_pool_webhook_receive_entry(hass: HomeAssistant) -> bool:
+    """True, если ровно одна интеграция из token-pool в режиме Webhook.
 
-    notify.a161.ru entries use ``INTEGRATION_TYPE_NOTIFY_A161`` and are excluded; receive
-    mode (polling / webhook) options apply only to the official API.
+    Записи провайдеров вне token-pool не учитываются. Тогда в опциях можно сразу
+    предложить Long Polling рядом с Webhook без лишнего шага «только отправка».
     """
-    if is_notify_a161_entry(entry):
-        return False
-    return (
-        entry.data.get(CONF_INTEGRATION_TYPE, INTEGRATION_TYPE_OFFICIAL)
-        == INTEGRATION_TYPE_OFFICIAL
-    )
+    from .providers.registry import get_provider
 
-
-def only_official_webhook_receive_entry(hass: HomeAssistant) -> bool:
-    """True if exactly one official-API integration uses Webhook receive mode.
-
-    notify.a161.ru is not counted. When this holds, the options UI may offer Long Polling
-    alongside Webhook so the user can switch without an extra «Send only» step.
-    """
     n = 0
     for e in hass.config_entries.async_entries(DOMAIN):
-        if not is_official_max_platform_entry(e):
+        if not get_provider(e).shares_platform_bot_token_pool:
             continue
         if (e.options or {}).get(CONF_RECEIVE_MODE, RECEIVE_MODE_SEND_ONLY) == RECEIVE_MODE_WEBHOOK:
             n += 1
     return n == 1
 
 
-def only_official_long_polling_receive_entry(hass: HomeAssistant) -> bool:
-    """True if exactly one official-API integration uses Long Polling receive mode.
+def single_token_pool_long_polling_receive_entry(hass: HomeAssistant) -> bool:
+    """True, если ровно одна интеграция из token-pool в режиме Long Polling.
 
-    notify.a161.ru is not counted. When this holds, the options UI may offer Webhook
-    alongside Long Polling so the user can switch without an extra «Send only» step.
+    Записи провайдеров вне token-pool не учитываются. Тогда в опциях можно
+    предложить Webhook рядом с Long Polling без лишнего шага «только отправка».
     """
+    from .providers.registry import get_provider
+
     n = 0
     for e in hass.config_entries.async_entries(DOMAIN):
-        if not is_official_max_platform_entry(e):
+        if not get_provider(e).shares_platform_bot_token_pool:
             continue
-        if (e.options or {}).get(CONF_RECEIVE_MODE, RECEIVE_MODE_SEND_ONLY) == RECEIVE_MODE_POLLING:
+        em = (e.options or {}).get(CONF_RECEIVE_MODE, RECEIVE_MODE_SEND_ONLY)
+        if em in (RECEIVE_MODE_LONG_POLLING, RECEIVE_MODE_POLLING):
             n += 1
     return n == 1
 
 
-def get_unique_entry_title(
-    hass: HomeAssistant,
-    domain: str,
-    base_title: str,
-    exclude_entry_id: str | None = None,
-) -> str:
-    """Return base_title or 'base_title — 2', '— 3', … so it's unique among existing entries."""
-    existing = {
-        e.title
-        for e in hass.config_entries.async_entries(domain)
-        if exclude_entry_id is None or e.entry_id != exclude_entry_id
-    }
-    _LOGGER.debug(
-        "get_unique_entry_title: base_title=%s, exclude_entry_id=%s, existing_count=%s",
-        base_title,
-        exclude_entry_id,
-        len(existing),
-    )
-    if base_title not in existing:
-        return base_title
-    n = 2
-    while f"{base_title} — {n}" in existing:
-        n += 1
-    return f"{base_title} — {n}"
+# Backward-compatible aliases for older imports.
+only_official_webhook_receive_entry = single_token_pool_webhook_receive_entry
+only_official_long_polling_receive_entry = single_token_pool_long_polling_receive_entry
 
 
 def normalize_commands(raw: list[Any] | None) -> list[dict[str, str]]:
-    """Normalize options commands to list of {name, description}. Legacy only."""
+    """Команды совместимости в список {name, description}."""
     if not raw or not isinstance(raw, list):
         return []
     result: list[dict[str, str]] = []
@@ -162,14 +116,14 @@ def normalize_commands(raw: list[Any] | None) -> list[dict[str, str]]:
 
 
 def commands_display_str(commands: list[dict[str, str]] | None) -> str:
-    """Format commands list for display. Legacy only."""
+    """Строка для отображения списка команд совместимости."""
     if not commands:
         return ""
     return "; ".join(f"{c['name']} — {c['description']}" for c in commands)
 
 
 def normalize_buttons(raw: list[Any] | None) -> list[list[dict[str, Any]]]:
-    """Normalize options buttons to list of rows (callback, message, or link with url)."""
+    """Кнопки из опций в список рядов (callback, message или link с url)."""
     if not raw or not isinstance(raw, list):
         return []
     result: list[list[dict[str, Any]]] = []
@@ -200,13 +154,13 @@ def normalize_buttons(raw: list[Any] | None) -> list[list[dict[str, Any]]]:
 
 
 def normalize_service_buttons(raw: Any) -> list[list[dict[str, Any]]]:
-    """Normalize service buttons from multiple formats to list-of-rows.
+    """Кнопки сервиса из разных форматов в список рядов.
 
-    Supported formats:
-    1) {"Button 1": "payload1", "Button 2": "payload2"}                      -> one row
-    2) [{"text": "Button 1", "payload": "payload1"}, ...]                    -> one row
-    3) [[{"type": "...", "text": "...", "payload": "..."}], ...]             -> many rows
-    4) [{"Row1 Button 1": "p1"}, {"Row2 Button 1": "p2", "Row2 Button 2": "p3"}] -> many rows
+    Поддерживаемые форматы:
+    1) {"Кнопка 1": "payload1", ...} → один ряд
+    2) [{"text": "...", "payload": "..."}, ...] → один ряд
+    3) [[{type, text, payload}, ...], ...] → несколько рядов
+    4) [{mapping ряда1}, {mapping ряда2}] без полей text/type → несколько рядов
     """
     if raw is None:
         return []
@@ -241,14 +195,14 @@ def normalize_service_buttons(raw: Any) -> list[list[dict[str, Any]]]:
         return row
 
     def _row_from_any(value: Any) -> list[dict[str, Any]]:
-        # Row as mapping: {"Button": "payload", ...}
+        # Ряд как отображение: {"Кнопка": "payload", ...}
         if isinstance(value, dict):
             if any(k in value for k in ("text", "type", "payload", "url")):
                 btn = _typed_button_from_dict(value)
                 return [btn] if btn else []
             return _mapping_row_from_dict(value)
 
-        # Row as list: [{"text":"A"}, {"B":"b"}, ...]
+        # Ряд как список: [{"text":"A"}, {"B":"b"}, ...]
         if isinstance(value, list):
             row: list[dict[str, Any]] = []
             for item in value:
@@ -264,7 +218,7 @@ def normalize_service_buttons(raw: Any) -> list[list[dict[str, Any]]]:
 
         return []
 
-    # Format 1: mapping -> one row
+    # Формат 1: отображение → один ряд
     if isinstance(raw, dict):
         row = _row_from_any(raw)
         return [row] if row else []
@@ -273,7 +227,7 @@ def normalize_service_buttons(raw: Any) -> list[list[dict[str, Any]]]:
         if not raw:
             return []
 
-        # Native rows (and mixed explicit rows): treat each top-level item as separate row.
+        # Нативные ряды (и смешанные): каждый элемент верхнего уровня — отдельный ряд.
         if any(isinstance(item, list) for item in raw):
             rows: list[list[dict[str, Any]]] = []
             for item in raw:
@@ -282,7 +236,7 @@ def normalize_service_buttons(raw: Any) -> list[list[dict[str, Any]]]:
                     rows.append(row)
             return rows
 
-        # New format: list of row-mappings -> many rows.
+        # Новый формат: список отображений-рядов → несколько рядов.
         if all(isinstance(item, dict) for item in raw) and all(
             not any(k in item for k in ("text", "type", "payload", "url"))
             for item in raw
@@ -294,7 +248,7 @@ def normalize_service_buttons(raw: Any) -> list[list[dict[str, Any]]]:
                     rows.append(row)
             return rows
 
-        # Backward-compatible flat format: list of typed button dicts -> one row.
+        # Плоский формат совместимости: список кнопок с type → один ряд.
         row = _row_from_any(raw)
         return [row] if row else []
 
@@ -308,14 +262,14 @@ def resolve_service_inline_keyboard(
     buttons_provided: bool,
     buttons_raw: Any,
 ) -> list[list[dict[str, Any]]]:
-    """Inline keyboard for a service call (same rules for all max_notify services).
+    """Inline-клавиатура для вызова сервиса (одинаковые правила для всех служб max_notify).
 
-    If ``send_keyboard`` is false: only explicit ``buttons`` from the service (no defaults from integration).
+    Если ``send_keyboard`` ложь: только явные ``buttons`` из сервиса (без умолчаний из интеграции).
 
-    If ``send_keyboard`` is true:
-    - no ``buttons`` field → keyboard from integration options;
-    - ``buttons`` non-empty after normalize → use only these (replace defaults);
-    - ``buttons`` present but empty after normalize → use integration defaults.
+    Если ``send_keyboard`` истина:
+    - нет поля ``buttons`` → клавиатура из опций интеграции;
+    - после нормализации ``buttons`` непустой → только они (заменяют умолчания);
+    - ``buttons`` есть, но после нормализации пусто → умолчания интеграции.
     """
     standard = (
         normalize_buttons((options or {}).get(CONF_BUTTONS))
@@ -333,7 +287,7 @@ def resolve_service_inline_keyboard(
 
 
 def buttons_display_str(buttons: list[list[dict[str, Any]]] | None) -> str:
-    """Format buttons list for display (e.g. in description placeholder)."""
+    """Строка для отображения кнопок (например в placeholder описания)."""
     if not buttons:
         return ""
     parts: list[str] = []
@@ -352,7 +306,7 @@ def buttons_display_str(buttons: list[list[dict[str, Any]]] | None) -> str:
 
 
 def buttons_choice_list(buttons: list[list[dict[str, Any]]] | None) -> list[tuple[str, str]]:
-    """Build list of (value, label) for dropdown: 'row_idx:btn_idx' -> 'Row N: text (payload)'."""
+    """Список (value, label) для выпадающего списка: «row_idx:btn_idx» → «Стр. N: текст (payload)»."""
     if not buttons:
         return []
     choices: list[tuple[str, str]] = []
@@ -367,5 +321,5 @@ def buttons_choice_list(buttons: list[list[dict[str, Any]]] | None) -> list[tupl
                 label = f"{text} ({payload})"
             else:
                 label = text
-            choices.append((f"{ri}:{bi}", f"Row {ri + 1}: {label}"))
+            choices.append((f"{ri}:{bi}", f"Стр. {ri + 1}: {label}"))
     return choices

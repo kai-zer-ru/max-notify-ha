@@ -1,4 +1,4 @@
-"""Pytest fixtures for MaxNotify tests."""
+"""Фикстуры pytest для тестов MaxNotify."""
 
 from __future__ import annotations
 
@@ -21,13 +21,13 @@ from custom_components.max_notify.const import (
 
 @pytest.fixture
 def hass() -> MagicMock:
-    """Minimal mock Home Assistant instance."""
+    """Минимальный mock-экземпляр Home Assistant."""
     return MagicMock()
 
 
 @pytest.fixture
 def mock_config_entry() -> MagicMock:
-    """Create a mock config entry for MaxNotify."""
+    """Mock-запись конфигурации MaxNotify."""
     entry = MagicMock()
     entry.entry_id = "test-entry-id"
     entry.domain = DOMAIN
@@ -42,7 +42,7 @@ def mock_config_entry() -> MagicMock:
 
 @pytest.fixture
 def mock_buttons() -> list[list[dict]]:
-    """Sample buttons for tests."""
+    """Пример кнопок для тестов."""
     return [
         [
             {"type": "callback", "text": "Button 1", "payload": "btn1"},

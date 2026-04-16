@@ -1,4 +1,4 @@
-"""Constants for the MaxNotify integration."""
+"""MaxNotify константы."""
 
 DOMAIN = "max_notify"
 
@@ -12,48 +12,48 @@ SERVICE_EDIT_MESSAGE = "edit_message"
 CONF_CONFIG_ENTRY_ID = "config_entry_id"
 
 CONF_ACCESS_TOKEN = "access_token"
+
+
+def normalize_access_token(token: str | None) -> str:
+    """Убрать пробелы по краям для сравнения (в формах HA могут отличаться хвостовые пробелы)."""
+    if token is None:
+        return ""
+    return str(token).strip()
+
+
 CONF_INTEGRATION_TYPE = "integration_type"
 CONF_MESSAGE_FORMAT = "message_format"
-CONF_RECIPIENT_TYPE = "recipient_type"
-CONF_USER_ID = "user_id"
-CONF_CHAT_ID = "chat_id"
+# Compatibility target fields for stored subentries and raw provider payloads.
 CONF_RECIPIENT_ID = "recipient_id"
 CONF_COUNT_REQUESTS = "count_requests"
 CONF_DISABLE_SSL = "disable_ssl"
-CONF_URL_BASIC_AUTH = "url_basic_auth"
 CONF_URL_AUTH_TYPE = "url_auth_type"
 CONF_URL_AUTH_LOGIN = "url_auth_login"
 CONF_URL_AUTH_PASSWORD = "url_auth_password"
 CONF_URL_AUTH_TOKEN = "url_auth_token"
 CONF_MESSAGE_ID = "message_id"
 CONF_UPDATES_INTERVAL = "updates_interval"
-CONF_A161_POLLING_GRACE_STARTED_AT = "a161_polling_grace_started_at"
-CONF_A161_LAST_BUTTON_SEND_AT = "a161_last_button_send_at"
-CONF_A161_LAST_INCOMING_AT = "a161_last_incoming_at"
-CONF_A161_INACTIVITY_PERIOD_DAYS = "a161_inactivity_period_days"
 
 SUBENTRY_TYPE_RECIPIENT = "recipient"
-RECIPIENT_TYPE_USER = "user"
-RECIPIENT_TYPE_CHAT = "chat"
 
-API_BASE_URL = "https://platform-api.max.ru"
-API_BASE_URL_NOTIFY_A161 = "https://notify.a161.ru"
 API_PATH_ME = "/me"
 API_PATH_CHATS = "/chats"
 API_PATH_MESSAGES = "/messages"
 API_PATH_UPLOADS = "/uploads"
 API_PATH_UPDATES = "/updates"
 API_PATH_SUBSCRIPTIONS = "/subscriptions"
-API_VERSION = "1.2.5"
 
 INTEGRATION_TYPE_OFFICIAL = "official"
+# Значение в ConfigEntry.data (встроенный сторонний HTTP-провайдер, см. providers/).
 INTEGRATION_TYPE_NOTIFY_A161 = "notify_a161"
-INTEGRATION_TYPES = [INTEGRATION_TYPE_OFFICIAL, INTEGRATION_TYPE_NOTIFY_A161]
+
+# Метки логов для POST /messages после загрузки вложения (не platform-api).
+LOG_LABEL_THIRD_PARTY_MEDIA = "third_party_media"
+LOG_LABEL_THIRD_PARTY_VIDEO = "third_party_video"
 
 # Update types from Max API (GET /updates, POST /subscriptions)
 UPDATE_MESSAGE_CREATED = "message_created"
 UPDATE_MESSAGE_CALLBACK = "message_callback"
-UPDATE_TYPES_RECEIVE = [UPDATE_MESSAGE_CREATED, UPDATE_MESSAGE_CALLBACK]
 
 # Home Assistant event fired when an update is received
 EVENT_MAX_NOTIFY_RECEIVED = "max_notify_received"
@@ -62,9 +62,11 @@ EVENT_MAX_NOTIFY_RECEIVED = "max_notify_received"
 CONF_RECEIVE_MODE = "receive_mode"
 CONF_WEBHOOK_SECRET = "webhook_secret"
 RECEIVE_MODE_SEND_ONLY = "send_only"
+# Очередь GET /updates (некоторые сторонние HTTP-провайдеры).
 RECEIVE_MODE_POLLING = "polling"
+# Официальный Max API: long polling (GET /updates).
+RECEIVE_MODE_LONG_POLLING = "long_polling"
 RECEIVE_MODE_WEBHOOK = "webhook"
-RECEIVE_MODES = [RECEIVE_MODE_SEND_ONLY, RECEIVE_MODE_POLLING, RECEIVE_MODE_WEBHOOK]
 WEBHOOK_PATH_PREFIX = "/api/max_notify"
 WEBHOOK_SECRET_HEADER = "X-Max-Bot-Api-Secret"
 
@@ -78,7 +80,7 @@ POLLING_TIMEOUT = 25
 POLLING_LIMIT = 100
 POLLING_RETRY_DELAY = 5
 
-# Optional allowlist of commands (legacy). Replaced by CONF_BUTTONS.
+# Optional commands allowlist kept for compatibility; superseded by CONF_BUTTONS.
 CONF_COMMANDS = "commands"
 CONF_COMMAND_NAME = "command_name"
 CONF_COMMAND_DESCRIPTION = "command_description"
@@ -101,24 +103,10 @@ CONF_SEND_KEYBOARD = "send_keyboard"
 MAX_MESSAGE_LENGTH = 4000
 CHATS_PAGE_SIZE = 100
 
-# notify.a161.ru: лимиты на стороне сервиса (проверка перед загрузкой)
-# notify.a161.ru: единый лимит размера файла до загрузки (фото, документы, видео)
-NOTIFY_A161_MAX_UPLOAD_BYTES = 10 * 1024 * 1024
-# notify.a161.ru: минимум между успешными исходящими сообщениями (снижает заливку API при серии вызовов)
-NOTIFY_A161_MIN_SEND_INTERVAL_SECONDS = 1.0
-# notify.a161.ru: частота входящего polling /updates (секунды)
-NOTIFY_A161_UPDATES_INTERVAL_SECONDS = 5
-NOTIFY_A161_UPDATES_INTERVAL_MIN_SECONDS = 2
-NOTIFY_A161_UPDATES_INTERVAL_MAX_SECONDS = 30
-NOTIFY_A161_INACTIVITY_PERIOD_DAYS_MIN = 1
-NOTIFY_A161_INACTIVITY_PERIOD_DAYS_MAX = 3
-NOTIFY_A161_INACTIVITY_PERIOD_DAYS_DEFAULT = 3
-
 FILE_UPLOAD_DELAY = 1.5
 FILE_READY_RETRY_DELAYS = (3, 5, 8)
 FILE_DOWNLOAD_TIMEOUT = 120
-# Unified retry profile for network/API-level request failures
-# (used for both official API and notify.a161.ru requests).
+# Единый профиль повторов при сетевых/HTTP сбоях исходящего API.
 API_REQUEST_RETRY_DELAYS = (2, 4, 8)
 API_REQUEST_RETRYABLE_STATUSES = (408, 425, 429, 500, 502, 503, 504)
 

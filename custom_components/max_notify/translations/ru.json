@@ -3,7 +3,7 @@
   "services": {
     "send_message": {
       "name": "Отправить сообщение",
-      "description": "Отправить текстовое сообщение в чат(ы) Max. Выберите сущность уведомления и/или интеграцию с chat_id или user_id.",
+      "description": "Отправить текстовое сообщение в Max. Укажите сущность notify MaxNotify или интеграцию (если запись одна — можно только сущность).",
       "fields": {
         "entity_id": {
           "name": "Сущность уведомления",
@@ -17,29 +17,13 @@
           "name": "Заголовок",
           "description": "Необязательный заголовок сообщения."
         },
-        "format": {
-          "name": "Формат",
-          "description": "Формат текста: text, markdown или html. Переопределяет формат сообщений интеграции для этой отправки."
-        },
         "send_keyboard": {
           "name": "Отправлять клавиатуру",
           "description": "Если включено (по умолчанию), используется стандартная inline-клавиатура из настроек интеграции, если поле «Кнопки» не задано или пустое; непустые «Кнопки» полностью её заменяют. Если выключено — прикрепляются только непустые «Кнопки» из этого вызова."
         },
         "config_entry_id": {
           "name": "Интеграция",
-          "description": "Интеграция MaxNotify для отправки по chat_id/user_id (если интеграций несколько)."
-        },
-        "recipient_id": {
-          "name": "ID получателя",
-          "description": "Универсальный ID получателя: положительный — личный чат (User ID), отрицательный — группа (Chat ID)."
-        },
-        "chat_id": {
-          "name": "ID чата (устарело)",
-          "description": "Устарело: вместо этого используйте recipient_id для личных чатов и групп. ID чата: положительный — личный чат (User ID), отрицательный — группа. Будет удалено в версии 1.5.0."
-        },
-        "user_id": {
-          "name": "ID пользователя (устарело)",
-          "description": "Устарело: вместо этого используйте recipient_id. ID пользователя для личного чата (альтернатива положительному chat_id). Будет удалено в версии 1.5.0."
+          "description": "Запись MaxNotify, если их несколько; цели — сущности notify этой записи."
         },
         "buttons": {
           "name": "Кнопки",
@@ -99,29 +83,13 @@
           "name": "Подпись",
           "description": "Необязательная подпись к фото."
         },
-        "format": {
-          "name": "Формат",
-          "description": "Формат текста подписи: text, markdown или html."
-        },
         "entity_id": {
           "name": "Сущность уведомления",
           "description": "Сущность MaxNotify для отправки. Можно выбрать несколько."
         },
         "config_entry_id": {
           "name": "Интеграция",
-          "description": "Интеграция MaxNotify при отправке по chat_id/user_id."
-        },
-        "recipient_id": {
-          "name": "ID получателя",
-          "description": "Универсальный ID получателя: положительный — личный чат (User ID), отрицательный — группа (Chat ID)."
-        },
-        "chat_id": {
-          "name": "ID чата (устарело)",
-          "description": "Устарело: вместо этого используйте recipient_id. ID чата: положительный — личный, отрицательный — группа. Будет удалено в версии 1.5.0."
-        },
-        "user_id": {
-          "name": "ID пользователя (устарело)",
-          "description": "Устарело: вместо этого используйте recipient_id. ID пользователя для личного чата. Будет удалено в версии 1.5.0."
+          "description": "Запись MaxNotify, если их несколько."
         },
         "disable_ssl": {
           "name": "Отключить проверку SSL",
@@ -129,23 +97,19 @@
         },
         "url_auth_type": {
           "name": "Тип авторизации URL",
-          "description": "Тип авторизации для скачивания медиа по URL: basic, digest или bearer. Обязателен, если в URL или параметрах переданы учётные данные."
+          "description": "Тип авторизации при скачивании по URL: basic, digest или bearer. Обязателен, если в URL или параметрах указаны учётные данные."
         },
         "url_auth_login": {
-          "name": "Логин URL авторизации",
-          "description": "Логин для basic или digest авторизации."
+          "name": "Логин для URL",
+          "description": "Логин для basic или digest."
         },
         "url_auth_password": {
-          "name": "Пароль URL авторизации",
-          "description": "Пароль для basic или digest авторизации."
+          "name": "Пароль для URL",
+          "description": "Пароль для basic или digest."
         },
         "url_auth_token": {
-          "name": "Токен URL авторизации",
-          "description": "Токен для bearer авторизации."
-        },
-        "url_basic_auth": {
-          "name": "Basic auth для URL файла (устарело)",
-          "description": "Устарело. Используйте url_auth_type=basic вместе с url_auth_login/url_auth_password. Старый формат: логин:пароль. Будет удалено в версии 1.5.0."
+          "name": "Токен для URL",
+          "description": "Токен для bearer."
         },
         "count_requests": {
           "name": "Число попыток",
@@ -180,29 +144,13 @@
           "name": "Подпись",
           "description": "Необязательная подпись к документу."
         },
-        "format": {
-          "name": "Формат",
-          "description": "Формат текста подписи: text, markdown или html."
-        },
         "entity_id": {
           "name": "Сущность уведомления",
           "description": "Сущность MaxNotify для отправки."
         },
         "config_entry_id": {
           "name": "Интеграция",
-          "description": "Интеграция MaxNotify при отправке по chat_id/user_id."
-        },
-        "recipient_id": {
-          "name": "ID получателя",
-          "description": "Универсальный ID получателя: положительный — личный чат (User ID), отрицательный — группа (Chat ID)."
-        },
-        "chat_id": {
-          "name": "ID чата (устарело)",
-          "description": "Устарело: вместо этого используйте recipient_id. ID чата: положительный — личный, отрицательный — группа. Будет удалено в версии 1.5.0."
-        },
-        "user_id": {
-          "name": "ID пользователя (устарело)",
-          "description": "Устарело: вместо этого используйте recipient_id. ID пользователя для личного чата. Будет удалено в версии 1.5.0."
+          "description": "Запись MaxNotify, если их несколько."
         },
         "disable_ssl": {
           "name": "Отключить проверку SSL",
@@ -210,23 +158,19 @@
         },
         "url_auth_type": {
           "name": "Тип авторизации URL",
-          "description": "Тип авторизации для скачивания медиа по URL: basic, digest или bearer. Обязателен, если в URL или параметрах переданы учётные данные."
+          "description": "Тип авторизации при скачивании по URL: basic, digest или bearer. Обязателен, если в URL или параметрах указаны учётные данные."
         },
         "url_auth_login": {
-          "name": "Логин URL авторизации",
-          "description": "Логин для basic или digest авторизации."
+          "name": "Логин для URL",
+          "description": "Логин для basic или digest."
         },
         "url_auth_password": {
-          "name": "Пароль URL авторизации",
-          "description": "Пароль для basic или digest авторизации."
+          "name": "Пароль для URL",
+          "description": "Пароль для basic или digest."
         },
         "url_auth_token": {
-          "name": "Токен URL авторизации",
-          "description": "Токен для bearer авторизации."
-        },
-        "url_basic_auth": {
-          "name": "Basic auth для URL файла (устарело)",
-          "description": "Устарело. Используйте url_auth_type=basic вместе с url_auth_login/url_auth_password. Старый формат: логин:пароль. Будет удалено в версии 1.5.0."
+          "name": "Токен для URL",
+          "description": "Токен для bearer."
         },
         "count_requests": {
           "name": "Число попыток",
@@ -261,29 +205,13 @@
           "name": "Подпись",
           "description": "Необязательная подпись к видео."
         },
-        "format": {
-          "name": "Формат",
-          "description": "Формат текста подписи: text, markdown или html."
-        },
         "entity_id": {
           "name": "Сущность уведомления",
           "description": "Сущность MaxNotify для отправки."
         },
         "config_entry_id": {
           "name": "Интеграция",
-          "description": "Интеграция MaxNotify при отправке по chat_id/user_id."
-        },
-        "recipient_id": {
-          "name": "ID получателя",
-          "description": "Универсальный ID получателя: положительный — личный чат (User ID), отрицательный — группа (Chat ID)."
-        },
-        "chat_id": {
-          "name": "ID чата (устарело)",
-          "description": "Устарело: вместо этого используйте recipient_id. ID чата: положительный — личный, отрицательный — группа. Будет удалено в версии 1.5.0."
-        },
-        "user_id": {
-          "name": "ID пользователя (устарело)",
-          "description": "Устарело: вместо этого используйте recipient_id. ID пользователя для личного чата. Будет удалено в версии 1.5.0."
+          "description": "Запись MaxNotify, если их несколько."
         },
         "disable_ssl": {
           "name": "Отключить проверку SSL",
@@ -291,23 +219,19 @@
         },
         "url_auth_type": {
           "name": "Тип авторизации URL",
-          "description": "Тип авторизации для скачивания медиа по URL: basic, digest или bearer. Обязателен, если в URL или параметрах переданы учётные данные."
+          "description": "Тип авторизации при скачивании по URL: basic, digest или bearer. Обязателен, если в URL или параметрах указаны учётные данные."
         },
         "url_auth_login": {
-          "name": "Логин URL авторизации",
-          "description": "Логин для basic или digest авторизации."
+          "name": "Логин для URL",
+          "description": "Логин для basic или digest."
         },
         "url_auth_password": {
-          "name": "Пароль URL авторизации",
-          "description": "Пароль для basic или digest авторизации."
+          "name": "Пароль для URL",
+          "description": "Пароль для basic или digest."
         },
         "url_auth_token": {
-          "name": "Токен URL авторизации",
-          "description": "Токен для bearer авторизации."
-        },
-        "url_basic_auth": {
-          "name": "Basic auth для URL файла (устарело)",
-          "description": "Устарело. Используйте url_auth_type=basic вместе с url_auth_login/url_auth_password. Старый формат: логин:пароль. Будет удалено в версии 1.5.0."
+          "name": "Токен для URL",
+          "description": "Токен для bearer."
         },
         "count_requests": {
           "name": "Число попыток",
@@ -341,18 +265,6 @@
         "entity_id": {
           "name": "Сущность уведомления",
           "description": "Сущность MaxNotify. Можно использовать вместо config_entry_id."
-        },
-        "recipient_id": {
-          "name": "ID получателя",
-          "description": "Универсальный ID получателя: положительный — личный чат (User ID), отрицательный — группа (Chat ID)."
-        },
-        "chat_id": {
-          "name": "ID чата (устарело)",
-          "description": "Устарело: вместо этого используйте recipient_id. ID чата: положительный — личный, отрицательный — группа. Будет удалено в версии 1.5.0."
-        },
-        "user_id": {
-          "name": "ID пользователя (устарело)",
-          "description": "Устарело: вместо этого используйте recipient_id. ID пользователя для личного чата. Будет удалено в версии 1.5.0."
         },
         "config_entry_id": {
           "name": "Интеграция",
@@ -392,18 +304,6 @@
           "name": "Сущность уведомления",
           "description": "Сущность MaxNotify. Можно использовать вместо config_entry_id."
         },
-        "recipient_id": {
-          "name": "ID получателя",
-          "description": "Универсальный ID получателя: положительный — личный чат (User ID), отрицательный — группа (Chat ID)."
-        },
-        "chat_id": {
-          "name": "ID чата (устарело)",
-          "description": "Устарело: вместо этого используйте recipient_id. ID чата: положительный — личный, отрицательный — группа. Будет удалено в версии 1.5.0."
-        },
-        "user_id": {
-          "name": "ID пользователя (устарело)",
-          "description": "Устарело: вместо этого используйте recipient_id. ID пользователя для личного чата. Будет удалено в версии 1.5.0."
-        },
         "config_entry_id": {
           "name": "Интеграция",
           "description": "Интеграция MaxNotify для использования (обязательно при нескольких)."
@@ -413,14 +313,17 @@
   },
   "invalid_notify_entity": "Недопустимая сущность MaxNotify: {entity_id}",
   "invalid_message_id": "ID сообщения не может быть пустым.",
-  "missing_target": "Укажите entity_id или config_entry_id с recipient_id, chat_id или user_id.",
+  "missing_target": "Укажите entity_id сущности notify MaxNotify или config_entry_id (если интеграций несколько).",
   "invalid_config_entry": "Недопустимая запись конфигурации: {config_entry_id}",
   "missing_config_entry_id": "Найдено несколько интеграций MaxNotify; укажите config_entry_id.",
   "no_matching_entities": "Нет подходящих сущностей уведомлений для интеграции {config_entry_id}.",
-  "plain_recipient_not_resolved": "Не удалось определить получателя для прямой отправки. Проверьте recipient_id, chat_id/user_id и настройки интеграции.",
-  "unsupported_for_notify_a161": "Операция {operation} не поддерживается в режиме notify.a161.ru.",
-  "a161_video_too_large": "Для notify.a161.ru максимальный размер видео — {max_mib} МБ; этот файл — около {size_mib} МБ.",
-  "a161_media_too_large": "Для notify.a161.ru максимальный размер фото и документов — {max_mib} МБ; этот файл — около {size_mib} МБ.",
+  "plain_recipient_not_resolved": "Не удалось определить получателя. Проверьте сущность notify и настройки интеграции.",
+  "unsupported_for_notify_a161": "Операция {operation} не поддерживается для {provider_label}.",
+  "provider_feature_not_supported": "Для {provider} не поддерживается: {feature}.",
+  "third_party_attachment_too_large": "У провайдера {provider} максимальный размер фото и документов — {max_mib} МБ; этот файл — около {size_mib} МБ.",
+  "third_party_video_too_large": "У провайдера {provider} максимальный размер видео — {max_mib} МБ; этот файл — около {size_mib} МБ.",
+  "third_party_upload_no_url": "{provider}: шаг загрузки не вернул URL.",
+  "third_party_video_upload_incomplete": "{provider}: в ответе загрузки видео должны быть url и token.",
   "link_button_url_http_https_only": "URL кнопки-ссылки должен быть только http или https (получено: {url}).",
   "exceptions": {
     "invalid_notify_entity": {
@@ -430,7 +333,7 @@
       "message": "ID сообщения не может быть пустым."
     },
     "missing_target": {
-      "message": "Укажите entity_id или config_entry_id с recipient_id, chat_id или user_id."
+      "message": "Укажите entity_id сущности notify MaxNotify или config_entry_id (если интеграций несколько)."
     },
     "invalid_config_entry": {
       "message": "Недопустимая запись конфигурации: {config_entry_id}"
@@ -442,16 +345,25 @@
       "message": "Нет подходящих сущностей уведомлений для интеграции {config_entry_id}."
     },
     "plain_recipient_not_resolved": {
-      "message": "Не удалось определить получателя для прямой отправки. Проверьте recipient_id, chat_id/user_id и настройки интеграции."
+      "message": "Не удалось определить получателя. Проверьте сущность notify и настройки интеграции."
     },
     "unsupported_for_notify_a161": {
-      "message": "Операция {operation} не поддерживается в режиме notify.a161.ru."
+      "message": "Операция {operation} не поддерживается для {provider_label}."
     },
-    "a161_video_too_large": {
-      "message": "Для notify.a161.ru максимальный размер видео — {max_mib} МБ; этот файл — около {size_mib} МБ."
+    "provider_feature_not_supported": {
+      "message": "Для {provider} не поддерживается: {feature}."
     },
-    "a161_media_too_large": {
-      "message": "Для notify.a161.ru максимальный размер фото и документов — {max_mib} МБ; этот файл — около {size_mib} МБ."
+    "third_party_attachment_too_large": {
+      "message": "У провайдера {provider} максимальный размер фото и документов — {max_mib} МБ; этот файл — около {size_mib} МБ."
+    },
+    "third_party_video_too_large": {
+      "message": "У провайдера {provider} максимальный размер видео — {max_mib} МБ; этот файл — около {size_mib} МБ."
+    },
+    "third_party_upload_no_url": {
+      "message": "{provider}: шаг загрузки не вернул URL."
+    },
+    "third_party_video_upload_incomplete": {
+      "message": "{provider}: в ответе загрузки видео должны быть url и token."
     },
     "link_button_url_http_https_only": {
       "message": "URL кнопки-ссылки должен быть только http или https (получено: {url})."
@@ -460,80 +372,16 @@
   "config": {
     "receive_mode_title": {
       "send_only": "отправка",
-      "polling": "Long Polling",
+      "long_polling": "Long Polling",
+      "polling": "Очередь Polling updates",
       "webhook": "WebHook"
     },
     "step": {
       "integration_type": {
         "title": "Выберите тип интеграции",
-        "description": "Выберите способ подключения: официальный API Max или прокси-сервис notify.a161.ru.",
+        "description": "Выберите способ подключения.",
         "data": {
           "integration_type": "Тип интеграции"
-        },
-        "options": {
-          "integration_type": {
-            "official": "Официальный API Max (platform-api.max.ru)",
-            "notify_a161": "notify.a161.ru (только текст себе)"
-          }
-        }
-      },
-      "notify_info": {
-        "title": "Настройка notify.a161.ru",
-        "description": "Перед продолжением: откройте {notify_site_url}, отправьте боту сервиса сообщение \"Хочу подключиться\" и сохраните user_id и токен. Затем нажмите «Отправить» и введите данные в Home Assistant. user_id привязан к токену и позже не меняется в настройках интеграции."
-      },
-      "notify_user": {
-        "title": "notify.a161.ru: токен",
-        "description": "Введите токен, формат сообщений и режим приёма, затем user_id.\n\nРежим приёма: только отправка или очередь Polling updates.",
-        "data": {
-          "access_token": "Токен доступа",
-          "message_format": "Формат сообщений",
-          "receive_mode": "Режим приёма"
-        },
-        "data_description": {
-          "access_token": "Токен от бота notify.a161.ru (36 символов).",
-          "message_format": "Текст, Markdown или HTML."
-        },
-        "options": {
-          "message_format": {
-            "text": "Текст",
-            "markdown": "Markdown",
-            "html": "HTML"
-          },
-          "receive_mode": {
-            "send_only": "Только отправка",
-            "polling": "Очередь Polling updates"
-          }
-        }
-      },
-      "notify_recipient": {
-        "title": "notify.a161.ru: user_id",
-        "description": "Укажите ваш user_id (положительное число). Он привязан к токену и позже не меняется в настройках интеграции.",
-        "data": {
-          "recipient_id": "User ID"
-        },
-        "data_description": {
-          "recipient_id": "Используйте только положительное число из ответа бота notify.a161.ru."
-        }
-      },
-      "updates_interval": {
-        "title": "notify.a161.ru: интервал опроса updates",
-        "description": "Укажите интервал опроса очереди /updates в секундах. По умолчанию: {default_seconds} с.",
-        "data": {
-          "updates_interval": " "
-        }
-      },
-      "a161_inactivity_period": {
-        "title": "notify.a161.ru: период неактивности",
-        "description": "Выберите период, по истечени которого будет отключено получение сообщений (ограничение сервиса)",
-        "data": {
-          "a161_inactivity_period_days": "Период"
-        },
-        "options": {
-          "period_days": {
-            "1": "1 сутки",
-            "2": "2 суток",
-            "3": "3 суток"
-          }
         }
       },
       "user": {
@@ -561,7 +409,7 @@
           },
           "receive_mode": {
             "send_only": "Только отправка",
-            "polling": "Long Polling",
+            "long_polling": "Long Polling",
             "webhook": "WebHook"
           }
         }
@@ -659,45 +507,22 @@
           "access_token": "Оставьте пустым, чтобы не менять токен",
           "message_format": "Текст, Markdown или HTML."
         }
-      }
-    },
-    "error": {
-      "invalid_token": "Токен не может быть пустым",
-      "invalid_notify_token_length": "Токен notify.a161.ru должен содержать 36 символов.",
-      "invalid_auth": "Неверный токен. Проверьте токен в разделе Интеграция платформы MAX.",
-      "cannot_connect": "Не удалось подключиться к API Max. Проверьте сеть и повторите.",
-      "polling_subscription_list_failed": "Не удалось получить список WebHook-подписок в Max API. Проверьте сеть и повторите.",
-      "polling_webhook_subscriptions_remain": "Long Polling недоступен, пока для бота активна подписка WebHook в Max. Удалите подписки WebHook (или выберите «Только отправка» / WebHook в настройках) и повторите. См. https://dev.max.ru/docs-api/methods/POST/subscriptions",
-      "polling_blocked_by_webhook_other_entry": "Другая интеграция MaxNotify уже использует WebHook с этим токеном бота. Сначала отключите WebHook там или используйте другой токен.",
-      "webhook_blocked_by_polling_other_entry": "Другая интеграция MaxNotify уже использует Long Polling с этим токеном бота. Сначала отключите Long Polling там или используйте другой токен.",
-      "webhook_requires_external_https_url": "Для WebHook нужен внешний HTTPS-адрес Home Assistant (Настройки → Система → Сеть или Nabu Casa). Сначала настройте URL, затем снова выберите WebHook.",
-      "unknown": "Произошла неизвестная ошибка",
-      "invalid_id_format": "Введите целое число (положительное — личный чат, отрицательное — группа).",
-      "notify_user_only": "Для notify.a161.ru используйте только положительные ID получателя (user_id).",
-      "invalid_command_name": "Введите имя команды (без слэша).",
-      "invalid_button_text": "Введите подпись на кнопке.",
-      "invalid_button_url": "Для кнопки-ссылки укажите URL с http:// или https://.",
-      "invalid_updates_interval": "Введите интервал опроса от 2 до 30 секунд.",
-      "invalid_a161_inactivity_period": "Выберите 1, 2 или 3 суток.",
-      "a161_polling_requires_buttons_switched_send_only": "Кнопки не настроены. Режим приёма автоматически переключен на «Только отправка». Добавьте хотя бы одну кнопку, чтобы использовать Polling."
-    },
-    "abort": {
-      "already_configured": "Эта конфигурация уже добавлена",
-      "reconfigure_successful": "Настройки обновлены",
-      "unsupported_ha_version": "Для этой интеграции нужен Home Assistant Core {minimum_ha_version} или новее. Обновите Home Assistant и повторите попытку."
-    }
-  },
-  "options": {
-    "step": {
-      "init_notify": {
-        "title": "Настройки notify.a161.ru",
-        "description": "Формат сообщений и режим приёма.\n\nРежим приёма: только отправка или очередь Polling updates.\n\nЧтобы сменить API-ключ, удалите интеграцию и добавьте заново. user_id задаётся только при первой настройке.",
+      },
+      "notify_a161_notify_info": {
+        "title": "{provider_label}",
+        "description": "Перед продолжением: откройте {provider_site_url}, отправьте боту сервиса сообщение \"Хочу подключиться\" и сохраните user_id и токен. Затем нажмите «Отправить» и введите данные в Home Assistant. user_id привязан к токену и позже не меняется в настройках интеграции."
+      },
+      "notify_a161_notify_user": {
+        "title": "{provider_label} — токен",
+        "description": "Введите токен, формат сообщений и режим приёма, затем user_id.\n\nРежим приёма: только отправка или очередь Polling updates.",
         "data": {
+          "access_token": "Токен доступа",
           "message_format": "Формат сообщений",
           "receive_mode": "Режим приёма"
         },
         "data_description": {
-          "message_format": "Текст, Markdown или HTML"
+          "access_token": "Токен бота {provider_label} ({token_length} символов).",
+          "message_format": "Текст, Markdown или HTML."
         },
         "options": {
           "message_format": {
@@ -711,16 +536,26 @@
           }
         }
       },
-      "updates_interval": {
-        "title": "notify.a161.ru: интервал опроса updates",
+      "notify_a161_notify_recipient": {
+        "title": "{provider_label} — user_id",
+        "description": "Укажите ваш user_id (положительное число). Он привязан к токену и позже не меняется в настройках интеграции.",
+        "data": {
+          "recipient_id": "User ID"
+        },
+        "data_description": {
+          "recipient_id": "Используйте только положительный user_id из ответа бота {provider_label}."
+        }
+      },
+      "notify_a161_updates_interval": {
+        "title": "{provider_label} — интервал опроса",
         "description": "Укажите интервал опроса очереди /updates в секундах. По умолчанию: {default_seconds} с.",
         "data": {
           "updates_interval": " "
         }
       },
-      "a161_inactivity_period": {
-        "title": "notify.a161.ru: период неактивности",
-        "description": "Выберите период, по истечени которого будет отключено получение сообщений (ограничение сервиса)",
+      "notify_a161_a161_inactivity_period": {
+        "title": "{provider_label}: период неактивности",
+        "description": "Выберите, через сколько суток без входящих сообщений и без отправок с кнопками режим приёма переключается на «Только отправка» (ограничение сервиса).",
         "data": {
           "a161_inactivity_period_days": "Период"
         },
@@ -731,7 +566,37 @@
             "3": "3 суток"
           }
         }
-      },
+      }
+    },
+    "error": {
+      "invalid_token": "Токен не может быть пустым",
+      "invalid_auth": "Неверный токен. Проверьте токен в разделе Интеграция платформы MAX.",
+      "cannot_connect": "Не удалось подключиться к API Max. Проверьте сеть и повторите.",
+      "polling_subscription_list_failed": "Не удалось получить список WebHook-подписок в Max API. Проверьте сеть и повторите.",
+      "polling_webhook_subscriptions_remain": "Long Polling недоступен, пока для бота активна подписка WebHook в Max. Удалите подписки WebHook (или выберите «Только отправка» / WebHook в настройках) и повторите. См. https://dev.max.ru/docs-api/methods/POST/subscriptions",
+      "polling_blocked_by_webhook_other_entry": "Другая интеграция MaxNotify уже использует WebHook с этим токеном бота. Сначала отключите WebHook там или используйте другой токен.",
+      "webhook_blocked_by_polling_other_entry": "Другая интеграция MaxNotify уже использует Long Polling с этим токеном бота. Сначала отключите Long Polling там или используйте другой токен.",
+      "webhook_requires_external_https_url": "Для WebHook нужен внешний HTTPS-адрес Home Assistant (Настройки → Система → Сеть или Nabu Casa). Сначала настройте URL, затем снова выберите WebHook.",
+      "unknown": "Произошла неизвестная ошибка",
+      "invalid_id_format": "Введите целое число (положительное — личный чат, отрицательное — группа).",
+      "invalid_command_name": "Введите имя команды (без слэша).",
+      "invalid_button_text": "Введите подпись на кнопке.",
+      "invalid_button_url": "Для кнопки-ссылки укажите URL с http:// или https://.",
+      "notify_a161_invalid_notify_token_length": "Токен доступа должен содержать {token_length} символов.",
+      "notify_a161_notify_user_only": "{provider_label} принимает только положительные user_id.",
+      "notify_a161_invalid_updates_interval": "Введите интервал опроса от 2 до 30 секунд.",
+      "notify_a161_invalid_a161_inactivity_period": "Выберите 1, 2 или 3 суток.",
+      "notify_a161_polling_requires_buttons_switched_send_only": "Кнопки не настроены. Режим приёма автоматически переключен на «Только отправка». Добавьте хотя бы одну кнопку, чтобы использовать Polling.",
+      "notify_a161_duplicate_token_not_allowed": "Интеграция MaxNotify с этим токеном уже есть. Для {provider_label} один токен — одна запись: удалите существующую или укажите другой токен."
+    },
+    "abort": {
+      "already_configured": "Эта конфигурация уже добавлена",
+      "reconfigure_successful": "Настройки обновлены",
+      "unsupported_ha_version": "Для этой интеграции нужен Home Assistant Core {minimum_ha_version} или новее. Обновите Home Assistant и повторите попытку."
+    }
+  },
+  "options": {
+    "step": {
       "init": {
         "title": "Настройки MaxNotify",
         "description": "Токен (необязательно), формат сообщений, режим приёма.{webhook_url_paragraph}",
@@ -760,7 +625,7 @@
           },
           "receive_mode": {
             "send_only": "Только отправка",
-            "polling": "Long Polling",
+            "long_polling": "Long Polling",
             "webhook": "WebHook"
           }
         }
@@ -872,6 +737,49 @@
         "data_description": {
           "button_to_remove": ""
         }
+      },
+      "notify_a161_init_notify": {
+        "title": "{provider_label} — настройки",
+        "description": "Формат сообщений и режим приёма.\n\nРежим приёма: только отправка или очередь Polling updates.\n\nЧтобы сменить API-ключ, удалите интеграцию и добавьте заново. user_id задаётся только при первой настройке.",
+        "data": {
+          "message_format": "Формат сообщений",
+          "receive_mode": "Режим приёма"
+        },
+        "data_description": {
+          "message_format": "Текст, Markdown или HTML"
+        },
+        "options": {
+          "message_format": {
+            "text": "Текст",
+            "markdown": "Markdown",
+            "html": "HTML"
+          },
+          "receive_mode": {
+            "send_only": "Только отправка",
+            "polling": "Очередь Polling updates"
+          }
+        }
+      },
+      "notify_a161_updates_interval": {
+        "title": "{provider_label} — интервал опроса",
+        "description": "Укажите интервал опроса очереди /updates в секундах. По умолчанию: {default_seconds} с.",
+        "data": {
+          "updates_interval": " "
+        }
+      },
+      "notify_a161_a161_inactivity_period": {
+        "title": "{provider_label}: период неактивности",
+        "description": "Выберите, через сколько суток без входящих сообщений и без отправок с кнопками режим приёма переключается на «Только отправка» (ограничение сервиса).",
+        "data": {
+          "a161_inactivity_period_days": "Период"
+        },
+        "options": {
+          "period_days": {
+            "1": "1 сутки",
+            "2": "2 суток",
+            "3": "3 суток"
+          }
+        }
       }
     },
     "error": {
@@ -880,9 +788,9 @@
       "polling_blocked_by_webhook_other_entry": "Другая интеграция MaxNotify уже использует WebHook с этим токеном бота. Сначала отключите WebHook там или используйте другой токен.",
       "webhook_blocked_by_polling_other_entry": "Другая интеграция MaxNotify уже использует Long Polling с этим токеном бота. Сначала отключите Long Polling там или используйте другой токен.",
       "webhook_requires_external_https_url": "Для WebHook нужен внешний HTTPS-адрес Home Assistant (Настройки → Система → Сеть или Nabu Casa). Сначала настройте URL, затем снова выберите WebHook.",
-      "invalid_updates_interval": "Введите интервал опроса от 2 до 30 секунд.",
-      "invalid_a161_inactivity_period": "Выберите 1, 2 или 3 суток.",
-      "a161_polling_requires_buttons_switched_send_only": "Кнопки не настроены. Режим приёма автоматически переключен на «Только отправка». Добавьте хотя бы одну кнопку, чтобы использовать Polling."
+      "notify_a161_invalid_updates_interval": "Введите интервал опроса от 2 до 30 секунд.",
+      "notify_a161_invalid_a161_inactivity_period": "Выберите 1, 2 или 3 суток.",
+      "notify_a161_polling_requires_buttons_switched_send_only": "Кнопки не настроены. Режим приёма автоматически переключен на «Только отправка». Добавьте хотя бы одну кнопку, чтобы использовать Polling."
     }
   },
   "issues": {
@@ -903,11 +811,12 @@
     "recipient": {
       "abort": {
         "already_configured": "Этот ID уже добавлен",
-        "notify_user_locked": "Для notify.a161.ru нельзя добавлять чаты в этой записи. Добавьте новую интеграцию MaxNotify для другого получателя."
+        "notify_user_locked": "В этой записи интеграции нельзя добавлять чаты. Добавьте новую интеграцию MaxNotify для другого получателя."
       },
       "entry_type": "ID чата",
       "error": {
-        "invalid_id_format": "Введите целое число (положительное — личный чат, отрицательное — группа)"
+        "invalid_id_format": "Введите целое число (положительное — личный чат, отрицательное — группа)",
+        "already_configured": "Этот ID уже добавлен"
       },
       "initiate_flow": {
         "user": "Добавить чат"

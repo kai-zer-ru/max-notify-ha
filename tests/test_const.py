@@ -1,4 +1,4 @@
-"""Tests for const module."""
+"""Тесты модуля const."""
 
 from __future__ import annotations
 
@@ -7,9 +7,9 @@ from custom_components.max_notify.const import (
     SERVICE_DELETE_MESSAGE,
     SERVICE_EDIT_MESSAGE,
     SERVICE_SEND_MESSAGE,
-    API_BASE_URL,
     MAX_MESSAGE_LENGTH,
 )
+from custom_components.max_notify.providers.official.const import API_BASE_URL
 
 
 def test_domain() -> None:

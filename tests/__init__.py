@@ -1,1 +1,1 @@
-"""Tests for MaxNotify integration."""
+"""Тесты интеграции MaxNotify."""

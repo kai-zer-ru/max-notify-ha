@@ -1,4 +1,4 @@
-"""Services for MaxNotify integration (send_message by entity_id or config_entry_id + chat_id/user_id)."""
+"""Службы интеграции MaxNotify (цель — сущности notify и при необходимости config_entry_id)."""
 
 from __future__ import annotations
 
@@ -12,16 +12,24 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import ATTR_ENTITY_ID
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.exceptions import ServiceValidationError
-from homeassistant.helpers import config_validation as cv, entity_registry as er
+from homeassistant.helpers import entity_registry as er
 
 try:
     from homeassistant.config_entries import ConfigSubentry
 except ImportError:
     class ConfigSubentry:
-        """Compatibility stub for old Home Assistant versions."""
+        """Заглушка для старых версий Home Assistant без ConfigSubentry."""
 
+from .helpers import resolve_service_inline_keyboard
+from .notify import (
+    delete_message,
+    edit_message,
+    recipient_dict_from_subentry,
+    send_message_with_buttons,
+    upload_image_and_send,
+    upload_video_and_send,
+)
 from .const import (
-    CONF_CHAT_ID,
     CONF_CONFIG_ENTRY_ID,
     CONF_COUNT_REQUESTS,
     CONF_DISABLE_SSL,
@@ -29,32 +37,30 @@ from .const import (
     CONF_URL_AUTH_PASSWORD,
     CONF_URL_AUTH_TOKEN,
     CONF_URL_AUTH_TYPE,
-    CONF_URL_BASIC_AUTH,
     CONF_MESSAGE_ID,
     CONF_RECIPIENT_ID,
     CONF_SEND_KEYBOARD,
-    CONF_USER_ID,
     DOMAIN,
     EVENT_MAX_NOTIFY_RECEIVED,
     SERVICE_DELETE_MESSAGE,
     SERVICE_EDIT_MESSAGE,
     SERVICE_SEND_DOCUMENT,
     SERVICE_SEND_MESSAGE,
-    SERVICE_SEND_PHOTO,
     SERVICE_SEND_TEXT_TO_ALL,
+    SERVICE_SEND_PHOTO,
     SERVICE_SEND_VIDEO,
     URL_AUTH_TYPE_BASIC,
     URL_AUTH_TYPE_BEARER,
     URL_AUTH_TYPE_DIGEST,
 )
-from .helpers import is_notify_a161_entry
+from .providers.registry import get_capabilities, raise_provider_feature_not_supported
 from .schemas import (
     SERVICE_DELETE_MESSAGE_SCHEMA,
     SERVICE_EDIT_MESSAGE_SCHEMA,
     SERVICE_SEND_DOCUMENT_SCHEMA,
     SERVICE_SEND_MESSAGE_SCHEMA,
-    SERVICE_SEND_PHOTO_SCHEMA,
     SERVICE_SEND_TEXT_TO_ALL_SCHEMA,
+    SERVICE_SEND_PHOTO_SCHEMA,
     SERVICE_SEND_VIDEO_SCHEMA,
 )
 
@@ -62,7 +68,7 @@ _LOGGER = logging.getLogger(__name__)
 
 
 def _has_url_userinfo(file_path_or_url: str) -> bool:
-    """Return True when URL has user:pass@host part."""
+    """True, если в URL есть фрагмент user:pass@host."""
     parsed = urlparse(file_path_or_url)
     return parsed.username is not None
 
@@ -70,7 +76,7 @@ def _has_url_userinfo(file_path_or_url: str) -> bool:
 def _normalize_url_auth_data(
     data: dict[str, Any], file_path_or_url: str
 ) -> tuple[str | None, str | None, str | None, str | None]:
-    """Validate and normalize URL auth service fields."""
+    """Проверить и нормализовать поля авторизации URL в данных сервиса."""
     auth_type_raw = data.get(CONF_URL_AUTH_TYPE)
     auth_type = str(auth_type_raw).strip().lower() if auth_type_raw is not None else None
     auth_login_raw = data.get(CONF_URL_AUTH_LOGIN)
@@ -81,10 +87,9 @@ def _normalize_url_auth_data(
         str(auth_password_raw).strip() if auth_password_raw is not None else None
     )
     auth_token = str(auth_token_raw).strip() if auth_token_raw is not None else None
-    url_basic_auth = data.get(CONF_URL_BASIC_AUTH)
 
     has_url_credentials = file_path_or_url.startswith(("http://", "https://")) and _has_url_userinfo(file_path_or_url)
-    has_basic_pair = bool(auth_login) or bool(auth_password) or bool(url_basic_auth)
+    has_basic_pair = bool(auth_login) or bool(auth_password)
     has_token = bool(auth_token)
     any_auth_input = has_url_credentials or has_basic_pair or has_token
 
@@ -113,47 +118,23 @@ def _normalize_url_auth_data(
             raise ServiceValidationError(
                 "Both url_auth_login and url_auth_password must be set together"
             )
-        if auth_type == URL_AUTH_TYPE_DIGEST and url_basic_auth:
-            raise ServiceValidationError(
-                "url_basic_auth is supported only with url_auth_type=basic"
-            )
     else:
-        if auth_login or auth_password or url_basic_auth:
+        if auth_login or auth_password:
             raise ServiceValidationError(
-                "url_auth_login, url_auth_password and url_basic_auth can only be used with "
+                "url_auth_login and url_auth_password can only be used with "
                 "url_auth_type=basic or url_auth_type=digest"
             )
 
     return auth_type, auth_login, auth_password, auth_token
 
 
-def _raise_notify_unsupported(operation: str) -> None:
-    """Raise user-facing error for unsupported notify.a161.ru operation."""
-    raise ServiceValidationError(
-        translation_domain=DOMAIN,
-        translation_key="unsupported_for_notify_a161",
-        translation_placeholders={"operation": operation},
-    )
-
-
-def _notify_allowed_user_ids(entry: ConfigEntry) -> set[int]:
-    """Configured user_ids for notify.a161.ru entry."""
-    out: set[int] = set()
-    for subentry in (getattr(entry, "subentries", None) or {}).values():
-        if not isinstance(subentry, ConfigSubentry):
-            continue
-        uid = subentry.data.get(CONF_USER_ID)
-        if uid is None:
-            continue
-        try:
-            out.add(int(uid))
-        except (TypeError, ValueError):
-            continue
-    return out
+def _ensure_capability(entry: ConfigEntry, ok: bool, *, feature: str) -> None:
+    if not ok:
+        raise_provider_feature_not_supported(entry, feature=feature)
 
 
 def register_send_message_service(hass: HomeAssistant) -> None:
-    """Register max_notify services (send_message, send_text_to_all, send_photo, send_document, send_video, delete_message, edit_message)."""
+    """Зарегистрировать службы max_notify (сообщение, всем, фото, документ, видео, удаление, правка)."""
     _LOGGER.debug("Registering MaxNotify services")
     hass.services.async_register(
         DOMAIN,
@@ -205,18 +186,15 @@ def register_send_message_service(hass: HomeAssistant) -> None:
         SERVICE_SEND_TEXT_TO_ALL,
         DOMAIN,
         SERVICE_SEND_PHOTO,
-        DOMAIN, SERVICE_SEND_DOCUMENT, DOMAIN, SERVICE_SEND_VIDEO,
-        DOMAIN, SERVICE_DELETE_MESSAGE, DOMAIN, SERVICE_EDIT_MESSAGE,
+        DOMAIN,
+        SERVICE_SEND_DOCUMENT,
+        DOMAIN,
+        SERVICE_SEND_VIDEO,
+        DOMAIN,
+        SERVICE_DELETE_MESSAGE,
+        DOMAIN,
+        SERVICE_EDIT_MESSAGE,
     )
-
-
-def _normalize_target_ids(value: int | list[int]) -> list[int]:
-    """Normalize chat_id/user_id to list of ints."""
-    if value is None:
-        return []
-    if isinstance(value, int):
-        return [value]
-    return list(value)
 
 
 def _resolve_entity_ids(
@@ -224,26 +202,20 @@ def _resolve_entity_ids(
     *,
     entity_ids: list[str] | None = None,
     config_entry_id: str | None = None,
-    chat_ids: list[int] | None = None,
-    user_ids: list[int] | None = None,
 ) -> list[str]:
+    """Сущности notify MaxNotify: явный список или все сущности записи по config_entry_id."""
     _LOGGER.debug(
-        "_resolve_entity_ids: entity_ids=%s, config_entry_id=%s, chat_ids=%s, user_ids=%s",
+        "_resolve_entity_ids: entity_ids=%s, config_entry_id=%s",
         entity_ids,
         config_entry_id,
-        chat_ids,
-        user_ids,
     )
+    reg = er.async_get(hass)
 
-    # Если переданы chat_ids / user_ids (включая recipient_id, распарсенный выше),
-    # они имеют приоритет над entity_ids и используются как явный таргет.
-    # entity_ids используются только когда дополнительных ID нет.
-    if entity_ids and not (chat_ids or user_ids):
-        reg = er.async_get(hass)
-        out = []
+    if entity_ids:
+        out: list[str] = []
         for eid in entity_ids:
-            entry = reg.async_get(eid)
-            if not entry or entry.domain != "notify" or entry.platform != DOMAIN:
+            ent = reg.async_get(eid)
+            if not ent or ent.domain != "notify" or ent.platform != DOMAIN:
                 raise ServiceValidationError(
                     translation_domain=DOMAIN,
                     translation_key="invalid_notify_entity",
@@ -252,101 +224,46 @@ def _resolve_entity_ids(
             out.append(eid)
         return out
 
-    if not config_entry_id and not chat_ids and not user_ids:
-        raise ServiceValidationError(
-            translation_domain=DOMAIN,
-            translation_key="missing_target",
-        )
-
-    entry: ConfigEntry | None = hass.config_entries.async_get_entry(config_entry_id) if config_entry_id else None
-    if not entry or entry.domain != DOMAIN:
-        if config_entry_id:
-            raise ServiceValidationError(
-                translation_domain=DOMAIN,
-                translation_key="invalid_config_entry",
-                translation_placeholders={"config_entry_id": config_entry_id},
-            )
+    resolved_entry_id = config_entry_id
+    if not resolved_entry_id:
         entries = hass.config_entries.async_entries(DOMAIN)
         if len(entries) == 1:
-            entry = entries[0]
+            resolved_entry_id = entries[0].entry_id
         else:
             raise ServiceValidationError(
                 translation_domain=DOMAIN,
-                translation_key="missing_config_entry_id",
+                translation_key="missing_target",
             )
 
-    subentries = getattr(entry, "subentries", None) or {}
-    reg = er.async_get(hass)
+    entry = hass.config_entries.async_get_entry(resolved_entry_id)
+    if not entry or entry.domain != DOMAIN:
+        raise ServiceValidationError(
+            translation_domain=DOMAIN,
+            translation_key="invalid_config_entry",
+            translation_placeholders={"config_entry_id": resolved_entry_id or ""},
+        )
+
     entity_ids_out: list[str] = []
-
-    for cid in (chat_ids or []):
-        for subentry_id, subentry in subentries.items():
-            if not isinstance(subentry, ConfigSubentry):
-                continue
-            if subentry.data.get(CONF_CHAT_ID) == cid:
-                unique_id = f"{entry.entry_id}_{subentry_id}"
-                eid = reg.async_get_entity_id("notify", DOMAIN, unique_id)
-                if eid:
-                    entity_ids_out.append(eid)
-                break
-        else:
-            _LOGGER.warning("No subentry with chat_id=%s in entry %s", cid, entry.entry_id)
-
-    for uid in (user_ids or []):
-        for subentry_id, subentry in subentries.items():
-            if not isinstance(subentry, ConfigSubentry):
-                continue
-            if subentry.data.get(CONF_USER_ID) == uid:
-                unique_id = f"{entry.entry_id}_{subentry_id}"
-                eid = reg.async_get_entity_id("notify", DOMAIN, unique_id)
-                if eid:
-                    entity_ids_out.append(eid)
-                break
-        else:
-            _LOGGER.warning("No subentry with user_id=%s in entry %s", uid, entry.entry_id)
-
-    if not entity_ids_out and (chat_ids or user_ids) is None:
-        for subentry_id, subentry in subentries.items():
-            if not isinstance(subentry, ConfigSubentry):
-                continue
-            unique_id = f"{entry.entry_id}_{subentry_id}"
-            eid = reg.async_get_entity_id("notify", DOMAIN, unique_id)
-            if eid:
-                entity_ids_out.append(eid)
+    for ent in reg.entities.values():
+        if getattr(ent, "config_entry_id", None) != resolved_entry_id:
+            continue
+        if ent.domain != "notify" or ent.platform != DOMAIN:
+            continue
+        entity_ids_out.append(ent.entity_id)
 
     if not entity_ids_out:
         raise ServiceValidationError(
             translation_domain=DOMAIN,
             translation_key="no_matching_entities",
-            translation_placeholders={"config_entry_id": entry.entry_id},
+            translation_placeholders={"config_entry_id": resolved_entry_id},
         )
 
     _LOGGER.debug("_resolve_entity_ids: resolved entity_ids=%s", entity_ids_out)
     return entity_ids_out
 
 
-def _get_entry_for_send(
-    hass: HomeAssistant,
-    config_entry_id: str | None,
-    chat_ids: list[int] | None,
-    user_ids: list[int] | None,
-) -> ConfigEntry | None:
-    """Resolve config entry (from id or single entry)."""
-    entry: ConfigEntry | None = (
-        hass.config_entries.async_get_entry(config_entry_id) if config_entry_id else None
-    )
-    if not entry or entry.domain != DOMAIN:
-        if config_entry_id:
-            return None
-        entries = hass.config_entries.async_entries(DOMAIN)
-        if len(entries) == 1:
-            return entries[0]
-        return None
-    return entry
-
-
 async def async_delete_message_handler(service: ServiceCall) -> None:
-    """Handle max_notify.delete_message: delete a message by ID."""
+    """Обработка max_notify.delete_message: удаление сообщения по ID."""
     hass = service.hass
     data = service.data
     message_id = str(data[CONF_MESSAGE_ID]).strip()
@@ -357,36 +274,13 @@ async def async_delete_message_handler(service: ServiceCall) -> None:
         )
     entity_ids = data.get(ATTR_ENTITY_ID)
     config_entry_id = data.get(CONF_CONFIG_ENTRY_ID)
-    chat_id = data.get(CONF_CHAT_ID)
-    user_id = data.get(CONF_USER_ID)
-    recipient_id = data.get(CONF_RECIPIENT_ID)
-    chat_ids = _normalize_target_ids(chat_id) if chat_id is not None else None
-    user_ids = _normalize_target_ids(user_id) if user_id is not None else None
-    if recipient_id is not None and chat_ids is None and user_ids is None:
-        r_ids = _normalize_target_ids(recipient_id)
-        chat_ids = []
-        user_ids = []
-        for rid in r_ids:
-            try:
-                n = int(rid)
-            except (TypeError, ValueError):
-                continue
-            if n < 0:
-                chat_ids.append(n)
-            else:
-                user_ids.append(n)
-        if not chat_ids:
-            chat_ids = None
-        if not user_ids:
-            user_ids = None
     entry = _get_entry_for_delete_edit(
         hass,
         config_entry_id=config_entry_id,
         entity_ids=entity_ids,
-        chat_ids=chat_ids,
-        user_ids=user_ids,
     )
-    from .notify import delete_message
+    caps = get_capabilities(entry)
+    _ensure_capability(entry, caps.supports_delete_message, feature="delete_message")
 
     ok = await delete_message(hass, entry, message_id)
     if ok:
@@ -403,7 +297,7 @@ async def async_delete_message_handler(service: ServiceCall) -> None:
 
 
 async def async_edit_message_handler(service: ServiceCall) -> None:
-    """Handle max_notify.edit_message: edit text, buttons, or remove buttons."""
+    """Обработка max_notify.edit_message: правка текста, кнопок или снятие кнопок."""
     hass = service.hass
     data = service.data
     message_id = str(data[CONF_MESSAGE_ID]).strip()
@@ -414,42 +308,23 @@ async def async_edit_message_handler(service: ServiceCall) -> None:
         )
     entity_ids = data.get(ATTR_ENTITY_ID)
     config_entry_id = data.get(CONF_CONFIG_ENTRY_ID)
-    chat_id = data.get(CONF_CHAT_ID)
-    user_id = data.get(CONF_USER_ID)
-    recipient_id = data.get(CONF_RECIPIENT_ID)
-    chat_ids = _normalize_target_ids(chat_id) if chat_id is not None else None
-    user_ids = _normalize_target_ids(user_id) if user_id is not None else None
-    if recipient_id is not None and chat_ids is None and user_ids is None:
-        r_ids = _normalize_target_ids(recipient_id)
-        chat_ids = []
-        user_ids = []
-        for rid in r_ids:
-            try:
-                n = int(rid)
-            except (TypeError, ValueError):
-                continue
-            if n < 0:
-                chat_ids.append(n)
-            else:
-                user_ids.append(n)
-        if not chat_ids:
-            chat_ids = None
-        if not user_ids:
-            user_ids = None
     entry = _get_entry_for_delete_edit(
         hass,
         config_entry_id=config_entry_id,
         entity_ids=entity_ids,
-        chat_ids=chat_ids,
-        user_ids=user_ids,
     )
-    from .helpers import resolve_service_inline_keyboard
-    from .notify import edit_message
+    caps = get_capabilities(entry)
+    _ensure_capability(entry, caps.supports_edit_message, feature="edit_message")
 
     remove_b = data.get("remove_buttons", False)
     if remove_b:
         resolved_buttons = None
     elif "buttons" in data:
+        _ensure_capability(
+            entry,
+            caps.supports_inline_keyboard,
+            feature="inline_keyboard",
+        )
         resolved_buttons = resolve_service_inline_keyboard(
             entry.options,
             send_keyboard=data.get(CONF_SEND_KEYBOARD, True),
@@ -478,14 +353,27 @@ async def async_edit_message_handler(service: ServiceCall) -> None:
         }
         if data.get("text") is not None:
             event_data["text"] = data.get("text")
-        if recipient_id is not None:
-            event_data["recipient_id"] = recipient_id
-        elif chat_ids:
-            event_data["recipient_id"] = chat_ids[0]
-            event_data["chat_id"] = chat_ids[0]
-        elif user_ids:
-            event_data["recipient_id"] = user_ids[0]
-            event_data["user_id"] = user_ids[0]
+        reg = er.async_get(hass)
+        resolved_entities = _resolve_entity_ids(
+            hass,
+            entity_ids=entity_ids,
+            config_entry_id=config_entry_id,
+        )
+        for eid in resolved_entities:
+            ent = reg.async_get(eid)
+            if not ent or not ent.config_subentry_id:
+                continue
+            entry_for_ev = hass.config_entries.async_get_entry(ent.config_entry_id)
+            if not entry_for_ev:
+                continue
+            sub = (getattr(entry_for_ev, "subentries", None) or {}).get(
+                ent.config_subentry_id
+            )
+            if sub and isinstance(sub, ConfigSubentry):
+                rid = sub.data.get(CONF_RECIPIENT_ID)
+                if rid is not None:
+                    event_data["recipient_id"] = rid
+                    break
         hass.bus.async_fire(EVENT_MAX_NOTIFY_RECEIVED, event_data)
 
 
@@ -493,10 +381,8 @@ def _get_entry_for_delete_edit(
     hass: HomeAssistant,
     config_entry_id: str | None,
     entity_ids: list[str] | None = None,
-    chat_ids: list[int] | None = None,
-    user_ids: list[int] | None = None,
 ) -> ConfigEntry:
-    """Resolve config entry for delete/edit (need token only). Raises ServiceValidationError."""
+    """Запись конфигурации для delete/edit (нужен только токен). Бросает ServiceValidationError."""
     if config_entry_id:
         entry = hass.config_entries.async_get_entry(config_entry_id)
         if not entry or entry.domain != DOMAIN:
@@ -506,13 +392,11 @@ def _get_entry_for_delete_edit(
                 translation_placeholders={"config_entry_id": config_entry_id},
             )
         return entry
-    if entity_ids or chat_ids or user_ids:
+    if entity_ids:
         resolved = _resolve_entity_ids(
             hass,
             entity_ids=entity_ids,
             config_entry_id=None,
-            chat_ids=chat_ids,
-            user_ids=user_ids,
         )
         reg = er.async_get(hass)
         entry_ids: set[str] = set()
@@ -538,7 +422,7 @@ def _get_entry_for_delete_edit(
 
 
 async def async_send_message_handler(service: ServiceCall) -> None:
-    """Handle max_notify.send_message: resolve targets and call notify.send_message or send with buttons."""
+    """Обработка max_notify.send_message: цели и вызов notify.send_message или отправка с кнопками."""
     hass = service.hass
     data = service.data
     message = data["message"]
@@ -548,130 +432,27 @@ async def async_send_message_handler(service: ServiceCall) -> None:
     buttons_provided = "buttons" in data
     entity_ids = data.get(ATTR_ENTITY_ID)
     config_entry_id = data.get(CONF_CONFIG_ENTRY_ID)
-    chat_id = data.get(CONF_CHAT_ID)
-    user_id = data.get(CONF_USER_ID)
-    recipient_id = data.get(CONF_RECIPIENT_ID)
-
-    chat_ids = _normalize_target_ids(chat_id) if chat_id is not None else None
-    user_ids = _normalize_target_ids(user_id) if user_id is not None else None
-
-    # Если указан recipient_id (или список), разбираем его на chat_ids/user_ids по знаку
-    if recipient_id is not None and chat_ids is None and user_ids is None:
-        r_ids = _normalize_target_ids(recipient_id)
-        chat_ids = []
-        user_ids = []
-        for rid in r_ids:
-            if rid is None:
-                continue
-            try:
-                n = int(rid)
-            except (TypeError, ValueError):
-                continue
-            if n < 0:
-                chat_ids.append(n)
-            else:
-                user_ids.append(n)
-        if not chat_ids:
-            chat_ids = None
-        if not user_ids:
-            user_ids = None
 
     _LOGGER.debug(
         "async_send_message_handler: message_len=%s, title=%s, entity_ids=%s, "
-        "config_entry_id=%s, chat_ids=%s, user_ids=%s, buttons_present=%s",
+        "config_entry_id=%s, buttons_present=%s",
         len(message) if isinstance(message, str) else None,
         bool(title),
         entity_ids,
         config_entry_id,
-        chat_ids,
-        user_ids,
         buttons_provided,
     )
-
-    if chat_ids or user_ids:
-        entry = _get_entry_for_send(hass, config_entry_id, chat_ids, user_ids)
-        if not entry:
-            raise ServiceValidationError(
-                translation_domain=DOMAIN,
-                translation_key="invalid_config_entry",
-                translation_placeholders={"config_entry_id": config_entry_id or ""},
-            )
-        if is_notify_a161_entry(entry):
-            if chat_ids:
-                _raise_notify_unsupported("chat_id targeting")
-            allowed_user_ids = _notify_allowed_user_ids(entry)
-            for uid in user_ids or []:
-                if int(uid) not in allowed_user_ids:
-                    raise ServiceValidationError(
-                        translation_domain=DOMAIN,
-                        translation_key="no_matching_entities",
-                        translation_placeholders={"config_entry_id": entry.entry_id},
-                    )
-        from .helpers import resolve_service_inline_keyboard
-        from .notify import send_message_with_buttons, send_plain_message
-
-        all_buttons = resolve_service_inline_keyboard(
-            entry.options,
-            send_keyboard=send_kb,
-            buttons_provided=buttons_provided,
-            buttons_raw=data.get("buttons"),
-        )
-        if all_buttons:
-            for cid in chat_ids or []:
-                await send_message_with_buttons(
-                    hass,
-                    entry,
-                    {CONF_CHAT_ID: cid},
-                    message,
-                    all_buttons,
-                    title=title,
-                    message_format=message_format,
-                )
-            for uid in user_ids or []:
-                await send_message_with_buttons(
-                    hass,
-                    entry,
-                    {CONF_USER_ID: uid},
-                    message,
-                    all_buttons,
-                    title=title,
-                    message_format=message_format,
-                )
-            return
-        for cid in chat_ids or []:
-            await send_plain_message(
-                hass,
-                entry,
-                {CONF_CHAT_ID: cid},
-                message,
-                title=title,
-                message_format=message_format,
-            )
-        for uid in user_ids or []:
-            await send_plain_message(
-                hass,
-                entry,
-                {CONF_USER_ID: uid},
-                message,
-                title=title,
-                message_format=message_format,
-            )
-        return
 
     resolved = _resolve_entity_ids(
         hass,
         entity_ids=entity_ids,
         config_entry_id=config_entry_id,
-        chat_ids=chat_ids,
-        user_ids=user_ids,
     )
 
     if not resolved:
         return
 
     reg = er.async_get(hass)
-    from .helpers import resolve_service_inline_keyboard
-    from .notify import send_message_with_buttons, send_plain_message
 
     with_keyboard: list[str] = []
     without_keyboard: list[str] = []
@@ -691,6 +472,11 @@ async def async_send_message_handler(service: ServiceCall) -> None:
             buttons_raw=data.get("buttons"),
         )
         if all_buttons:
+            _ensure_capability(
+                entry,
+                get_capabilities(entry).supports_inline_keyboard,
+                feature="inline_keyboard",
+            )
             with_keyboard.append(eid)
         else:
             without_keyboard.append(eid)
@@ -716,7 +502,7 @@ async def async_send_message_handler(service: ServiceCall) -> None:
             await send_message_with_buttons(
                 hass,
                 entry,
-                dict(subentry.data),
+                recipient_dict_from_subentry(subentry),
                 message,
                 all_buttons,
                 title=title,
@@ -737,7 +523,7 @@ async def async_send_message_handler(service: ServiceCall) -> None:
         await send_plain_message(
             hass,
             entry,
-            dict(subentry.data),
+            recipient_dict_from_subentry(subentry),
             message,
             title=title,
             message_format=message_format,
@@ -745,7 +531,7 @@ async def async_send_message_handler(service: ServiceCall) -> None:
 
 
 async def async_send_text_to_all_handler(service: ServiceCall) -> None:
-    """Handle max_notify.send_text_to_all: send to all configured recipients in all MaxNotify entries."""
+    """Обработка max_notify.send_text_to_all: отправка всем получателям во всех записях."""
     hass = service.hass
     data = service.data
     message = data["message"]
@@ -753,9 +539,6 @@ async def async_send_text_to_all_handler(service: ServiceCall) -> None:
     message_format = data.get("format")
     send_kb = data.get(CONF_SEND_KEYBOARD, True)
     buttons_provided = "buttons" in data
-
-    from .helpers import resolve_service_inline_keyboard
-    from .notify import send_message_with_buttons, send_plain_message
 
     entries = hass.config_entries.async_entries(DOMAIN)
     _LOGGER.debug(
@@ -801,10 +584,15 @@ async def async_send_text_to_all_handler(service: ServiceCall) -> None:
             total_recipients += 1
             try:
                 if all_buttons:
+                    _ensure_capability(
+                        entry,
+                        get_capabilities(entry).supports_inline_keyboard,
+                        feature="inline_keyboard",
+                    )
                     await send_message_with_buttons(
                         hass,
                         entry,
-                        dict(rec),
+                        recipient_dict_from_subentry(subentry),
                         message,
                         all_buttons,
                         title=title,
@@ -814,7 +602,7 @@ async def async_send_text_to_all_handler(service: ServiceCall) -> None:
                     await send_plain_message(
                         hass,
                         entry,
-                        dict(rec),
+                        recipient_dict_from_subentry(subentry),
                         message,
                         title=title,
                         message_format=message_format,
@@ -853,48 +641,18 @@ async def _send_photo_or_document(
     auth_type, auth_login, auth_password, auth_token = _normalize_url_auth_data(
         data, file_path_or_url
     )
-    url_basic_auth = data.get(CONF_URL_BASIC_AUTH)
     entity_ids = data.get(ATTR_ENTITY_ID)
     config_entry_id = data.get(CONF_CONFIG_ENTRY_ID)
-    chat_id = data.get(CONF_CHAT_ID)
-    user_id = data.get(CONF_USER_ID)
-    recipient_id = data.get(CONF_RECIPIENT_ID)
-
-    chat_ids = _normalize_target_ids(chat_id) if chat_id is not None else None
-    user_ids = _normalize_target_ids(user_id) if user_id is not None else None
-
-    # recipient_id: универсальный ID (личка/группа) — разбираем по знаку, если chat_id/user_id не заданы
-    if recipient_id is not None and chat_ids is None and user_ids is None:
-        r_ids = _normalize_target_ids(recipient_id)
-        chat_ids = []
-        user_ids = []
-        for rid in r_ids:
-            if rid is None:
-                continue
-            try:
-                n = int(rid)
-            except (TypeError, ValueError):
-                continue
-            if n < 0:
-                chat_ids.append(n)
-            else:
-                user_ids.append(n)
-        if not chat_ids:
-            chat_ids = None
-        if not user_ids:
-            user_ids = None
 
     _LOGGER.debug(
         "_send_photo_or_document: as_document=%s, file=%s, caption_present=%s, "
-        "entity_ids=%s, config_entry_id=%s, chat_ids=%s, user_ids=%s, count_requests=%s, "
+        "entity_ids=%s, config_entry_id=%s, count_requests=%s, "
         "disable_ssl=%s, auth_type=%s, buttons_present=%s",
         as_document,
         file_path_or_url,
         bool(caption),
         entity_ids,
         config_entry_id,
-        chat_ids,
-        user_ids,
         count_requests,
         disable_ssl,
         auth_type,
@@ -905,16 +663,12 @@ async def _send_photo_or_document(
         hass,
         entity_ids=entity_ids,
         config_entry_id=config_entry_id,
-        chat_ids=chat_ids,
-        user_ids=user_ids,
     )
 
     if not resolved:
         return
 
     reg = er.async_get(hass)
-    from .helpers import resolve_service_inline_keyboard
-    from .notify import upload_image_and_send
 
     for eid in resolved:
         entity_entry = reg.async_get(eid)
@@ -928,39 +682,45 @@ async def _send_photo_or_document(
         subentry = subentries.get(entity_entry.config_subentry_id)
         if not subentry:
             continue
+        caps = get_capabilities(entry)
+        if as_document:
+            _ensure_capability(entry, caps.supports_send_document, feature="send_document")
+        else:
+            _ensure_capability(entry, caps.supports_send_photo, feature="send_photo")
         all_buttons = resolve_service_inline_keyboard(
             entry.options,
             send_keyboard=send_kb,
             buttons_provided=buttons_provided,
             buttons_raw=data.get("buttons"),
         )
+        if all_buttons:
+            _ensure_capability(entry, caps.supports_inline_keyboard, feature="inline_keyboard")
         await upload_image_and_send(
             hass,
             entry,
-            dict(subentry.data),
+            recipient_dict_from_subentry(subentry),
             file_path_or_url,
             caption,
             as_document=as_document,
             buttons=all_buttons,
-            message_format=message_format,
             count_requests=count_requests,
             disable_ssl=disable_ssl,
             url_auth_type=auth_type,
             url_auth_login=auth_login,
             url_auth_password=auth_password,
             url_auth_token=auth_token,
-            url_basic_auth=url_basic_auth,
+            message_format=message_format,
             # notify=data.get("notify", True),  # отключено: Max не отключает push/звук
         )
 
 
 async def async_send_photo_handler(service: ServiceCall) -> None:
-    """Handle max_notify.send_photo: send image to each target."""
+    """Обработка max_notify.send_photo: изображение каждой цели."""
     await _send_photo_or_document(service.hass, service.data, as_document=False)
 
 
 async def async_send_document_handler(service: ServiceCall) -> None:
-    """Handle max_notify.send_document: send file as document to each target."""
+    """Обработка max_notify.send_document: файл как документ каждой цели."""
     await _send_photo_or_document(service.hass, service.data, as_document=True)
 
 
@@ -976,48 +736,18 @@ async def _send_video(
     buttons_provided = "buttons" in data
     entity_ids = data.get(ATTR_ENTITY_ID)
     config_entry_id = data.get(CONF_CONFIG_ENTRY_ID)
-    chat_id = data.get(CONF_CHAT_ID)
-    user_id = data.get(CONF_USER_ID)
-    recipient_id = data.get(CONF_RECIPIENT_ID)
     count_requests = data.get(CONF_COUNT_REQUESTS)
     auth_type, auth_login, auth_password, auth_token = _normalize_url_auth_data(
         data, file_path_or_url
     )
-    url_basic_auth = data.get(CONF_URL_BASIC_AUTH)
-
-    chat_ids = _normalize_target_ids(chat_id) if chat_id is not None else None
-    user_ids = _normalize_target_ids(user_id) if user_id is not None else None
-
-    # recipient_id: универсальный ID (личка/группа) — разбираем по знаку, если chat_id/user_id не заданы
-    if recipient_id is not None and chat_ids is None and user_ids is None:
-        r_ids = _normalize_target_ids(recipient_id)
-        chat_ids = []
-        user_ids = []
-        for rid in r_ids:
-            if rid is None:
-                continue
-            try:
-                n = int(rid)
-            except (TypeError, ValueError):
-                continue
-            if n < 0:
-                chat_ids.append(n)
-            else:
-                user_ids.append(n)
-        if not chat_ids:
-            chat_ids = None
-        if not user_ids:
-            user_ids = None
 
     _LOGGER.debug(
         "_send_video: file=%s, caption_present=%s, entity_ids=%s, "
-        "config_entry_id=%s, chat_ids=%s, user_ids=%s, count_requests=%s, disable_ssl=%s, auth_type=%s, buttons_present=%s",
+        "config_entry_id=%s, count_requests=%s, disable_ssl=%s, auth_type=%s, buttons_present=%s",
         file_path_or_url,
         bool(caption),
         entity_ids,
         config_entry_id,
-        chat_ids,
-        user_ids,
         count_requests,
         disable_ssl,
         auth_type,
@@ -1028,16 +758,12 @@ async def _send_video(
         hass,
         entity_ids=entity_ids,
         config_entry_id=config_entry_id,
-        chat_ids=chat_ids,
-        user_ids=user_ids,
     )
 
     if not resolved:
         return
 
     reg = er.async_get(hass)
-    from .helpers import resolve_service_inline_keyboard
-    from .notify import upload_video_and_send
 
     for eid in resolved:
         entity_entry = reg.async_get(eid)
@@ -1051,31 +777,34 @@ async def _send_video(
         subentry = subentries.get(entity_entry.config_subentry_id)
         if not subentry:
             continue
+        caps = get_capabilities(entry)
+        _ensure_capability(entry, caps.supports_send_video, feature="send_video")
         all_buttons = resolve_service_inline_keyboard(
             entry.options,
             send_keyboard=send_kb,
             buttons_provided=buttons_provided,
             buttons_raw=data.get("buttons"),
         )
+        if all_buttons:
+            _ensure_capability(entry, caps.supports_inline_keyboard, feature="inline_keyboard")
         await upload_video_and_send(
             hass,
             entry,
-            dict(subentry.data),
+            recipient_dict_from_subentry(subentry),
             file_path_or_url,
             caption=caption,
             buttons=all_buttons,
-            message_format=message_format,
             count_requests=count_requests,
             disable_ssl=disable_ssl,
             url_auth_type=auth_type,
             url_auth_login=auth_login,
             url_auth_password=auth_password,
             url_auth_token=auth_token,
-            url_basic_auth=url_basic_auth,
+            message_format=message_format,
             # notify=data.get("notify", True),  # отключено: Max не отключает push/звук
         )
 
 
 async def async_send_video_handler(service: ServiceCall) -> None:
-    """Handle max_notify.send_video: send video to each target."""
+    """Обработка max_notify.send_video: видео каждой цели."""
     await _send_video(service.hass, service.data)

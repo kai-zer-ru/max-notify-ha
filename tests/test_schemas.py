@@ -1,4 +1,4 @@
-"""Tests for service schemas."""
+"""Тесты схем сервисов."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ from custom_components.max_notify.schemas import (
 
 
 class TestSendMessageSchema:
-    """Tests for SERVICE_SEND_MESSAGE_SCHEMA."""
+    """Тесты SERVICE_SEND_MESSAGE_SCHEMA."""
 
     def test_required_message(self) -> None:
         with pytest.raises(vol.MultipleInvalid):
@@ -51,7 +51,7 @@ class TestSendMessageSchema:
 
 
 class TestDeleteMessageSchema:
-    """Tests for SERVICE_DELETE_MESSAGE_SCHEMA."""
+    """Тесты SERVICE_DELETE_MESSAGE_SCHEMA."""
 
     def test_required_message_id(self) -> None:
         with pytest.raises(vol.MultipleInvalid):
@@ -68,17 +68,8 @@ class TestDeleteMessageSchema:
         })
         assert data["config_entry_id"] == "entry-1"
 
-    def test_accepts_entity_and_recipient(self) -> None:
-        data = SERVICE_DELETE_MESSAGE_SCHEMA({
-            "message_id": "msg-2",
-            "entity_id": ["notify.max_test"],
-            "recipient_id": -123,
-        })
-        assert data["recipient_id"] == -123
-
-
 class TestEditMessageSchema:
-    """Tests for SERVICE_EDIT_MESSAGE_SCHEMA."""
+    """Тесты SERVICE_EDIT_MESSAGE_SCHEMA."""
 
     def test_required_message_id(self) -> None:
         with pytest.raises(vol.MultipleInvalid):
@@ -123,18 +114,8 @@ class TestEditMessageSchema:
         })
         assert data["buttons"]["Button 1"] == "button_1"
 
-    def test_accepts_entity_and_recipient(self) -> None:
-        data = SERVICE_EDIT_MESSAGE_SCHEMA({
-            "message_id": "msg-3",
-            "text": "X",
-            "entity_id": ["notify.max_test"],
-            "recipient_id": 123,
-        })
-        assert data["recipient_id"] == 123
-
-
 class TestSendVideoSchema:
-    """Tests for SERVICE_SEND_VIDEO_SCHEMA."""
+    """Тесты SERVICE_SEND_VIDEO_SCHEMA."""
 
     def test_required_file(self) -> None:
         with pytest.raises(vol.MultipleInvalid):
@@ -158,9 +139,3 @@ class TestSendVideoSchema:
         })
         assert data["disable_ssl"] is True
 
-    def test_url_basic_auth(self) -> None:
-        data = SERVICE_SEND_VIDEO_SCHEMA({
-            "file": "/tmp/v.mp4",
-            "url_basic_auth": "admin:12345678",
-        })
-        assert data["url_basic_auth"] == "admin:12345678"

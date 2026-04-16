@@ -1,4 +1,4 @@
-"""Voluptuous schemas for MaxNotify services (send_message, send_photo, etc.)."""
+"""Схемы Voluptuous для служб MaxNotify (send_message, send_photo и т.д.)."""
 
 from __future__ import annotations
 
@@ -8,7 +8,6 @@ from homeassistant.const import ATTR_ENTITY_ID
 from homeassistant.helpers import config_validation as cv
 
 from .const import (
-    CONF_CHAT_ID,
     CONF_CONFIG_ENTRY_ID,
     CONF_COUNT_REQUESTS,
     CONF_DISABLE_SSL,
@@ -16,29 +15,9 @@ from .const import (
     CONF_URL_AUTH_PASSWORD,
     CONF_URL_AUTH_TOKEN,
     CONF_URL_AUTH_TYPE,
-    CONF_URL_BASIC_AUTH,
     CONF_MESSAGE_ID,
-    CONF_RECIPIENT_ID,
     CONF_SEND_KEYBOARD,
-    CONF_USER_ID,
     URL_AUTH_TYPES,
-)
-
-_BUTTON_SCHEMA = vol.Any(
-    vol.Schema(
-        {
-            vol.Required("type"): vol.In(["callback", "message"]),
-            vol.Required("text"): cv.string,
-            vol.Optional("payload"): cv.string,
-        }
-    ),
-    vol.Schema(
-        {
-            vol.Required("type"): vol.In(["link"]),
-            vol.Required("text"): cv.string,
-            vol.Required("url"): cv.string,
-        }
-    ),
 )
 
 SERVICE_SEND_MESSAGE_SCHEMA = vol.Schema(
@@ -51,10 +30,6 @@ SERVICE_SEND_MESSAGE_SCHEMA = vol.Schema(
         vol.Optional("buttons"): vol.Any(dict, list),
         vol.Optional(ATTR_ENTITY_ID): vol.All(cv.ensure_list, [cv.entity_id]),
         vol.Optional(CONF_CONFIG_ENTRY_ID): cv.string,
-        # Универсальный идентификатор получателя: положительный — личный чат (user_id), отрицательный — группа (chat_id).
-        vol.Optional(CONF_RECIPIENT_ID): vol.Any(vol.Coerce(int), vol.All(cv.ensure_list, [vol.Coerce(int)])),
-        vol.Optional(CONF_CHAT_ID): vol.Any(vol.Coerce(int), vol.All(cv.ensure_list, [vol.Coerce(int)])),
-        vol.Optional(CONF_USER_ID): vol.Any(vol.Coerce(int), vol.All(cv.ensure_list, [vol.Coerce(int)])),
     }
 )
 
@@ -79,16 +54,12 @@ SERVICE_SEND_PHOTO_SCHEMA = vol.Schema(
         vol.Optional("notify", default=True): cv.boolean,
         vol.Optional(ATTR_ENTITY_ID): vol.All(cv.ensure_list, [cv.entity_id]),
         vol.Optional(CONF_CONFIG_ENTRY_ID): cv.string,
-        vol.Optional(CONF_RECIPIENT_ID): vol.Any(vol.Coerce(int), vol.All(cv.ensure_list, [vol.Coerce(int)])),
-        vol.Optional(CONF_CHAT_ID): vol.Any(vol.Coerce(int), vol.All(cv.ensure_list, [vol.Coerce(int)])),
-        vol.Optional(CONF_USER_ID): vol.Any(vol.Coerce(int), vol.All(cv.ensure_list, [vol.Coerce(int)])),
         vol.Optional(CONF_COUNT_REQUESTS): vol.All(vol.Coerce(int), vol.Range(min=1)),
         vol.Optional(CONF_DISABLE_SSL, default=False): cv.boolean,
         vol.Optional(CONF_URL_AUTH_TYPE): vol.In(URL_AUTH_TYPES),
         vol.Optional(CONF_URL_AUTH_LOGIN): cv.string,
         vol.Optional(CONF_URL_AUTH_PASSWORD): cv.string,
         vol.Optional(CONF_URL_AUTH_TOKEN): cv.string,
-        vol.Optional(CONF_URL_BASIC_AUTH): cv.string,
     }
 )
 
@@ -102,16 +73,12 @@ SERVICE_SEND_DOCUMENT_SCHEMA = vol.Schema(
         vol.Optional("notify", default=True): cv.boolean,
         vol.Optional(ATTR_ENTITY_ID): vol.All(cv.ensure_list, [cv.entity_id]),
         vol.Optional(CONF_CONFIG_ENTRY_ID): cv.string,
-        vol.Optional(CONF_RECIPIENT_ID): vol.Any(vol.Coerce(int), vol.All(cv.ensure_list, [vol.Coerce(int)])),
-        vol.Optional(CONF_CHAT_ID): vol.Any(vol.Coerce(int), vol.All(cv.ensure_list, [vol.Coerce(int)])),
-        vol.Optional(CONF_USER_ID): vol.Any(vol.Coerce(int), vol.All(cv.ensure_list, [vol.Coerce(int)])),
         vol.Optional(CONF_COUNT_REQUESTS): vol.All(vol.Coerce(int), vol.Range(min=1)),
         vol.Optional(CONF_DISABLE_SSL, default=False): cv.boolean,
         vol.Optional(CONF_URL_AUTH_TYPE): vol.In(URL_AUTH_TYPES),
         vol.Optional(CONF_URL_AUTH_LOGIN): cv.string,
         vol.Optional(CONF_URL_AUTH_PASSWORD): cv.string,
         vol.Optional(CONF_URL_AUTH_TOKEN): cv.string,
-        vol.Optional(CONF_URL_BASIC_AUTH): cv.string,
     }
 )
 
@@ -125,16 +92,12 @@ SERVICE_SEND_VIDEO_SCHEMA = vol.Schema(
         vol.Optional("notify", default=True): cv.boolean,
         vol.Optional(ATTR_ENTITY_ID): vol.All(cv.ensure_list, [cv.entity_id]),
         vol.Optional(CONF_CONFIG_ENTRY_ID): cv.string,
-        vol.Optional(CONF_RECIPIENT_ID): vol.Any(vol.Coerce(int), vol.All(cv.ensure_list, [vol.Coerce(int)])),
-        vol.Optional(CONF_CHAT_ID): vol.Any(vol.Coerce(int), vol.All(cv.ensure_list, [vol.Coerce(int)])),
-        vol.Optional(CONF_USER_ID): vol.Any(vol.Coerce(int), vol.All(cv.ensure_list, [vol.Coerce(int)])),
         vol.Optional(CONF_COUNT_REQUESTS): vol.All(vol.Coerce(int), vol.Range(min=1)),
         vol.Optional(CONF_DISABLE_SSL, default=False): cv.boolean,
         vol.Optional(CONF_URL_AUTH_TYPE): vol.In(URL_AUTH_TYPES),
         vol.Optional(CONF_URL_AUTH_LOGIN): cv.string,
         vol.Optional(CONF_URL_AUTH_PASSWORD): cv.string,
         vol.Optional(CONF_URL_AUTH_TOKEN): cv.string,
-        vol.Optional(CONF_URL_BASIC_AUTH): cv.string,
     }
 )
 
@@ -143,9 +106,6 @@ SERVICE_DELETE_MESSAGE_SCHEMA = vol.Schema(
         vol.Required(CONF_MESSAGE_ID): cv.string,
         vol.Optional(ATTR_ENTITY_ID): vol.All(cv.ensure_list, [cv.entity_id]),
         vol.Optional(CONF_CONFIG_ENTRY_ID): cv.string,
-        vol.Optional(CONF_RECIPIENT_ID): vol.Any(vol.Coerce(int), vol.All(cv.ensure_list, [vol.Coerce(int)])),
-        vol.Optional(CONF_CHAT_ID): vol.Any(vol.Coerce(int), vol.All(cv.ensure_list, [vol.Coerce(int)])),
-        vol.Optional(CONF_USER_ID): vol.Any(vol.Coerce(int), vol.All(cv.ensure_list, [vol.Coerce(int)])),
     }
 )
 
@@ -159,8 +119,5 @@ SERVICE_EDIT_MESSAGE_SCHEMA = vol.Schema(
         vol.Optional("format"): vol.In(["text", "markdown", "html"]),
         vol.Optional(ATTR_ENTITY_ID): vol.All(cv.ensure_list, [cv.entity_id]),
         vol.Optional(CONF_CONFIG_ENTRY_ID): cv.string,
-        vol.Optional(CONF_RECIPIENT_ID): vol.Any(vol.Coerce(int), vol.All(cv.ensure_list, [vol.Coerce(int)])),
-        vol.Optional(CONF_CHAT_ID): vol.Any(vol.Coerce(int), vol.All(cv.ensure_list, [vol.Coerce(int)])),
-        vol.Optional(CONF_USER_ID): vol.Any(vol.Coerce(int), vol.All(cv.ensure_list, [vol.Coerce(int)])),
     }
 )

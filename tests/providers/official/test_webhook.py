@@ -1,13 +1,13 @@
-"""Tests for Max WebHook subscription URL parsing."""
+"""Тесты разбора URL подписок Max WebHook (официальный приём)."""
 
 from unittest.mock import patch
 
 import pytest
 
-from custom_components.max_notify.webhook import (
-    _subscription_urls_from_payload,
-    webhook_entry_can_receive,
+from custom_components.max_notify.providers.official.webhook_api import (
+    subscription_urls_from_payload,
 )
+from custom_components.max_notify.webhook import webhook_entry_can_receive
 
 
 @pytest.mark.parametrize(
@@ -28,11 +28,11 @@ from custom_components.max_notify.webhook import (
     ],
 )
 def test_subscription_urls_from_payload(payload, expected):
-    assert _subscription_urls_from_payload(payload) == expected
+    assert subscription_urls_from_payload(payload) == expected
 
 
 class TestWebhookEntryCanReceive:
-    """webhook_entry_can_receive mirrors register_webhook URL requirements."""
+    """webhook_entry_can_receive согласован с требованиями URL у register_webhook."""
 
     def test_false_when_empty(self, hass, mock_config_entry) -> None:
         with patch(
