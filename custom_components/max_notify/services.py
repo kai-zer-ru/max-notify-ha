@@ -25,6 +25,7 @@ from .notify import (
     delete_message,
     edit_message,
     recipient_dict_from_subentry,
+    send_plain_message,
     send_message_with_buttons,
     upload_image_and_send,
     upload_video_and_send,
