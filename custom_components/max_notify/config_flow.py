@@ -130,6 +130,7 @@ class MaxNotifyConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self._receive_mode: str = RECEIVE_MODE_SEND_ONLY
         self._webhook_secret: str = ""
         self._buttons_rows: list[list[dict[str, Any]]] = []
+        self._commands: list[dict[str, str]] = []
         self._remove_button_label_to_value: dict[str, str] = {}
         self._wizard_polling_requested: bool = False
         self._updates_interval: int = 5
@@ -225,6 +226,27 @@ class MaxNotifyConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     ) -> FlowResult:
         return await self._wizard_provider().async_config_setup_step(
             self, "remove_button", user_input
+        )
+
+    async def async_step_commands_menu(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        return await self._wizard_provider().async_config_setup_step(
+            self, "commands_menu", user_input
+        )
+
+    async def async_step_add_command(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        return await self._wizard_provider().async_config_setup_step(
+            self, "add_command", user_input
+        )
+
+    async def async_step_remove_command(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        return await self._wizard_provider().async_config_setup_step(
+            self, "remove_command", user_input
         )
 
     async def async_step_recipient(
@@ -575,6 +597,7 @@ class MaxNotifyOptionsFlow(OptionsFlow):
         self._pending_data: dict[str, Any] = {}
         self._pending_options: dict[str, Any] = {}
         self._opt_buttons: list[list[dict[str, Any]]] = []
+        self._opt_commands: list[dict[str, str]] = []
         self._opt_remove_button_label_to_value: dict[str, str] = {}
         self._opt_edit_index: tuple[int, int] | None = None
         self._opt_edit_label_to_value: dict[str, str] = {}
@@ -656,6 +679,27 @@ class MaxNotifyOptionsFlow(OptionsFlow):
     ) -> FlowResult:
         return await get_provider(self.config_entry).async_options_flow_step(
             self, "opt_edit_button_edit", user_input
+        )
+
+    async def async_step_commands_menu(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        return await get_provider(self.config_entry).async_options_flow_step(
+            self, "commands_menu", user_input
+        )
+
+    async def async_step_opt_add_command(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        return await get_provider(self.config_entry).async_options_flow_step(
+            self, "opt_add_command", user_input
+        )
+
+    async def async_step_opt_remove_command(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        return await get_provider(self.config_entry).async_options_flow_step(
+            self, "opt_remove_command", user_input
         )
 
     async def async_step_opt_next(

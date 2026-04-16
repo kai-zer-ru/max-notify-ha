@@ -13,6 +13,7 @@ OFFICIAL_CAPABILITIES = IntegrationCapabilities(
     supports_send_photo=True,
     supports_send_document=True,
     supports_send_video=True,
+    supports_bot_commands=True,
     supports_receive_long_polling=True,
     supports_receive_webhook=True,
     max_client_upload_bytes=None,

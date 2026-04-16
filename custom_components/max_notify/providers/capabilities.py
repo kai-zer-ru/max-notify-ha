@@ -25,6 +25,7 @@ class IntegrationCapabilities:
     supports_send_photo: bool = False
     supports_send_document: bool = False
     supports_send_video: bool = False
+    supports_bot_commands: bool = False
     max_client_upload_bytes: int | None = None
     supports_receive_polling: bool = False
     supports_receive_long_polling: bool = False

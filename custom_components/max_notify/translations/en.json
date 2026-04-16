@@ -498,6 +498,37 @@
           "button_to_remove": ""
         }
       },
+      "commands_menu": {
+        "title": "Slash commands",
+        "description": "Current commands: {commands_list}. Add or remove commands, then continue.",
+        "data": {
+          "action": "Action"
+        },
+        "menu_options": {
+          "add_command": "Add command",
+          "remove_command": "Remove command",
+          "next": "Continue"
+        }
+      },
+      "add_command": {
+        "title": "Add slash command",
+        "description": "Add command for bot menu. Current: {commands_list}",
+        "data": {
+          "command_name": "Command name",
+          "command_description": "Description"
+        },
+        "data_description": {
+          "command_name": "Without slash, for example: start",
+          "command_description": "Optional, 1-128 chars"
+        }
+      },
+      "remove_command": {
+        "title": "Remove slash command",
+        "description": "Choose command to remove. Current: {commands_list}",
+        "data": {
+          "command_to_remove": "Command to remove"
+        }
+      },
       "recipient": {
         "title": "Add chat",
         "description": "Enter one ID. Positive — personal chat, negative — group.",
@@ -748,6 +779,37 @@
         },
         "data_description": {
           "button_to_remove": ""
+        }
+      },
+      "commands_menu": {
+        "title": "Slash commands",
+        "description": "Current commands: {commands_list}. Add or remove commands, then finish.",
+        "data": {
+          "action": "Action"
+        },
+        "menu_options": {
+          "opt_add_command": "Add command",
+          "opt_remove_command": "Remove command",
+          "opt_next": "Finish"
+        }
+      },
+      "opt_add_command": {
+        "title": "Add slash command",
+        "description": "Add command for bot menu. Current: {commands_list}",
+        "data": {
+          "command_name": "Command name",
+          "command_description": "Description"
+        },
+        "data_description": {
+          "command_name": "Without slash, for example: start",
+          "command_description": "Optional, 1-128 chars"
+        }
+      },
+      "opt_remove_command": {
+        "title": "Remove slash command",
+        "description": "Choose command to remove. Current: {commands_list}",
+        "data": {
+          "command_to_remove": "Command to remove"
         }
       },
       "notify_a161_init_notify": {

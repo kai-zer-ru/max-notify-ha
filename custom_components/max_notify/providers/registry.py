@@ -76,6 +76,7 @@ NOTIFY_A161_PROVIDER = NotifyA161IntegrationProvider(
     translation_prefix_keys=NOTIFY_A161_TRANSLATION_KEYS,
     supports_receive_polling=NOTIFY_A161_CAPABILITIES.supports_receive_polling,
     supports_receive_long_polling=NOTIFY_A161_CAPABILITIES.supports_receive_long_polling,
+    supports_bot_commands=NOTIFY_A161_CAPABILITIES.supports_bot_commands,
     allow_multiple_config_entries_same_token=False,
     max_attachments_per_message_limit=None,
 )
@@ -93,6 +94,7 @@ OFFICIAL_PROVIDER = OfficialIntegrationProvider(
     translation_prefix_keys=None,
     supports_receive_polling=OFFICIAL_CAPABILITIES.supports_receive_polling,
     supports_receive_long_polling=OFFICIAL_CAPABILITIES.supports_receive_long_polling,
+    supports_bot_commands=OFFICIAL_CAPABILITIES.supports_bot_commands,
     max_attachments_per_message_limit=None,
 )
 

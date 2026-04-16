@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from custom_components.max_notify.const import (
     CONF_INTEGRATION_TYPE,
+    INTEGRATION_TYPE_NOTIFY_A161,
     INTEGRATION_TYPE_OFFICIAL,
 )
 from custom_components.max_notify.providers.capabilities import IntegrationCapabilities
@@ -31,6 +32,7 @@ def test_resolve_official(mock_config_entry) -> None:
     assert get_capabilities(mock_config_entry).supports_receive_polling is False
     assert get_capabilities(mock_config_entry).supports_receive_long_polling is True
     assert get_capabilities(mock_config_entry).supports_receive_webhook is True
+    assert get_capabilities(mock_config_entry).supports_bot_commands is True
 
 
 def test_register_custom_capabilities(mock_config_entry) -> None:
@@ -48,3 +50,8 @@ def test_register_custom_capabilities(mock_config_entry) -> None:
 def test_official_reports_upload_limit(mock_config_entry) -> None:
     mock_config_entry.data[CONF_INTEGRATION_TYPE] = INTEGRATION_TYPE_OFFICIAL
     assert get_provider(mock_config_entry).max_attachment_upload_bytes() == OFFICIAL_MAX_UPLOAD_BYTES
+
+
+def test_notify_a161_does_not_support_bot_commands(mock_config_entry) -> None:
+    mock_config_entry.data[CONF_INTEGRATION_TYPE] = INTEGRATION_TYPE_NOTIFY_A161
+    assert get_capabilities(mock_config_entry).supports_bot_commands is False

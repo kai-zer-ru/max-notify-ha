@@ -55,6 +55,7 @@ LOG_LABEL_THIRD_PARTY_VIDEO = "third_party_video"
 # Update types from Max API (GET /updates, POST /subscriptions)
 UPDATE_MESSAGE_CREATED = "message_created"
 UPDATE_MESSAGE_CALLBACK = "message_callback"
+UPDATE_SLASH_COMMAND = "slash_command"
 
 # Home Assistant event fired when an update is received
 EVENT_MAX_NOTIFY_RECEIVED = "max_notify_received"

@@ -12,7 +12,12 @@ from homeassistant.helpers.translation import async_get_translations
 from ...api import validate_token
 from ...const import (
     CONF_ACCESS_TOKEN,
+    CONF_ACTION,
     CONF_BUTTONS,
+    CONF_COMMAND_DESCRIPTION,
+    CONF_COMMAND_NAME,
+    CONF_COMMAND_TO_REMOVE,
+    CONF_COMMANDS,
     CONF_INTEGRATION_TYPE,
     CONF_MESSAGE_FORMAT,
     CONF_RECEIVE_MODE,
@@ -26,9 +31,9 @@ from ...const import (
     RECEIVE_MODE_WEBHOOK,
     SUBENTRY_TYPE_RECIPIENT,
 )
-from ...helpers import other_entry_has_receive_mode
+from ...helpers import commands_display_str, normalize_commands, other_entry_has_receive_mode
 from ...services import register_send_message_service
-from ...translations import get_option_labels, get_receive_mode_title
+from ...translations import get_menu_labels, get_option_labels, get_receive_mode_title
 from ...unique_title import get_unique_entry_title
 from ...webhook import (
     async_clear_subscriptions_for_long_polling,
@@ -41,6 +46,14 @@ except ImportError:
     ConfigSubentryData = dict[str, Any]
 
 _LOGGER = logging.getLogger(__name__)
+
+__all__ = [
+    "async_step_user_official",
+    "async_step_recipient",
+    "async_step_commands_menu",
+    "async_step_add_command",
+    "async_step_remove_command",
+]
 
 
 async def async_step_user_official(
@@ -125,6 +138,7 @@ async def async_step_user_official(
         if flow._receive_mode == RECEIVE_MODE_SEND_ONLY:
             flow._webhook_secret = ""
             flow._buttons_rows = []
+            flow._commands = []
             return await flow.async_step_recipient(None)
         if flow._receive_mode == RECEIVE_MODE_LONG_POLLING:
             if other_entry_has_receive_mode(
@@ -214,6 +228,7 @@ async def async_step_recipient(
                 CONF_RECEIVE_MODE: flow._receive_mode,
                 CONF_WEBHOOK_SECRET: flow._webhook_secret,
                 CONF_BUTTONS: flow._buttons_rows,
+                CONF_COMMANDS: flow._commands,
                 CONF_UPDATES_INTERVAL: flow._updates_interval,
             }
             wprov = flow._wizard_provider()
@@ -237,4 +252,104 @@ async def async_step_recipient(
         step_id="recipient",
         data_schema=vol.Schema({vol.Required(CONF_RECIPIENT_ID): vol.Coerce(int)}),
         errors=errors,
+    )
+
+
+async def async_step_commands_menu(
+    flow: Any, user_input: dict[str, Any] | None = None
+) -> FlowResult:
+    """Настройка slash-команд после кнопок (официальный API)."""
+    option_keys: list[tuple[str, str]] = [
+        ("add_command", ""),
+        ("next", ""),
+    ]
+    if flow._commands:
+        option_keys.append(("remove_command", ""))
+    labels = await get_menu_labels(
+        flow.hass, "config", "commands_menu", option_keys, flow=flow
+    )
+    label_to_key = {labels[k]: k for k, _ in option_keys}
+    choice_labels = [labels[k] for k, _ in option_keys]
+
+    if user_input is not None:
+        chosen_label = user_input.get(CONF_ACTION) or choice_labels[0]
+        key = label_to_key.get(chosen_label, "next")
+        if key == "add_command":
+            return await flow.async_step_add_command(None)
+        if key == "remove_command":
+            return await flow.async_step_remove_command(None)
+        return await flow.async_step_recipient(None)
+
+    return flow.async_show_form(
+        step_id="commands_menu",
+        data_schema=vol.Schema(
+            {
+                vol.Required(CONF_ACTION, default=choice_labels[0]): vol.In(choice_labels),
+            }
+        ),
+        description_placeholders={
+            "commands_list": commands_display_str(flow._commands) or "—",
+        },
+    )
+
+
+async def async_step_add_command(
+    flow: Any, user_input: dict[str, Any] | None = None
+) -> FlowResult:
+    """Добавить slash-команду (/start -> start)."""
+    errors: dict[str, str] = {}
+    if user_input is not None:
+        raw_name = (user_input.get(CONF_COMMAND_NAME) or "").strip().lower()
+        name = raw_name.removeprefix("/")
+        if not name:
+            errors["base"] = "invalid_command_name"
+        elif any(c.get("name") == name for c in flow._commands):
+            errors["base"] = "invalid_command_name"
+        if not errors:
+            description = (user_input.get(CONF_COMMAND_DESCRIPTION) or "").strip() or name
+            flow._commands.append({"name": name, "description": description})
+            flow._commands = normalize_commands(flow._commands)
+            return await flow.async_step_commands_menu(None)
+    return flow.async_show_form(
+        step_id="add_command",
+        data_schema=vol.Schema(
+            {
+                vol.Required(CONF_COMMAND_NAME, default=""): str,
+                vol.Optional(CONF_COMMAND_DESCRIPTION, default=""): str,
+            }
+        ),
+        description_placeholders={
+            "commands_list": commands_display_str(flow._commands) or "—",
+        },
+        errors=errors,
+    )
+
+
+async def async_step_remove_command(
+    flow: Any, user_input: dict[str, Any] | None = None
+) -> FlowResult:
+    """Удалить slash-команду из списка."""
+    if not flow._commands:
+        return await flow.async_step_commands_menu(None)
+    command_labels = [
+        f"/{cmd.get('name', '')} — {cmd.get('description', cmd.get('name', ''))}"
+        for cmd in flow._commands
+    ]
+    label_to_index = {label: idx for idx, label in enumerate(command_labels)}
+    if user_input is not None:
+        selected_label = str(user_input.get(CONF_COMMAND_TO_REMOVE) or "").strip()
+        idx = label_to_index.get(selected_label)
+        if idx is not None:
+            flow._commands.pop(idx)
+        return await flow.async_step_commands_menu(None)
+    return flow.async_show_form(
+        step_id="remove_command",
+        data_schema=vol.Schema(
+            {
+                vol.Required(CONF_COMMAND_TO_REMOVE): vol.In(command_labels),
+            }
+        ),
+        description_placeholders={
+            "commands_list": commands_display_str(flow._commands) or "—",
+        },
     )

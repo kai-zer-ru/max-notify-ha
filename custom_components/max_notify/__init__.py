@@ -16,6 +16,7 @@ from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.debounce import Debouncer
 from homeassistant.helpers.typing import ConfigType
 
+from .api import sync_bot_commands_to_max
 from .const import (
     CONF_RECEIVE_MODE,
     DOMAIN,
@@ -159,7 +160,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Не копить дубли слушателей при перезагрузках.
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
 
-    await get_provider(entry).async_prepare_entry_for_receive(hass, entry)
+    provider = get_provider(entry)
+    await provider.async_prepare_entry_for_receive(hass, entry)
+    if provider.supports_bot_commands:
+        synced = await sync_bot_commands_to_max(hass, entry)
+        if not synced:
+            _LOGGER.warning(
+                "Failed to sync slash commands for entry_id=%s",
+                entry.entry_id,
+            )
     receive_mode = (entry.options or {}).get(CONF_RECEIVE_MODE, "send_only")
     # Сначала снять устаревший polling — режим мог смениться между быстрыми перезагрузками.
     stop_polling(hass, entry)

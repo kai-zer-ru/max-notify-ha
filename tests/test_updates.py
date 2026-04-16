@@ -8,6 +8,7 @@ import pytest
 
 from custom_components.max_notify.providers.updates_service import (
     _extract_event_data,
+    _extract_slash_command_from_text,
     _extract_message_id,
     _get_callback_payload,
     _parse_json_response_text,
@@ -44,6 +45,36 @@ class TestExtractEventData:
         assert data["raw_update"] == update
         assert "config_entry_id" in data
 
+    def test_message_created_group_mention_slash_command(self, mock_entry) -> None:
+        update = {
+            "update_type": "message_created",
+            "message": {
+                "body": {"text": "@id251603503331_bot /report"},
+                "recipient": {"chat_id": -123},
+                "message_id": "msg-10",
+                "sender": {"user_id": 456},
+            },
+        }
+        data = _extract_event_data(mock_entry, update)
+        assert data["update_type"] == "slash_command"
+        assert data["command"] == "report"
+        assert data["args"] == ""
+
+    def test_message_created_slash_command_with_args(self, mock_entry) -> None:
+        update = {
+            "update_type": "message_created",
+            "message": {
+                "body": {"text": "@id251603503331_bot /report now please"},
+                "recipient": {"chat_id": -1},
+                "message_id": "msg-11",
+                "sender": {"user_id": 10},
+            },
+        }
+        data = _extract_event_data(mock_entry, update)
+        assert data["update_type"] == "slash_command"
+        assert data["command"] == "report"
+        assert data["args"] == "now please"
+
     def test_message_callback_with_payload(self, mock_entry) -> None:
         update = {
             "update_type": "message_callback",
@@ -58,6 +89,25 @@ class TestExtractEventData:
         assert data["update_type"] == "message_callback"
         assert data["callback_data"] == "light_on"
         assert data["command"] == "light_on"
+
+
+class TestExtractSlashCommandFromText:
+    """Тесты выделения slash-команды из текста сообщения."""
+
+    @pytest.mark.parametrize(
+        ("text", "expected_command", "expected_args"),
+        [
+            ("/start", "start", ""),
+            ("/start arg", "start", "arg"),
+            ("@id251603503331_bot /report", "report", ""),
+            ("@id251603503331_bot /report all now", "report", "all now"),
+            ("hello world", None, None),
+        ],
+    )
+    def test_extract(self, text, expected_command, expected_args) -> None:
+        command, args = _extract_slash_command_from_text(text)
+        assert command == expected_command
+        assert args == expected_args
 
 
 class TestGetCallbackPayload:

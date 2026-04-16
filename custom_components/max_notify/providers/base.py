@@ -13,6 +13,7 @@ _T = TypeVar("_T")
 from ..const import (
     API_PATH_MESSAGES,
     CONF_BUTTONS,
+    CONF_COMMANDS,
     CONF_INTEGRATION_TYPE,
     CONF_UPDATES_INTERVAL,
     CONF_WEBHOOK_SECRET,
@@ -52,6 +53,7 @@ class MaxNotifyIntegrationProvider:
         "translation_prefix_keys",
         "supports_receive_polling",
         "supports_receive_long_polling",
+        "supports_bot_commands",
         "allow_multiple_config_entries_same_token",
         "max_attachments_per_message_limit",
     )
@@ -76,6 +78,7 @@ class MaxNotifyIntegrationProvider:
         translation_prefix_keys: frozenset[str] | None = None,
         supports_receive_polling: bool = False,
         supports_receive_long_polling: bool = False,
+        supports_bot_commands: bool = False,
         allow_multiple_config_entries_same_token: bool = True,
         max_attachments_per_message_limit: int | None = None,
     ) -> None:
@@ -96,6 +99,7 @@ class MaxNotifyIntegrationProvider:
         self.translation_prefix_keys = translation_prefix_keys
         self.supports_receive_polling = supports_receive_polling
         self.supports_receive_long_polling = supports_receive_long_polling
+        self.supports_bot_commands = supports_bot_commands
         self.allow_multiple_config_entries_same_token = (
             allow_multiple_config_entries_same_token
         )
@@ -552,6 +556,9 @@ class MaxNotifyIntegrationProvider:
         out: dict[str, Any] = {
             **pending_options,
             CONF_BUTTONS: opt_buttons,
+            CONF_COMMANDS: pending_options.get(
+                CONF_COMMANDS, (entry_options or {}).get(CONF_COMMANDS, [])
+            ),
             CONF_UPDATES_INTERVAL: int(pending_updates_interval),
             CONF_WEBHOOK_SECRET: pending_options.get(CONF_WEBHOOK_SECRET, ""),
         }

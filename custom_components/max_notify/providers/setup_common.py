@@ -115,6 +115,8 @@ async def async_step_receive_options_menu_setup(
             return await flow.async_step_add_button(None)
         if key == "remove_button":
             return await flow.async_step_remove_button(None)
+        if flow._wizard_provider().supports_bot_commands:
+            return await flow.async_step_commands_menu(None)
         return await flow.async_step_recipient(None)
 
     return flow.async_show_form(

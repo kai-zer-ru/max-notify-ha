@@ -24,6 +24,8 @@ from ..const import (
     DOMAIN,
     EVENT_MAX_NOTIFY_RECEIVED,
     POLLING_RETRY_DELAY,
+    UPDATE_MESSAGE_CREATED,
+    UPDATE_SLASH_COMMAND,
 )
 from ..message_state import schedule_integration_persist, set_last_incoming_message_id
 from .registry import get_provider
@@ -182,13 +184,11 @@ def _extract_event_data(entry: ConfigEntry, update: dict[str, Any]) -> dict[str,
     if isinstance(body.get("text"), str):
         text = body["text"].strip()
 
-    # Command: text starting with /
+    # Command from text (supports group mentions: "@bot /cmd args")
     command = None
     args = None
-    if text and text.startswith("/"):
-        parts = text[1:].split(None, 1)
-        command = parts[0].lower() if parts else ""
-        args = parts[1] if len(parts) > 1 else ""
+    if text:
+        command, args = _extract_slash_command_from_text(text)
 
     # Callback payload (message_callback) — payload нажатой кнопки для триггеров
     callback_data = _get_callback_payload(update, message, body)
@@ -206,9 +206,15 @@ def _extract_event_data(entry: ConfigEntry, update: dict[str, Any]) -> dict[str,
     if update_type == "message_callback" and callback_data and not command:
         command = str(callback_data).strip()
 
+    normalized_update_type = (
+        UPDATE_SLASH_COMMAND
+        if update_type == UPDATE_MESSAGE_CREATED and command
+        else update_type
+    )
+
     event_data: dict[str, Any] = {
         "config_entry_id": entry.entry_id,
-        "update_type": update_type,
+        "update_type": normalized_update_type,
         "timestamp": timestamp,
         "user_id": user_id,
         "chat_id": chat_id,
@@ -222,6 +228,34 @@ def _extract_event_data(entry: ConfigEntry, update: dict[str, Any]) -> dict[str,
     }
     # Drop None values so automation triggers can use optional fields
     return {k: v for k, v in event_data.items() if v is not None}
+
+
+def _extract_slash_command_from_text(text: str) -> tuple[str | None, str | None]:
+    """Extract slash command from message text.
+
+    Supported forms:
+    - `/report`
+    - `/report arg1 arg2`
+    - `@id123_bot /report`
+    - `@id123_bot /report arg1`
+    """
+    stripped = text.strip()
+    if not stripped:
+        return None, None
+    parts = stripped.split()
+    cmd_index = -1
+    for idx, token in enumerate(parts):
+        if token.startswith("/") and len(token) > 1:
+            cmd_index = idx
+            break
+    if cmd_index < 0:
+        return None, None
+
+    raw_cmd = parts[cmd_index][1:].strip().lower()
+    if not raw_cmd:
+        return None, None
+    args = " ".join(parts[cmd_index + 1 :]).strip()
+    return raw_cmd, (args or "")
 
 
 def _get_callback_payload(
