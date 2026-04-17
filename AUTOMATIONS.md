@@ -12,7 +12,9 @@
 >
 > **Inline-кнопки (`buttons`)** и клавиатура из настроек интеграции поддерживаются **в обоих режимах** (официальный API и `notify.a161.ru`) в рамках [возможностей сервиса](https://notify.a161.ru/). Для `notify.a161.ru` при Polling действует **автопереключение на «Только отправка»**: если за выбранный период **1–3 суток** (по умолчанию 3) не было ни входящих обновлений, ни отправки сообщения **с кнопками**, приём отключается — снова включите Polling в настройках записи. Подробнее — [README](README.md#notify-a161).
 >
-> В примерах с **отрицательным** `recipient_id` (групповой чат) это относится к **официальному API**. Для **`notify.a161.ru`** используется только положительный `user_id` одного получателя.
+> **Отрицательный** `recipient_id` — **групповой чат** Max. Так работает и **официальный API**, и **`notify.a161.ru`** (отправка и приём в группе — в рамках [возможностей сервиса](https://notify.a161.ru/)).
+
+> Событие `max_notify_received` нормализуется к единому формату независимо от провайдера и содержит стандартные поля (`update_type`, `config_entry_id`, `timestamp`, `recipient_id`, `text`, `command`, `args`, `callback_data`, `message_id`, `event_id`, `raw_update`).
 
 <a id="содержание"></a>
 
@@ -37,6 +39,8 @@
 - [max_notify.delete_message](#autom-delete-message)
   - [Вручную](#autom-delete-message-manual)
   - [Из события](#autom-delete-message-event)
+- [max_notify.delete_last_outgoing_message](#autom-delete-last-outgoing-message)
+  - [Вручную](#autom-delete-last-outgoing-message-manual)
 
 ---
 
@@ -82,6 +86,36 @@
 
 ---
 
+<a id="autom-delete-last-outgoing-message"></a>
+
+## max_notify.delete_last_outgoing_message
+
+> Работает только для **групповых чатов** (`recipient_id < 0`) в **Official Max API**.
+> Для личных чатов (`recipient_id > 0`) API Max не позволяет читать историю сообщений по `recipient_id`, поэтому сервис вернёт ошибку в UI.
+
+<a id="autom-delete-last-outgoing-message-manual"></a>
+
+### Вручную
+
+```yaml
+alias: MaxNotify — delete_last_outgoing_message (manual, group only)
+triggers:
+  - trigger: event
+    event_type: my_cleanup_event
+conditions: []
+actions:
+  - action: max_notify.delete_last_outgoing_message
+    target:
+      entity_id: notify.maxnotify_long_polling_chat_123456
+    data:
+      scan_count: 20
+mode: single
+```
+
+[↑ Наверх](#automations-top)
+
+---
+
 <a id="autom-send-message"></a>
 
 ## max_notify.send_message
@@ -92,11 +126,12 @@
 
 ```yaml
 alias: MaxNotify — send_message (manual)
-trigger:
-  - platform: time_pattern
+triggers:
+  - trigger: time_pattern
     minutes: "/30"
-action:
-  - service: max_notify.send_message
+conditions: []
+actions:
+  - action: max_notify.send_message
     data:
       config_entry_id: "01KH6B15CHBAT3E3Q4TJRVGBSY"
       recipient_id: -70955246010435
@@ -117,11 +152,12 @@ mode: single
 
 ```yaml
 alias: MaxNotify — send_message (from event)
-trigger:
-  - platform: event
+triggers:
+  - trigger: event
     event_type: max_notify_received
-action:
-  - service: max_notify.send_message
+conditions: []
+actions:
+  - action: max_notify.send_message
     data:
       config_entry_id: "{{ trigger.event.data.config_entry_id }}"
       recipient_id: "{{ trigger.event.data.recipient_id }}"
@@ -146,12 +182,13 @@ mode: single
 
 ```yaml
 alias: MaxNotify — send_photo (manual)
-trigger:
-  - platform: state
+triggers:
+  - trigger: state
     entity_id: binary_sensor.door
     to: "on"
-action:
-  - service: max_notify.send_photo
+conditions: []
+actions:
+  - action: max_notify.send_photo
     data:
       config_entry_id: "01KH6B15CHBAT3E3Q4TJRVGBSY"
       recipient_id: -70955246010435
@@ -171,13 +208,14 @@ mode: single
 
 ```yaml
 alias: MaxNotify — send_photo (from event)
-trigger:
-  - platform: event
+triggers:
+  - trigger: event
     event_type: max_notify_received
     event_data:
       command: photo
-action:
-  - service: max_notify.send_photo
+conditions: []
+actions:
+  - action: max_notify.send_photo
     data:
       config_entry_id: "{{ trigger.event.data.config_entry_id }}"
       recipient_id: "{{ trigger.event.data.recipient_id }}"
@@ -203,11 +241,12 @@ mode: single
 
 ```yaml
 alias: MaxNotify — send_document (manual)
-trigger:
-  - platform: time
+triggers:
+  - trigger: time
     at: "09:00:00"
-action:
-  - service: max_notify.send_document
+conditions: []
+actions:
+  - action: max_notify.send_document
     data:
       config_entry_id: "01KH6B15CHBAT3E3Q4TJRVGBSY"
       recipient_id: -70955246010435
@@ -227,13 +266,14 @@ mode: single
 
 ```yaml
 alias: MaxNotify — send_document (from event)
-trigger:
-  - platform: event
+triggers:
+  - trigger: event
     event_type: max_notify_received
     event_data:
       command: report
-action:
-  - service: max_notify.send_document
+conditions: []
+actions:
+  - action: max_notify.send_document
     data:
       config_entry_id: "{{ trigger.event.data.config_entry_id }}"
       recipient_id: "{{ trigger.event.data.recipient_id }}"
@@ -256,12 +296,13 @@ mode: single
 
 ```yaml
 alias: MaxNotify — send_video (manual)
-trigger:
-  - platform: state
+triggers:
+  - trigger: state
     entity_id: alarm_control_panel.home_alarm
     to: "triggered"
-action:
-  - service: max_notify.send_video
+conditions: []
+actions:
+  - action: max_notify.send_video
     data:
       config_entry_id: "01KH6B15CHBAT3E3Q4TJRVGBSY"
       recipient_id: -70955246010435
@@ -281,13 +322,14 @@ mode: single
 
 ```yaml
 alias: MaxNotify — send_video (from event)
-trigger:
-  - platform: event
+triggers:
+  - trigger: event
     event_type: max_notify_received
     event_data:
       command: video
-action:
-  - service: max_notify.send_video
+conditions: []
+actions:
+  - action: max_notify.send_video
     data:
       config_entry_id: "{{ trigger.event.data.config_entry_id }}"
       recipient_id: "{{ trigger.event.data.recipient_id }}"
@@ -311,11 +353,12 @@ mode: single
 
 ```yaml
 alias: MaxNotify — edit_message (manual)
-trigger:
-  - platform: event
+triggers:
+  - trigger: event
     event_type: my_custom_event
-action:
-  - service: max_notify.edit_message
+conditions: []
+actions:
+  - action: max_notify.edit_message
     data:
       config_entry_id: "01KH6B15CHBAT3E3Q4TJRVGBSY"
       message_id: "1234567890"
@@ -335,14 +378,15 @@ mode: single
 
 ```yaml
 alias: MaxNotify — edit_message (from event)
-trigger:
-  - platform: event
+triggers:
+  - trigger: event
     event_type: max_notify_received
     event_data:
       update_type: message_callback
       callback_data: refresh
-action:
-  - service: max_notify.edit_message
+conditions: []
+actions:
+  - action: max_notify.edit_message
     data:
       config_entry_id: "{{ trigger.event.data.config_entry_id }}"
       message_id: "{{ trigger.event.data.message_id }}"
@@ -369,11 +413,12 @@ mode: single
 
 ```yaml
 alias: MaxNotify — delete_message (manual)
-trigger:
-  - platform: event
+triggers:
+  - trigger: event
     event_type: my_cleanup_event
-action:
-  - service: max_notify.delete_message
+conditions: []
+actions:
+  - action: max_notify.delete_message
     data:
       config_entry_id: "01KH6B15CHBAT3E3Q4TJRVGBSY"
       message_id: "1234567890"
@@ -388,14 +433,15 @@ mode: single
 
 ```yaml
 alias: MaxNotify — delete_message (from event)
-trigger:
-  - platform: event
+triggers:
+  - trigger: event
     event_type: max_notify_received
     event_data:
       update_type: message_callback
       callback_data: delete
-action:
-  - service: max_notify.delete_message
+conditions: []
+actions:
+  - action: max_notify.delete_message
     data:
       config_entry_id: "{{ trigger.event.data.config_entry_id }}"
       message_id: "{{ trigger.event.data.message_id }}"

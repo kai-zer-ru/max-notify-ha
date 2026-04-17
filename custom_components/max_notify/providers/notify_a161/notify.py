@@ -22,10 +22,10 @@ def resolve_message_url(
         return f"{base_url}{api_path_messages}?user_id={int(user_id)}"
 
     if chat_id is not None and int(chat_id) != 0:
-        # notify.a161 принимает только user_id; положительный chat_id трактуем как user_id.
-        if int(chat_id) > 0:
-            return f"{base_url}{api_path_messages}?user_id={int(chat_id)}"
-        return None
+        cid = int(chat_id)
+        if cid < 0:
+            return f"{base_url}{api_path_messages}?chat_id={cid}"
+        return f"{base_url}{api_path_messages}?user_id={cid}"
 
     return None
 

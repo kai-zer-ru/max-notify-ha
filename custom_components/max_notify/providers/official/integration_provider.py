@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING, Any
+
+from homeassistant.exceptions import ServiceValidationError
 
 from ...const import normalize_access_token
 from ...const import API_PATH_MESSAGES, CONF_ACCESS_TOKEN, CONF_RECIPIENT_ID, DOMAIN
@@ -18,6 +21,8 @@ from .config_flow import config_receive_mode_keys, options_receive_mode_keys
 if TYPE_CHECKING:
     from homeassistant.config_entries import ConfigEntry
     from homeassistant.core import HomeAssistant
+
+_LOGGER = logging.getLogger(__name__)
 
 
 def _entry_has_subentry_recipient(entry: ConfigEntry, recipient_id: int) -> bool:
@@ -124,9 +129,7 @@ class OfficialIntegrationProvider(MaxNotifyIntegrationProvider):
         )
 
     def config_flow_recipient_id_error(self, recipient_id: int) -> str | None:
-        if recipient_id == 0:
-            return "invalid_id_format"
-        return None
+        return super().config_flow_recipient_id_error(recipient_id)
 
     async def async_validate_access_token(
         self, hass: HomeAssistant, token: str
@@ -244,6 +247,84 @@ class OfficialIntegrationProvider(MaxNotifyIntegrationProvider):
 
         return await notify_outbound.delete_message(hass, entry, message_id)
 
+    async def async_delete_last_outgoing_message(
+        self,
+        hass: HomeAssistant,
+        entry: ConfigEntry,
+        recipient: dict[str, Any],
+        *,
+        scan_count: int,
+    ) -> bool:
+        from .. import notify_outbound
+        from .notify import find_last_outgoing_message_id
+
+        token = entry.data.get(CONF_ACCESS_TOKEN)
+        if not token:
+            return False
+        rid_raw = recipient.get(CONF_RECIPIENT_ID)
+        try:
+            recipient_id = int(rid_raw)
+        except (TypeError, ValueError):
+            _LOGGER.info(
+                "delete_last_outgoing_message: invalid recipient_id=%r for entry_id=%s",
+                rid_raw,
+                entry.entry_id,
+            )
+            return False
+        _LOGGER.info(
+            "delete_last_outgoing_message started: entry_id=%s recipient_id=%s scan_count=%s",
+            entry.entry_id,
+            recipient_id,
+            scan_count,
+        )
+        if recipient_id < 0:
+            message_id = await find_last_outgoing_message_id(
+                hass,
+                entry,
+                token,
+                base_url=self.api_base_url,
+                api_version=self.api_version,
+                recipient_id=recipient_id,
+                scan_count=scan_count,
+            )
+            _LOGGER.info(
+                "delete_last_outgoing_message group path: recipient_id=%s scan_count=%s message_id=%s",
+                recipient_id,
+                scan_count,
+                message_id,
+            )
+        else:
+            _LOGGER.info(
+                "delete_last_outgoing_message personal path rejected: recipient_id=%s",
+                recipient_id,
+            )
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="delete_last_outgoing_group_only",
+            )
+        if not message_id:
+            _LOGGER.info(
+                "delete_last_outgoing_message: no outgoing bot message found "
+                "(entry_id=%s recipient_id=%s scan_count=%s)",
+                entry.entry_id,
+                recipient_id,
+                scan_count,
+            )
+            return False
+        _LOGGER.info(
+            "delete_last_outgoing_message: resolved message_id=%s for entry_id=%s",
+            message_id,
+            entry.entry_id,
+        )
+        result = await notify_outbound.delete_message(hass, entry, message_id)
+        _LOGGER.info(
+            "delete_last_outgoing_message finished: entry_id=%s message_id=%s deleted=%s",
+            entry.entry_id,
+            message_id,
+            result,
+        )
+        return result
+
     async def async_edit_message(
         self,
         hass: HomeAssistant,
@@ -276,14 +357,12 @@ class OfficialIntegrationProvider(MaxNotifyIntegrationProvider):
         title: str | None = None,
         message_format: str | None = None,
     ) -> None:
-        from .. import notify_outbound
-
-        await notify_outbound.send_message_with_buttons(
+        await self.async_send_message(
             hass,
             entry,
             recipient,
             message,
-            buttons,
+            buttons=buttons,
             title=title,
             message_format=message_format,
         )
@@ -297,13 +376,35 @@ class OfficialIntegrationProvider(MaxNotifyIntegrationProvider):
         title: str | None = None,
         message_format: str | None = None,
     ) -> None:
-        from .. import notify_outbound
-
-        await notify_outbound.send_plain_message(
+        await self.async_send_message(
             hass,
             entry,
             recipient,
             message,
+            buttons=None,
+            title=title,
+            message_format=message_format,
+        )
+
+    async def async_send_message(
+        self,
+        hass: HomeAssistant,
+        entry: ConfigEntry,
+        recipient: dict[str, Any],
+        message: str,
+        *,
+        buttons: list[list[dict[str, Any]]] | None = None,
+        title: str | None = None,
+        message_format: str | None = None,
+    ) -> None:
+        from .. import notify_outbound
+
+        await notify_outbound.send_message(
+            hass,
+            entry,
+            recipient,
+            message,
+            buttons=buttons,
             title=title,
             message_format=message_format,
         )

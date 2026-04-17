@@ -17,6 +17,7 @@ from .const import (
     CONF_URL_AUTH_TOKEN,
     CONF_URL_AUTH_TYPE,
     CONF_MESSAGE_ID,
+    CONF_SCAN_COUNT,
     CONF_SEND_KEYBOARD,
     URL_AUTH_TYPES,
 )
@@ -62,6 +63,48 @@ def _validate_single_file(data: dict) -> dict:
     if not file_value:
         raise vol.Invalid("file cannot be empty")
     data["file"] = file_value
+    return data
+
+
+def _split_csv_message_ids(value: str) -> list[str]:
+    return [item.strip() for item in value.split(",") if item.strip()]
+
+
+def _normalize_message_ids_list(raw: object) -> list[str]:
+    """Параметр message_ids -> список ID или строка CSV."""
+    out: list[str] = []
+    if isinstance(raw, str):
+        out.extend(_split_csv_message_ids(raw))
+    elif isinstance(raw, list):
+        for item in raw:
+            if isinstance(item, str):
+                out.extend(_split_csv_message_ids(item))
+            else:
+                val = str(item).strip()
+                if val:
+                    out.append(val)
+    else:
+        raise vol.Invalid("message_ids must be a list or comma-separated string")
+    if not out:
+        raise vol.Invalid("message_ids cannot be empty")
+    return out
+
+
+def _validate_message_id_or_ids(data: dict) -> dict:
+    """Разрешить ровно одно из полей: message_id или message_ids."""
+    has_message_id = "message_id" in data
+    has_message_ids = "message_ids" in data
+    if has_message_id and has_message_ids:
+        raise vol.Invalid("Use only one of message_id or message_ids")
+    if not has_message_id and not has_message_ids:
+        raise vol.Invalid("Either message_id or message_ids is required")
+    if has_message_id:
+        message_id = str(data["message_id"]).strip()
+        if not message_id:
+            raise vol.Invalid("message_id cannot be empty")
+        data["message_id"] = message_id
+        return data
+    data["message_ids"] = _normalize_message_ids_list(data["message_ids"])
     return data
 
 
@@ -157,12 +200,16 @@ SERVICE_SEND_VIDEO_SCHEMA = vol.All(
     _validate_file_or_files,
 )
 
-SERVICE_DELETE_MESSAGE_SCHEMA = vol.Schema(
-    {
-        vol.Required(CONF_MESSAGE_ID): cv.string,
-        vol.Optional(ATTR_ENTITY_ID): vol.All(cv.ensure_list, [cv.entity_id]),
-        vol.Optional(CONF_CONFIG_ENTRY_ID): cv.string,
-    }
+SERVICE_DELETE_MESSAGE_SCHEMA = vol.All(
+    vol.Schema(
+        {
+            vol.Optional(CONF_MESSAGE_ID): cv.string,
+            vol.Optional("message_ids"): object,
+            vol.Optional(ATTR_ENTITY_ID): vol.All(cv.ensure_list, [cv.entity_id]),
+            vol.Optional(CONF_CONFIG_ENTRY_ID): cv.string,
+        }
+    ),
+    _validate_message_id_or_ids,
 )
 
 SERVICE_EDIT_MESSAGE_SCHEMA = vol.Schema(
@@ -175,5 +222,15 @@ SERVICE_EDIT_MESSAGE_SCHEMA = vol.Schema(
         vol.Optional("format"): vol.In(["text", "markdown", "html"]),
         vol.Optional(ATTR_ENTITY_ID): vol.All(cv.ensure_list, [cv.entity_id]),
         vol.Optional(CONF_CONFIG_ENTRY_ID): cv.string,
+    }
+)
+
+SERVICE_DELETE_LAST_OUTGOING_MESSAGE_SCHEMA = vol.Schema(
+    {
+        vol.Required(ATTR_ENTITY_ID): vol.All(cv.ensure_list, [cv.entity_id]),
+        vol.Optional(CONF_CONFIG_ENTRY_ID): cv.string,
+        vol.Optional(CONF_SCAN_COUNT, default=20): vol.All(
+            vol.Coerce(int), vol.Range(min=1, max=100)
+        ),
     }
 )

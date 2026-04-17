@@ -16,6 +16,7 @@ from ...const import (
     CONF_MESSAGE_FORMAT,
     CONF_RECEIVE_MODE,
     CONF_RECIPIENT_ID,
+    CONF_UPDATES_INTERVAL,
     CONF_WEBHOOK_SECRET,
     CONF_BUTTONS,
     DOMAIN,
@@ -67,7 +68,7 @@ async def async_step_notify_info(
 async def async_step_notify_user(
     flow: Any, user_input: dict[str, Any] | None = None
 ) -> FlowResult:
-    """notify.a161.ru setup: token + format, затем user_id."""
+    """notify.a161.ru setup: token + format, затем recipient_id (личный или группа)."""
     step_user = prefixed_step_id(flow, "notify_user")
     if user_input is not None:
         flow._token = user_input[CONF_ACCESS_TOKEN].strip()
@@ -151,7 +152,7 @@ async def async_step_notify_user(
 async def async_step_notify_recipient(
     flow: Any, user_input: dict[str, Any] | None = None
 ) -> FlowResult:
-    """notify.a161.ru: добавить неизменяемый user_id (только положительный)."""
+    """notify.a161.ru: добавить неизменяемый получатель (личный user_id > 0 или группа chat_id < 0)."""
     step_recipient = prefixed_step_id(flow, "notify_recipient")
     errors: dict[str, str] = {}
     if user_input is not None:
@@ -172,8 +173,8 @@ async def async_step_notify_recipient(
                     errors=errors,
                     description_placeholders=merge_description_placeholders(flow),
                 )
-            unique_id = f"user_{n}"
-            title = f"User {n}"
+            unique_id = f"user_{n}" if n > 0 else f"chat_{n}"
+            title = f"User {n}" if n > 0 else f"Chat {n}"
             data = {CONF_RECIPIENT_ID: n}
             subentry: ConfigSubentryData = {
                 "data": data,

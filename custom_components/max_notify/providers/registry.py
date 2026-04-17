@@ -50,7 +50,6 @@ NOTIFY_A161_TRANSLATION_KEYS = frozenset(
         "a161_inactivity_period",
         "init_notify",
         "invalid_notify_token_length",
-        "notify_user_only",
         "invalid_updates_interval",
         "invalid_a161_inactivity_period",
         "polling_requires_buttons_switched_send_only",
@@ -76,6 +75,7 @@ NOTIFY_A161_PROVIDER = NotifyA161IntegrationProvider(
     translation_prefix_keys=NOTIFY_A161_TRANSLATION_KEYS,
     supports_receive_polling=NOTIFY_A161_CAPABILITIES.supports_receive_polling,
     supports_receive_long_polling=NOTIFY_A161_CAPABILITIES.supports_receive_long_polling,
+    supports_group_chats=NOTIFY_A161_CAPABILITIES.supports_group_chats,
     supports_bot_commands=NOTIFY_A161_CAPABILITIES.supports_bot_commands,
     allow_multiple_config_entries_same_token=False,
     max_attachments_per_message_limit=None,
@@ -94,6 +94,7 @@ OFFICIAL_PROVIDER = OfficialIntegrationProvider(
     translation_prefix_keys=None,
     supports_receive_polling=OFFICIAL_CAPABILITIES.supports_receive_polling,
     supports_receive_long_polling=OFFICIAL_CAPABILITIES.supports_receive_long_polling,
+    supports_group_chats=OFFICIAL_CAPABILITIES.supports_group_chats,
     supports_bot_commands=OFFICIAL_CAPABILITIES.supports_bot_commands,
     max_attachments_per_message_limit=None,
 )
@@ -121,6 +122,20 @@ _PROVIDER_LABELS: dict[str, str] = {
 }
 
 
+def _resolve_known_provider_by_type(integration_type: str) -> MaxNotifyIntegrationProvider:
+    provider = _BY_INTEGRATION_TYPE.get(integration_type)
+    if provider is None:
+        raise ValueError(f"Unknown integration type: {integration_type}")
+    return provider
+
+
+def _resolve_known_capabilities_by_type(integration_type: str) -> IntegrationCapabilities:
+    caps = _CAPABILITIES.get(integration_type)
+    if caps is None:
+        raise ValueError(f"Unknown integration type: {integration_type}")
+    return caps
+
+
 def get_provider(entry: ConfigEntry) -> MaxNotifyIntegrationProvider:
     """Провайдер для записи (тип в data и эвристика заголовка для встроенных сторонних API)."""
     a161_by_stored_type = NOTIFY_A161_PROVIDER.matches_stored_type_only(entry)
@@ -145,7 +160,9 @@ def get_provider(entry: ConfigEntry) -> MaxNotifyIntegrationProvider:
         return NOTIFY_A161_PROVIDER
     raw = entry.data.get(CONF_INTEGRATION_TYPE, INTEGRATION_TYPE_OFFICIAL)
     key = str(raw) if raw is not None else INTEGRATION_TYPE_OFFICIAL
-    provider = _BY_INTEGRATION_TYPE.get(key, OFFICIAL_PROVIDER)
+    if not key:
+        key = INTEGRATION_TYPE_OFFICIAL
+    provider = _resolve_known_provider_by_type(key)
     if _LOGGER.isEnabledFor(logging.DEBUG):
         _LOGGER.debug(
             "get_provider: entry_id=%s resolved=%s stored_integration_type=%r title=%r",
@@ -159,7 +176,7 @@ def get_provider(entry: ConfigEntry) -> MaxNotifyIntegrationProvider:
 
 def get_provider_by_type(integration_type: str) -> MaxNotifyIntegrationProvider:
     """Провайдер по строковому типу интеграции (мастер настройки, api.validate_token)."""
-    return _BY_INTEGRATION_TYPE.get(integration_type, OFFICIAL_PROVIDER)
+    return _resolve_known_provider_by_type(integration_type)
 
 
 def register_capabilities(
@@ -180,8 +197,7 @@ def resolve_integration_type(entry: ConfigEntry) -> str:
 
 
 def get_capabilities(entry: ConfigEntry) -> IntegrationCapabilities:
-    """Возможности для этой записи конфигурации; неизвестный тип — как official."""
-    resolved = resolve_integration_type(entry)
+    """Возможности для этой записи конфигурации."""
     raw = str(entry.data.get(CONF_INTEGRATION_TYPE, "") or "")
     if (
         raw
@@ -189,12 +205,13 @@ def get_capabilities(entry: ConfigEntry) -> IntegrationCapabilities:
         and raw in _CAPABILITIES
     ):
         return _CAPABILITIES[raw]
-    return _CAPABILITIES.get(resolved, OFFICIAL_CAPABILITIES)
+    resolved = resolve_integration_type(entry)
+    return _resolve_known_capabilities_by_type(resolved)
 
 
 def get_capabilities_by_type(integration_type: str) -> IntegrationCapabilities:
     """Возможности по строке типа интеграции (мастер до создания записи)."""
-    return _CAPABILITIES.get(integration_type, OFFICIAL_CAPABILITIES)
+    return _resolve_known_capabilities_by_type(integration_type)
 
 
 def provider_display_name(integration_type: str) -> str:

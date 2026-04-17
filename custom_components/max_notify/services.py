@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
 from collections.abc import Mapping
@@ -23,11 +24,11 @@ except ImportError:
 from .helpers import resolve_service_inline_keyboard
 from .notify import (
     delete_message,
+    delete_last_outgoing_message,
     edit_message,
     recipient_dict_from_subentry,
+    send_message,
     upload_document_and_send,
-    send_plain_message,
-    send_message_with_buttons,
     upload_image_and_send,
     upload_video_and_send,
 )
@@ -41,11 +42,13 @@ from .const import (
     CONF_URL_AUTH_TOKEN,
     CONF_URL_AUTH_TYPE,
     CONF_MESSAGE_ID,
+    CONF_SCAN_COUNT,
     CONF_RECIPIENT_ID,
     CONF_SEND_KEYBOARD,
     DOMAIN,
     EVENT_MAX_NOTIFY_RECEIVED,
     SERVICE_DELETE_MESSAGE,
+    SERVICE_DELETE_LAST_OUTGOING_MESSAGE,
     SERVICE_EDIT_MESSAGE,
     SERVICE_SEND_DOCUMENT,
     SERVICE_SEND_MESSAGE,
@@ -59,6 +62,7 @@ from .const import (
 from .providers.registry import get_capabilities, raise_provider_feature_not_supported
 from .schemas import (
     SERVICE_DELETE_MESSAGE_SCHEMA,
+    SERVICE_DELETE_LAST_OUTGOING_MESSAGE_SCHEMA,
     SERVICE_EDIT_MESSAGE_SCHEMA,
     SERVICE_SEND_DOCUMENT_SCHEMA,
     SERVICE_SEND_MESSAGE_SCHEMA,
@@ -68,6 +72,39 @@ from .schemas import (
 )
 
 _LOGGER = logging.getLogger(__name__)
+_DELETE_MESSAGE_MAX_REQUESTS_PER_SECOND = 30
+
+_SENSITIVE_SERVICE_FIELDS = frozenset(
+    {
+        CONF_URL_AUTH_PASSWORD,
+        CONF_URL_AUTH_TOKEN,
+        "access_token",
+        "token",
+        "password",
+    }
+)
+
+
+def _sanitize_service_data_for_log(data: Mapping[str, Any]) -> dict[str, Any]:
+    out: dict[str, Any] = {}
+    for key, value in data.items():
+        if key in _SENSITIVE_SERVICE_FIELDS:
+            out[key] = "***"
+            continue
+        if isinstance(value, str) and len(value) > 500:
+            out[key] = f"{value[:500]}...<truncated>"
+            continue
+        out[key] = value
+    return out
+
+
+def _log_service_started(service_name: str, data: Mapping[str, Any]) -> None:
+    _LOGGER.info(
+        "%s.%s called with data=%s",
+        DOMAIN,
+        service_name,
+        _sanitize_service_data_for_log(data),
+    )
 
 
 def _has_url_userinfo(file_path_or_url: str) -> bool:
@@ -206,12 +243,18 @@ def register_send_message_service(hass: HomeAssistant) -> None:
     )
     hass.services.async_register(
         DOMAIN,
+        SERVICE_DELETE_LAST_OUTGOING_MESSAGE,
+        async_delete_last_outgoing_message_handler,
+        schema=SERVICE_DELETE_LAST_OUTGOING_MESSAGE_SCHEMA,
+    )
+    hass.services.async_register(
+        DOMAIN,
         SERVICE_EDIT_MESSAGE,
         async_edit_message_handler,
         schema=SERVICE_EDIT_MESSAGE_SCHEMA,
     )
     _LOGGER.info(
-        "Registered services %s.%s, %s.%s, %s.%s, %s.%s, %s.%s, %s.%s, %s.%s",
+        "Registered services %s.%s, %s.%s, %s.%s, %s.%s, %s.%s, %s.%s, %s.%s, %s.%s",
         DOMAIN,
         SERVICE_SEND_MESSAGE,
         DOMAIN,
@@ -224,6 +267,8 @@ def register_send_message_service(hass: HomeAssistant) -> None:
         SERVICE_SEND_VIDEO,
         DOMAIN,
         SERVICE_DELETE_MESSAGE,
+        DOMAIN,
+        SERVICE_DELETE_LAST_OUTGOING_MESSAGE,
         DOMAIN,
         SERVICE_EDIT_MESSAGE,
     )
@@ -298,8 +343,19 @@ async def async_delete_message_handler(service: ServiceCall) -> None:
     """Обработка max_notify.delete_message: удаление сообщения по ID."""
     hass = service.hass
     data = service.data
-    message_id = str(data[CONF_MESSAGE_ID]).strip()
-    if not message_id:
+    _log_service_started(SERVICE_DELETE_MESSAGE, data)
+    message_ids: list[str] = []
+    if CONF_MESSAGE_ID in data:
+        message_id_raw = str(data[CONF_MESSAGE_ID]).strip()
+        if message_id_raw:
+            message_ids.extend(
+                [item.strip() for item in message_id_raw.split(",") if item.strip()]
+            )
+    for raw in data.get("message_ids", []):
+        mid = str(raw).strip()
+        if mid:
+            message_ids.append(mid)
+    if not message_ids:
         raise ServiceValidationError(
             translation_domain=DOMAIN,
             translation_key="invalid_message_id",
@@ -314,24 +370,124 @@ async def async_delete_message_handler(service: ServiceCall) -> None:
     caps = get_capabilities(entry)
     _ensure_capability(entry, caps.supports_delete_message, feature="delete_message")
 
-    ok = await delete_message(hass, entry, message_id)
-    if ok:
-        hass.bus.async_fire(
-            EVENT_MAX_NOTIFY_RECEIVED,
-            {
-                "config_entry_id": entry.entry_id,
-                "update_type": "message_removed",
-                "timestamp": int(time.time() * 1000),
-                "message_id": message_id,
-                "event_id": f"local_message_removed_{message_id}",
-            },
+    delay_between_requests = 1 / _DELETE_MESSAGE_MAX_REQUESTS_PER_SECOND
+    for idx, message_id in enumerate(message_ids):
+        ok = await delete_message(hass, entry, message_id)
+        _LOGGER.info(
+            "%s.%s delete result: entry_id=%s message_id=%s deleted=%s",
+            DOMAIN,
+            SERVICE_DELETE_MESSAGE,
+            entry.entry_id,
+            message_id,
+            ok,
         )
+        if ok:
+            hass.bus.async_fire(
+                EVENT_MAX_NOTIFY_RECEIVED,
+                {
+                    "config_entry_id": entry.entry_id,
+                    "update_type": "message_removed",
+                    "timestamp": int(time.time() * 1000),
+                    "message_id": message_id,
+                    "event_id": f"local_message_removed_{message_id}",
+                },
+            )
+        if idx < len(message_ids) - 1:
+            await asyncio.sleep(delay_between_requests)
+
+
+def _resolve_single_notify_target(
+    hass: HomeAssistant,
+    *,
+    entity_ids: list[str] | None,
+    config_entry_id: str | None,
+) -> tuple[ConfigEntry, dict[str, Any]]:
+    resolved = _resolve_entity_ids(
+        hass,
+        entity_ids=entity_ids,
+        config_entry_id=config_entry_id,
+    )
+    if len(resolved) != 1:
+        raise ServiceValidationError(
+            translation_domain=DOMAIN,
+            translation_key="missing_target",
+        )
+    reg = er.async_get(hass)
+    entity_entry = reg.async_get(resolved[0])
+    if (
+        not entity_entry
+        or not entity_entry.config_entry_id
+        or not entity_entry.config_subentry_id
+    ):
+        raise ServiceValidationError(
+            translation_domain=DOMAIN,
+            translation_key="invalid_notify_entity",
+            translation_placeholders={"entity_id": resolved[0]},
+        )
+    entry = hass.config_entries.async_get_entry(entity_entry.config_entry_id)
+    if not entry or entry.domain != DOMAIN:
+        raise ServiceValidationError(
+            translation_domain=DOMAIN,
+            translation_key="invalid_config_entry",
+            translation_placeholders={"config_entry_id": entity_entry.config_entry_id},
+        )
+    subentry = (getattr(entry, "subentries", None) or {}).get(entity_entry.config_subentry_id)
+    if not subentry:
+        raise ServiceValidationError(
+            translation_domain=DOMAIN,
+            translation_key="invalid_notify_entity",
+            translation_placeholders={"entity_id": resolved[0]},
+        )
+    return entry, recipient_dict_from_subentry(subentry)
+
+
+async def async_delete_last_outgoing_message_handler(service: ServiceCall) -> None:
+    """Удалить последнее исходящее сообщение бота в указанном чате."""
+    hass = service.hass
+    data = service.data
+    _log_service_started(SERVICE_DELETE_LAST_OUTGOING_MESSAGE, data)
+    entity_ids = data.get(ATTR_ENTITY_ID)
+    if not entity_ids:
+        raise ServiceValidationError(
+            translation_domain=DOMAIN,
+            translation_key="missing_target",
+        )
+    config_entry_id = data.get(CONF_CONFIG_ENTRY_ID)
+    entry, recipient = _resolve_single_notify_target(
+        hass,
+        entity_ids=entity_ids,
+        config_entry_id=config_entry_id,
+    )
+
+    caps = get_capabilities(entry)
+    _ensure_capability(
+        entry,
+        caps.supports_delete_last_outgoing_message,
+        feature="delete_last_outgoing_message",
+    )
+    scan_count = int(data.get(CONF_SCAN_COUNT, 20))
+    deleted = await delete_last_outgoing_message(
+        hass,
+        entry,
+        recipient,
+        scan_count=scan_count,
+    )
+    _LOGGER.info(
+        "%s.%s result: entry_id=%s recipient=%s scan_count=%s deleted=%s",
+        DOMAIN,
+        SERVICE_DELETE_LAST_OUTGOING_MESSAGE,
+        entry.entry_id,
+        recipient,
+        scan_count,
+        deleted,
+    )
 
 
 async def async_edit_message_handler(service: ServiceCall) -> None:
     """Обработка max_notify.edit_message: правка текста, кнопок или снятие кнопок."""
     hass = service.hass
     data = service.data
+    _log_service_started(SERVICE_EDIT_MESSAGE, data)
     message_id = str(data[CONF_MESSAGE_ID]).strip()
     if not message_id:
         raise ServiceValidationError(
@@ -374,6 +530,14 @@ async def async_edit_message_handler(service: ServiceCall) -> None:
         buttons=resolved_buttons,
         remove_buttons=remove_b,
         format=data.get("format"),
+    )
+    _LOGGER.info(
+        "%s.%s result: entry_id=%s message_id=%s edited=%s",
+        DOMAIN,
+        SERVICE_EDIT_MESSAGE,
+        entry.entry_id,
+        message_id,
+        ok,
     )
     if ok:
         event_data: dict[str, Any] = {
@@ -457,6 +621,7 @@ async def async_send_message_handler(service: ServiceCall) -> None:
     """Обработка max_notify.send_message: цели и вызов notify.send_message или отправка с кнопками."""
     hass = service.hass
     data = service.data
+    _log_service_started(SERVICE_SEND_MESSAGE, data)
     message = data["message"]
     title = data.get("title")
     message_format = data.get("format")
@@ -531,12 +696,12 @@ async def async_send_message_handler(service: ServiceCall) -> None:
             buttons_raw=data.get("buttons"),
         )
         if all_buttons:
-            await send_message_with_buttons(
+            await send_message(
                 hass,
                 entry,
                 recipient_dict_from_subentry(subentry),
                 message,
-                all_buttons,
+                buttons=all_buttons,
                 title=title,
                 message_format=message_format,
             )
@@ -552,20 +717,30 @@ async def async_send_message_handler(service: ServiceCall) -> None:
         subentry = subentries.get(entity_entry.config_subentry_id)
         if not subentry:
             continue
-        await send_plain_message(
+        await send_message(
             hass,
             entry,
             recipient_dict_from_subentry(subentry),
             message,
+            buttons=None,
             title=title,
             message_format=message_format,
         )
+    _LOGGER.info(
+        "%s.%s finished: targets=%s with_keyboard=%s without_keyboard=%s",
+        DOMAIN,
+        SERVICE_SEND_MESSAGE,
+        len(resolved),
+        len(with_keyboard),
+        len(without_keyboard),
+    )
 
 
 async def async_send_text_to_all_handler(service: ServiceCall) -> None:
     """Обработка max_notify.send_text_to_all: отправка всем получателям во всех записях."""
     hass = service.hass
     data = service.data
+    _log_service_started(SERVICE_SEND_TEXT_TO_ALL, data)
     message = data["message"]
     title = data.get("title")
     message_format = data.get("format")
@@ -621,21 +796,22 @@ async def async_send_text_to_all_handler(service: ServiceCall) -> None:
                         get_capabilities(entry).supports_inline_keyboard,
                         feature="inline_keyboard",
                     )
-                    await send_message_with_buttons(
+                    await send_message(
                         hass,
                         entry,
                         recipient_dict_from_subentry(subentry),
                         message,
-                        all_buttons,
+                        buttons=all_buttons,
                         title=title,
                         message_format=message_format,
                     )
                 else:
-                    await send_plain_message(
+                    await send_message(
                         hass,
                         entry,
                         recipient_dict_from_subentry(subentry),
                         message,
+                        buttons=None,
                         title=title,
                         message_format=message_format,
                     )
@@ -662,6 +838,7 @@ async def _send_photo(
     hass: HomeAssistant,
     data: dict[str, Any],
 ) -> None:
+    _log_service_started(SERVICE_SEND_PHOTO, data)
     file_paths_or_urls = _extract_service_files(data)
     caption = data.get("caption")
     message_format = data.get("format")
@@ -746,6 +923,7 @@ async def _send_document(
     hass: HomeAssistant,
     data: dict[str, Any],
 ) -> None:
+    _log_service_started(SERVICE_SEND_DOCUMENT, data)
     if CONF_FILES in data:
         raise ServiceValidationError(
             "send_document supports only one file; use 'file' field"
@@ -832,17 +1010,20 @@ async def _send_document(
 async def async_send_photo_handler(service: ServiceCall) -> None:
     """Обработка max_notify.send_photo: изображение каждой цели."""
     await _send_photo(service.hass, service.data)
+    _LOGGER.info("%s.%s finished", DOMAIN, SERVICE_SEND_PHOTO)
 
 
 async def async_send_document_handler(service: ServiceCall) -> None:
     """Обработка max_notify.send_document: файл как документ каждой цели."""
     await _send_document(service.hass, service.data)
+    _LOGGER.info("%s.%s finished", DOMAIN, SERVICE_SEND_DOCUMENT)
 
 
 async def _send_video(
     hass: HomeAssistant,
     data: dict[str, Any],
 ) -> None:
+    _log_service_started(SERVICE_SEND_VIDEO, data)
     file_paths_or_urls = _extract_service_files(data)
     caption = data.get("caption")
     message_format = data.get("format")
@@ -925,3 +1106,4 @@ async def _send_video(
 async def async_send_video_handler(service: ServiceCall) -> None:
     """Обработка max_notify.send_video: видео каждой цели."""
     await _send_video(service.hass, service.data)
+    _LOGGER.info("%s.%s finished", DOMAIN, SERVICE_SEND_VIDEO)

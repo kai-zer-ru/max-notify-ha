@@ -54,7 +54,7 @@ from ..const import (
     VIDEO_URL_DOWNLOAD_RETRY_DELAYS,
 )
 from ..message_state import set_last_outgoing_message_id
-from .registry import get_provider
+from .registry import get_capabilities, get_provider
 _LOGGER = logging.getLogger(__name__)
 
 _EXT_TO_CONTENT_TYPE = {
@@ -627,6 +627,18 @@ def _recipient_to_user_chat(recipient: dict[str, Any]) -> tuple[int | None, int 
     return uid, cid
 
 
+def _effective_upload_limit_bytes(entry: ConfigEntry) -> int | None:
+    """Единый лимит загрузки: capability-контракт + провайдерный fallback."""
+    prov = get_provider(entry)
+    caps_limit = get_capabilities(entry).max_client_upload_bytes
+    provider_limit = prov.max_attachment_upload_bytes()
+    if caps_limit is None:
+        return provider_limit
+    if provider_limit is None:
+        return caps_limit
+    return min(caps_limit, provider_limit)
+
+
 def _recipient_id_from_subentry_unique_id(unique_id: str | None) -> int | None:
     """Восстановить recipient_id из unique_id субпункта (user_<id>, chat_<id>)."""
     if not unique_id:
@@ -679,6 +691,12 @@ async def _request_upload_url_json_with_retry(
             ) as resp:
                 text = await resp.text()
                 if resp.status == 200:
+                    _LOGGER.info(
+                        "%s HTTP response: status=%s body=%s",
+                        op_label,
+                        resp.status,
+                        text[:500],
+                    )
                     try:
                         parsed = json.loads(text) if text.strip() else {}
                     except json.JSONDecodeError as e:
@@ -1323,24 +1341,28 @@ def _store_outgoing_message_id_from_response(
         _LOGGER.debug("%s: message_id not found in response body: %s", source, (body or "")[:500])
 
 
-async def send_message_with_buttons(
+async def send_message(
     hass: HomeAssistant,
     entry: ConfigEntry,
     recipient: dict[str, Any],
     message: str,
-    buttons: list[list[dict[str, Any]]],
+    *,
+    buttons: list[list[dict[str, Any]]] | None = None,
     title: str | None = None,
     message_format: str | None = None,
 ) -> None:
-    """Отправить сообщение с inline-клавиатурой в Max (POST /messages с вложениями)."""
+    """Отправить текст: с inline-клавиатурой или без неё."""
     token = entry.data.get(CONF_ACCESS_TOKEN)
     if not token:
         _LOGGER.error("No access token in config entry")
         return
     result = await _get_message_url_and_recipient(hass, entry, token, recipient)
     if not result:
-        _LOGGER.error("Could not resolve recipient for message with buttons")
-        return
+        _LOGGER.error("Could not resolve recipient for message")
+        raise ServiceValidationError(
+            translation_domain=DOMAIN,
+            translation_key="plain_recipient_not_resolved",
+        )
     msg_url, _ = result
 
     text = f"{title}\n{message}" if title else message
@@ -1352,12 +1374,14 @@ async def send_message_with_buttons(
     payload: dict[str, Any] = {"text": text}
     if msg_format != "text":
         payload["format"] = msg_format
-    payload["attachments"] = [
-        {
-            "type": "inline_keyboard",
-            "payload": {"buttons": _normalize_buttons_for_api(buttons)},
-        }
-    ]
+    has_buttons = bool(buttons)
+    if has_buttons:
+        payload["attachments"] = [
+            {
+                "type": "inline_keyboard",
+                "payload": {"buttons": _normalize_buttons_for_api(buttons or [])},
+            }
+        ]
 
     headers = {"Authorization": token}
     session = async_get_clientsession(hass)
@@ -1365,27 +1389,28 @@ async def send_message_with_buttons(
 
     def _on_success(body: str) -> None:
         _LOGGER.info(
-            "send_message_with_buttons: full server response body=%s",
+            "send_message: full server response body=%s",
             body,
         )
         extracted_mid = _extract_message_id_from_response(body)
         if extracted_mid:
             _LOGGER.info(
-                "send_message_with_buttons: extracted message_id=%s",
+                "send_message: extracted message_id=%s",
                 extracted_mid,
             )
         else:
             _LOGGER.info(
-                "send_message_with_buttons: message_id not found in response",
+                "send_message: message_id not found in response",
             )
         _store_outgoing_message_id_from_response(
             hass,
             entry.entry_id,
             body,
-            "send_message_with_buttons",
+            "send_message",
             recipient_id=store_rid,
         )
-        _mark_after_send_with_keyboard(hass, entry)
+        if has_buttons:
+            _mark_after_send_with_keyboard(hass, entry)
 
     await _post_message_with_retry(
         hass,
@@ -1395,8 +1420,28 @@ async def send_message_with_buttons(
         headers,
         payload,
         (),
-        "message_with_buttons",
+        "message",
         on_success=_on_success,
+    )
+
+
+async def send_message_with_buttons(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    recipient: dict[str, Any],
+    message: str,
+    buttons: list[list[dict[str, Any]]],
+    title: str | None = None,
+    message_format: str | None = None,
+) -> None:
+    await send_message(
+        hass,
+        entry,
+        recipient,
+        message,
+        buttons=buttons,
+        title=title,
+        message_format=message_format,
     )
 
 
@@ -1408,71 +1453,14 @@ async def send_plain_message(
     title: str | None = None,
     message_format: str | None = None,
 ) -> None:
-    """Простой текст без inline-клавиатуры на recipient_id."""
-    token = entry.data.get(CONF_ACCESS_TOKEN)
-    if not token:
-        _LOGGER.error("No access token in config entry")
-        return
-    result = await _get_message_url_and_recipient(hass, entry, token, recipient)
-    if not result:
-        _LOGGER.error("Could not resolve recipient for plain message")
-        raise ServiceValidationError(
-            translation_domain=DOMAIN,
-            translation_key="plain_recipient_not_resolved",
-        )
-    msg_url, _ = result
-
-    text = f"{title}\n{message}" if title else message
-    if len(text) > MAX_MESSAGE_LENGTH:
-        _LOGGER.warning(
-            "Message truncated from %d to %d characters",
-            len(text),
-            MAX_MESSAGE_LENGTH,
-        )
-        text = text[:MAX_MESSAGE_LENGTH]
-
-    msg_format = message_format or entry.data.get(CONF_MESSAGE_FORMAT, "text")
-    payload: dict[str, Any] = {"text": text}
-    if msg_format != "text":
-        payload["format"] = msg_format
-
-    headers = {"Authorization": token}
-    session = async_get_clientsession(hass)
-    store_rid = _coerce_recipient_id_for_message_store(recipient)
-
-    def _on_success(body: str) -> None:
-        _LOGGER.info(
-            "send_plain_message: full server response body=%s",
-            body,
-        )
-        extracted_mid = _extract_message_id_from_response(body)
-        if extracted_mid:
-            _LOGGER.info(
-                "send_plain_message: extracted message_id=%s",
-                extracted_mid,
-            )
-        else:
-            _LOGGER.info(
-                "send_plain_message: message_id not found in response",
-            )
-        _store_outgoing_message_id_from_response(
-            hass,
-            entry.entry_id,
-            body,
-            "send_plain_message",
-            recipient_id=store_rid,
-        )
-
-    await _post_message_with_retry(
+    await send_message(
         hass,
         entry,
-        session,
-        msg_url,
-        headers,
-        payload,
-        (),
-        "plain_message",
-        on_success=_on_success,
+        recipient,
+        message,
+        buttons=None,
+        title=title,
+        message_format=message_format,
     )
 
 
@@ -1535,7 +1523,7 @@ async def _upload_media_and_send(
 
     upload_type = attachment_type
 
-    max_up = prov.max_attachment_upload_bytes()
+    max_up = _effective_upload_limit_bytes(entry)
     if max_up is None:
         raise ServiceValidationError(
             f"{prov.label} must define max_attachment_upload_bytes() for media uploads"
@@ -1608,16 +1596,30 @@ async def _upload_media_and_send(
                     timeout=aiohttp.ClientTimeout(total=120),
                     ssl=_request_ssl(disable_ssl),
                 ) as resp:
+                    upload_body = await resp.text()
+                    _LOGGER.info(
+                        "%s upload step2 response: status=%s body=%s",
+                        prov.label,
+                        resp.status,
+                        upload_body[:500],
+                    )
                     if resp.status >= 400:
-                        text = await resp.text()
                         _LOGGER.error(
                             "%s file upload failed: status=%s body=%s",
                             prov.label,
                             resp.status,
-                            text[:500],
+                            upload_body[:500],
                         )
                         return
-                    upload_resp = await _parse_upload_response(resp)
+                    try:
+                        upload_resp = json.loads(upload_body) if upload_body.strip() else {}
+                    except json.JSONDecodeError as e:
+                        _LOGGER.warning(
+                            "Upload response is not JSON: %s, body: %s",
+                            e,
+                            upload_body[:200],
+                        )
+                        upload_resp = {}
             except (aiohttp.ClientError, ValueError) as e:
                 _LOGGER.error("%s file upload failed: %s", prov.label, e)
                 return
@@ -1727,11 +1729,20 @@ async def _upload_media_and_send(
                 timeout=aiohttp.ClientTimeout(total=60),
                 ssl=_request_ssl(disable_ssl),
             ) as resp:
+                upload_body = await resp.text()
+                _LOGGER.info(
+                    "Max API upload step2 response: status=%s body=%s",
+                    resp.status,
+                    upload_body[:500],
+                )
                 if resp.status >= 400:
-                    text = await resp.text()
-                    _LOGGER.error("Max API file upload failed: status=%s body=%s", resp.status, text[:300])
+                    _LOGGER.error("Max API file upload failed: status=%s body=%s", resp.status, upload_body[:300])
                     return
-                upload_resp = await _parse_upload_response(resp)
+                try:
+                    upload_resp = json.loads(upload_body) if upload_body.strip() else {}
+                except json.JSONDecodeError as e:
+                    _LOGGER.warning("Upload response is not JSON: %s, body: %s", e, upload_body[:200])
+                    upload_resp = {}
         except (aiohttp.ClientError, ValueError) as e:
             _LOGGER.error("Max API file upload failed: %s", e)
             return
@@ -2001,7 +2012,7 @@ async def upload_video_and_send(
     headers = {"Authorization": token}
 
     prov = get_provider(entry)
-    max_vid = prov.max_attachment_upload_bytes()
+    max_vid = _effective_upload_limit_bytes(entry)
     if max_vid is None:
         raise ServiceValidationError(
             f"{prov.label} must define max_attachment_upload_bytes() for video uploads"
@@ -2077,10 +2088,15 @@ async def upload_video_and_send(
                 timeout=aiohttp.ClientTimeout(total=UPLOAD_VIDEO_TIMEOUT),
                 ssl=_request_ssl(disable_ssl),
             ) as resp:
+                upload_body = await resp.text()
+                _LOGGER.info(
+                    "Video upload step2 response: status=%s body=%s",
+                    resp.status,
+                    upload_body[:500],
+                )
                 if resp.status >= 400:
-                    text = await resp.text()
                     _LOGGER.error(
-                        "Video file upload failed: status=%s body=%s", resp.status, text[:300]
+                        "Video file upload failed: status=%s body=%s", resp.status, upload_body[:300]
                     )
                     return
                 _LOGGER.debug("Video upload to storage completed: status=%s", resp.status)
@@ -2176,7 +2192,7 @@ async def entity_send_plain_message(
     message: str,
     title: str | None,
 ) -> None:
-    """Отправка текста с сущности notify (повторы, persistent_notification при ошибке)."""
+    """Отправка текста с сущности notify (повторы, ошибка в UI и логах при провале)."""
     text = f"{title}\n{message}" if title else message
     if len(text) > MAX_MESSAGE_LENGTH:
         _LOGGER.warning(
@@ -2300,21 +2316,13 @@ async def entity_send_plain_message(
             url,
             entry.entry_id,
         )
-        msg = (
-            f"Не удалось отправить сообщение через Max после 5 попыток.\n"
-            f"Ошибка: {last_error!r}\n"
-            f"URL: {url}"
-        )
-        await hass.services.async_call(
-            "persistent_notification",
-            "create",
-            {
-                "title": "MaxNotify: ошибка отправки сообщения",
-                "message": msg,
-                "notification_id": f"max_notify_send_error_{entry.entry_id}",
+        raise ServiceValidationError(
+            translation_domain=DOMAIN,
+            translation_key="send_message_failed_after_retries",
+            translation_placeholders={
+                "attempts": "5",
+                "error": repr(last_error),
             },
-            blocking=False,
         )
-        return False
 
     await _run_with_send_pace_lock(hass, entry, _send_attempts)

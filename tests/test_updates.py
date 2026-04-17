@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock
+import asyncio
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 from custom_components.max_notify.providers.updates_service import (
+    async_process_incoming_update_impl,
     _extract_event_data,
     _extract_slash_command_from_text,
     _extract_message_id,
@@ -190,3 +192,41 @@ class TestReadJsonResponse:
     def test_parse_json_response_text_without_content_type(self) -> None:
         data = _parse_json_response_text('{"updates": []}', "")
         assert data == {"updates": []}
+
+
+@pytest.mark.asyncio
+async def test_incoming_message_id_updates_only_for_message_created(hass, mock_entry) -> None:
+    hass.data = {}
+    hass.bus = MagicMock()
+    hass.bus.async_fire = MagicMock()
+    hass.data["max_notify"] = {"_dedupe_lock": asyncio.Lock(), "_dedupe_recent": {}}
+
+    callback_update = {
+        "update_type": "message_callback",
+        "callback": {"payload": "status_1", "user_id": 100},
+        "message": {
+            "recipient": {"chat_id": -1},
+            "message_id": "mid.outgoing-123",
+            "body": {"text": "Button"},
+        },
+        "timestamp": 1,
+    }
+    message_update = {
+        "update_type": "message_created",
+        "message": {
+            "recipient": {"chat_id": -1},
+            "message_id": "mid.incoming-456",
+            "body": {"text": "hello"},
+            "sender": {"user_id": 100},
+        },
+        "timestamp": 2,
+    }
+
+    with patch(
+        "custom_components.max_notify.providers.updates_service.set_last_incoming_message_id"
+    ) as mock_set:
+        await async_process_incoming_update_impl(hass, mock_entry, callback_update)
+        mock_set.assert_not_called()
+
+        await async_process_incoming_update_impl(hass, mock_entry, message_update)
+        mock_set.assert_called_once()

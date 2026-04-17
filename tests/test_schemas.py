@@ -10,6 +10,7 @@ from custom_components.max_notify.schemas import (
     SERVICE_SEND_MESSAGE_SCHEMA,
     SERVICE_SEND_VIDEO_SCHEMA,
     SERVICE_DELETE_MESSAGE_SCHEMA,
+    SERVICE_DELETE_LAST_OUTGOING_MESSAGE_SCHEMA,
     SERVICE_EDIT_MESSAGE_SCHEMA,
 )
 
@@ -54,7 +55,7 @@ class TestSendMessageSchema:
 class TestDeleteMessageSchema:
     """Тесты SERVICE_DELETE_MESSAGE_SCHEMA."""
 
-    def test_required_message_id(self) -> None:
+    def test_requires_message_id_or_message_ids(self) -> None:
         with pytest.raises(vol.MultipleInvalid):
             SERVICE_DELETE_MESSAGE_SCHEMA({})
 
@@ -68,6 +69,20 @@ class TestDeleteMessageSchema:
             "config_entry_id": "entry-1",
         })
         assert data["config_entry_id"] == "entry-1"
+
+    def test_valid_message_ids_list(self) -> None:
+        data = SERVICE_DELETE_MESSAGE_SCHEMA({"message_ids": ["msg-1", "msg-2"]})
+        assert data["message_ids"] == ["msg-1", "msg-2"]
+
+    def test_valid_message_ids_csv_string(self) -> None:
+        data = SERVICE_DELETE_MESSAGE_SCHEMA({"message_ids": "msg-1, msg-2 ,msg-3"})
+        assert data["message_ids"] == ["msg-1", "msg-2", "msg-3"]
+
+    def test_rejects_message_id_and_message_ids_together(self) -> None:
+        with pytest.raises(vol.MultipleInvalid):
+            SERVICE_DELETE_MESSAGE_SCHEMA(
+                {"message_id": "msg-1", "message_ids": ["msg-2"]}
+            )
 
 class TestEditMessageSchema:
     """Тесты SERVICE_EDIT_MESSAGE_SCHEMA."""
@@ -114,6 +129,24 @@ class TestEditMessageSchema:
             "buttons": {"Button 1": "button_1"},
         })
         assert data["buttons"]["Button 1"] == "button_1"
+
+
+class TestDeleteLastOutgoingMessageSchema:
+    """Тесты SERVICE_DELETE_LAST_OUTGOING_MESSAGE_SCHEMA."""
+
+    def test_entity_id_required(self) -> None:
+        with pytest.raises(vol.MultipleInvalid):
+            SERVICE_DELETE_LAST_OUTGOING_MESSAGE_SCHEMA({})
+
+    def test_defaults_scan_count(self) -> None:
+        data = SERVICE_DELETE_LAST_OUTGOING_MESSAGE_SCHEMA(
+            {"entity_id": ["notify.test_chat"]}
+        )
+        assert data["scan_count"] == 20
+
+    def test_scan_count_range(self) -> None:
+        with pytest.raises(vol.MultipleInvalid):
+            SERVICE_DELETE_LAST_OUTGOING_MESSAGE_SCHEMA({"scan_count": 0})
 
 class TestSendVideoSchema:
     """Тесты SERVICE_SEND_VIDEO_SCHEMA."""

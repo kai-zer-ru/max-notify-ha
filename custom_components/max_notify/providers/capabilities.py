@@ -21,6 +21,7 @@ class IntegrationCapabilities:
     supports_group_chats: bool = False
     supports_inline_keyboard: bool = False
     supports_delete_message: bool = False
+    supports_delete_last_outgoing_message: bool = False
     supports_edit_message: bool = False
     supports_send_photo: bool = False
     supports_send_document: bool = False

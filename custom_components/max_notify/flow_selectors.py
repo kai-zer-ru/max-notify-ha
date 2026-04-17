@@ -16,7 +16,7 @@ def _dropdown_mode_value():
 # Поля токенов/секретов: не подсказывать браузеру «сохранить пароль».
 _SENSITIVE_TEXT_SELECTOR = selector.TextSelector(
     selector.TextSelectorConfig(
-        type=selector.TextSelectorType.PASSWORD,
+        type=selector.TextSelectorType.TEXT,
         autocomplete="off",
     )
 )

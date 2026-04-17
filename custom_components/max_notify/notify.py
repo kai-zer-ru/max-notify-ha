@@ -20,9 +20,7 @@ except ImportError:
 
 from .const import DOMAIN
 from .providers.registry import (
-    get_capabilities,
     get_provider,
-    raise_provider_feature_not_supported,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -34,10 +32,9 @@ from .providers.notify_outbound import recipient_dict_from_subentry
 async def delete_message(
     hass: HomeAssistant, entry: ConfigEntry, message_id: str
 ) -> bool:
-    caps = get_capabilities(entry)
-    if not caps.supports_delete_message:
-        raise_provider_feature_not_supported(entry, feature="delete_message")
-    return await get_provider(entry).async_delete_message(hass, entry, message_id)
+    provider = get_provider(entry)
+    provider.ensure_can_delete_message(entry)
+    return await provider.async_delete_message(hass, entry, message_id)
 
 
 async def edit_message(
@@ -49,10 +46,9 @@ async def edit_message(
     remove_buttons: bool = False,
     format: str | None = None,
 ) -> bool:
-    caps = get_capabilities(entry)
-    if not caps.supports_edit_message:
-        raise_provider_feature_not_supported(entry, feature="edit_message")
-    return await get_provider(entry).async_edit_message(
+    provider = get_provider(entry)
+    provider.ensure_can_edit_message(entry)
+    return await provider.async_edit_message(
         hass,
         entry,
         message_id,
@@ -60,6 +56,23 @@ async def edit_message(
         buttons=buttons,
         remove_buttons=remove_buttons,
         format=format,
+    )
+
+
+async def delete_last_outgoing_message(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    recipient: dict[str, Any],
+    *,
+    scan_count: int,
+) -> bool:
+    provider = get_provider(entry)
+    provider.ensure_can_delete_last_outgoing_message(entry)
+    return await provider.async_delete_last_outgoing_message(
+        hass,
+        entry,
+        recipient,
+        scan_count=scan_count,
     )
 
 
@@ -72,19 +85,38 @@ async def send_message_with_buttons(
     title: str | None = None,
     message_format: str | None = None,
 ) -> None:
-    caps = get_capabilities(entry)
-    if not caps.supports_inline_keyboard:
-        raise_provider_feature_not_supported(entry, feature="inline_keyboard")
-    await get_provider(entry).async_send_message_with_buttons(
+    await send_message(
         hass,
         entry,
         recipient,
         message,
-        buttons,
+        buttons=buttons,
         title=title,
         message_format=message_format,
     )
 
+
+async def send_message(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    recipient: dict[str, Any],
+    message: str,
+    *,
+    buttons: list[list[dict[str, Any]]] | None = None,
+    title: str | None = None,
+    message_format: str | None = None,
+) -> None:
+    provider = get_provider(entry)
+    provider.ensure_can_send_message(entry, recipient, with_buttons=bool(buttons))
+    await provider.async_send_message(
+        hass,
+        entry,
+        recipient,
+        message,
+        buttons=buttons,
+        title=title,
+        message_format=message_format,
+    )
 
 async def send_plain_message(
     hass: HomeAssistant,
@@ -94,8 +126,14 @@ async def send_plain_message(
     title: str | None = None,
     message_format: str | None = None,
 ) -> None:
-    await get_provider(entry).async_send_plain_message(
-        hass, entry, recipient, message, title=title, message_format=message_format
+    await send_message(
+        hass,
+        entry,
+        recipient,
+        message,
+        buttons=None,
+        title=title,
+        message_format=message_format,
     )
 
 
@@ -116,13 +154,9 @@ async def upload_image_and_send(
     url_auth_token: str | None = None,
     message_format: str | None = None,
 ) -> None:
-    caps = get_capabilities(entry)
-    if not caps.supports_send_photo:
-        raise_provider_feature_not_supported(entry, feature="send_photo")
-    if buttons:
-        if not caps.supports_inline_keyboard:
-            raise_provider_feature_not_supported(entry, feature="inline_keyboard")
-    await get_provider(entry).async_upload_image_and_send(
+    provider = get_provider(entry)
+    provider.ensure_can_upload_image(entry, recipient, with_buttons=bool(buttons))
+    await provider.async_upload_image_and_send(
         hass,
         entry,
         recipient,
@@ -157,12 +191,9 @@ async def upload_document_and_send(
     url_auth_token: str | None = None,
     message_format: str | None = None,
 ) -> None:
-    caps = get_capabilities(entry)
-    if not caps.supports_send_document:
-        raise_provider_feature_not_supported(entry, feature="send_document")
-    if buttons and not caps.supports_inline_keyboard:
-        raise_provider_feature_not_supported(entry, feature="inline_keyboard")
-    await get_provider(entry).async_upload_document_and_send(
+    provider = get_provider(entry)
+    provider.ensure_can_upload_document(entry, recipient, with_buttons=bool(buttons))
+    await provider.async_upload_document_and_send(
         hass,
         entry,
         recipient,
@@ -198,13 +229,9 @@ async def upload_video_and_send(
     url_auth_token: str | None = None,
     message_format: str | None = None,
 ) -> None:
-    caps = get_capabilities(entry)
-    if not caps.supports_send_video:
-        raise_provider_feature_not_supported(entry, feature="send_video")
-    if buttons:
-        if not caps.supports_inline_keyboard:
-            raise_provider_feature_not_supported(entry, feature="inline_keyboard")
-    await get_provider(entry).async_upload_video_and_send(
+    provider = get_provider(entry)
+    provider.ensure_can_upload_video(entry, recipient, with_buttons=bool(buttons))
+    await provider.async_upload_video_and_send(
         hass,
         entry,
         recipient,
@@ -273,6 +300,10 @@ class MaxNotifyEntity(NotifyEntity):
         }
 
     async def async_send_message(self, message: str, title: str | None = None) -> None:
-        await get_provider(self._entry).async_entity_send_plain_message(
+        provider = get_provider(self._entry)
+        provider.ensure_can_send_message(
+            self._entry, self._recipient, with_buttons=False
+        )
+        await provider.async_entity_send_plain_message(
             self.hass, self._entry, self._recipient, message, title
         )

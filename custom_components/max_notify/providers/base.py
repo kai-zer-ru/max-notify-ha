@@ -24,8 +24,6 @@ from ..const import (
 )
 from ..translations import get_receive_mode_title
 from ..unique_title import get_unique_entry_title
-from .official import notify as official_notify
-from .official.updates import extract_updates_from_payload
 
 
 class MaxNotifyIntegrationProvider:
@@ -53,6 +51,7 @@ class MaxNotifyIntegrationProvider:
         "translation_prefix_keys",
         "supports_receive_polling",
         "supports_receive_long_polling",
+        "supports_group_chats",
         "supports_bot_commands",
         "allow_multiple_config_entries_same_token",
         "max_attachments_per_message_limit",
@@ -78,6 +77,7 @@ class MaxNotifyIntegrationProvider:
         translation_prefix_keys: frozenset[str] | None = None,
         supports_receive_polling: bool = False,
         supports_receive_long_polling: bool = False,
+        supports_group_chats: bool = False,
         supports_bot_commands: bool = False,
         allow_multiple_config_entries_same_token: bool = True,
         max_attachments_per_message_limit: int | None = None,
@@ -99,6 +99,7 @@ class MaxNotifyIntegrationProvider:
         self.translation_prefix_keys = translation_prefix_keys
         self.supports_receive_polling = supports_receive_polling
         self.supports_receive_long_polling = supports_receive_long_polling
+        self.supports_group_chats = supports_group_chats
         self.supports_bot_commands = supports_bot_commands
         self.allow_multiple_config_entries_same_token = (
             allow_multiple_config_entries_same_token
@@ -212,6 +213,16 @@ class MaxNotifyIntegrationProvider:
     ) -> bool:
         return False
 
+    async def async_delete_last_outgoing_message(
+        self,
+        hass: HomeAssistant,
+        entry: ConfigEntry,
+        recipient: dict[str, Any],
+        *,
+        scan_count: int,
+    ) -> bool:
+        return False
+
     async def async_edit_message(
         self,
         hass: HomeAssistant,
@@ -235,6 +246,38 @@ class MaxNotifyIntegrationProvider:
         message_format: str | None = None,
     ) -> None:
         return None
+
+    async def async_send_message(
+        self,
+        hass: HomeAssistant,
+        entry: ConfigEntry,
+        recipient: dict[str, Any],
+        message: str,
+        *,
+        buttons: list[list[dict[str, Any]]] | None = None,
+        title: str | None = None,
+        message_format: str | None = None,
+    ) -> None:
+        """Единая отправка текста: с кнопками или без, в зависимости от ``buttons``."""
+        if buttons:
+            await self.async_send_message_with_buttons(
+                hass,
+                entry,
+                recipient,
+                message,
+                buttons,
+                title=title,
+                message_format=message_format,
+            )
+            return
+        await self.async_send_plain_message(
+            hass,
+            entry,
+            recipient,
+            message,
+            title=title,
+            message_format=message_format,
+        )
 
     async def async_send_plain_message(
         self,
@@ -403,7 +446,140 @@ class MaxNotifyIntegrationProvider:
 
     def config_flow_recipient_id_error(self, recipient_id: int) -> str | None:
         """Ключ ошибки перевода для шага recipient или None."""
+        if recipient_id == 0:
+            return "invalid_id_format"
+        if recipient_id < 0 and not self.supports_group_chats:
+            return "group_chats_not_supported"
         return None
+
+    @staticmethod
+    def _recipient_is_group_chat(recipient: dict[str, Any]) -> bool:
+        rid = recipient.get("recipient_id")
+        try:
+            return int(rid) < 0
+        except (TypeError, ValueError):
+            return False
+
+    def _require_feature(
+        self,
+        entry: ConfigEntry,
+        *,
+        feature: str,
+        enabled: bool,
+    ) -> None:
+        if enabled:
+            return
+        from .registry import raise_provider_feature_not_supported
+
+        raise_provider_feature_not_supported(entry, feature=feature)
+
+    def ensure_can_send_message(
+        self,
+        entry: ConfigEntry,
+        recipient: dict[str, Any],
+        *,
+        with_buttons: bool,
+    ) -> None:
+        """Проверки capability перед отправкой текста."""
+        from .registry import get_capabilities
+
+        caps = get_capabilities(entry)
+        if self._recipient_is_group_chat(recipient):
+            self._require_feature(
+                entry, feature="group_chats", enabled=caps.supports_group_chats
+            )
+        if with_buttons:
+            self._require_feature(
+                entry, feature="inline_keyboard", enabled=caps.supports_inline_keyboard
+            )
+
+    def ensure_can_delete_message(self, entry: ConfigEntry) -> None:
+        from .registry import get_capabilities
+
+        caps = get_capabilities(entry)
+        self._require_feature(
+            entry, feature="delete_message", enabled=caps.supports_delete_message
+        )
+
+    def ensure_can_delete_last_outgoing_message(self, entry: ConfigEntry) -> None:
+        from .registry import get_capabilities
+
+        caps = get_capabilities(entry)
+        self._require_feature(
+            entry,
+            feature="delete_last_outgoing_message",
+            enabled=caps.supports_delete_last_outgoing_message,
+        )
+
+    def ensure_can_edit_message(self, entry: ConfigEntry) -> None:
+        from .registry import get_capabilities
+
+        caps = get_capabilities(entry)
+        self._require_feature(
+            entry, feature="edit_message", enabled=caps.supports_edit_message
+        )
+
+    def ensure_can_upload_image(
+        self,
+        entry: ConfigEntry,
+        recipient: dict[str, Any],
+        *,
+        with_buttons: bool,
+    ) -> None:
+        from .registry import get_capabilities
+
+        caps = get_capabilities(entry)
+        if self._recipient_is_group_chat(recipient):
+            self._require_feature(
+                entry, feature="group_chats", enabled=caps.supports_group_chats
+            )
+        self._require_feature(entry, feature="send_photo", enabled=caps.supports_send_photo)
+        if with_buttons:
+            self._require_feature(
+                entry, feature="inline_keyboard", enabled=caps.supports_inline_keyboard
+            )
+
+    def ensure_can_upload_document(
+        self,
+        entry: ConfigEntry,
+        recipient: dict[str, Any],
+        *,
+        with_buttons: bool,
+    ) -> None:
+        from .registry import get_capabilities
+
+        caps = get_capabilities(entry)
+        if self._recipient_is_group_chat(recipient):
+            self._require_feature(
+                entry, feature="group_chats", enabled=caps.supports_group_chats
+            )
+        self._require_feature(
+            entry, feature="send_document", enabled=caps.supports_send_document
+        )
+        if with_buttons:
+            self._require_feature(
+                entry, feature="inline_keyboard", enabled=caps.supports_inline_keyboard
+            )
+
+    def ensure_can_upload_video(
+        self,
+        entry: ConfigEntry,
+        recipient: dict[str, Any],
+        *,
+        with_buttons: bool,
+    ) -> None:
+        from .registry import get_capabilities
+
+        caps = get_capabilities(entry)
+        if self._recipient_is_group_chat(recipient):
+            self._require_feature(
+                entry, feature="group_chats", enabled=caps.supports_group_chats
+            )
+        self._require_feature(entry, feature="send_video", enabled=caps.supports_send_video)
+        if with_buttons:
+            self._require_feature(
+                entry, feature="inline_keyboard", enabled=caps.supports_inline_keyboard
+            )
 
     def access_token_expected_length(self) -> int | None:
         """Если не None — ожидаемая длина ключа/токена (UI и переводы через ``{token_length}``)."""
@@ -441,7 +617,10 @@ class MaxNotifyIntegrationProvider:
 
     def extract_updates_from_poll_json(self, data: Any) -> list[dict[str, Any]]:
         """Нормализованные updates из JSON ответа GET …/updates."""
-        return extract_updates_from_payload(data)
+        if isinstance(data, dict):
+            raw_updates = data.get("updates") or []
+            return [one for one in raw_updates if isinstance(one, dict)]
+        return []
 
     def build_updates_poll_params(
         self, entry: ConfigEntry, marker: Any | None
@@ -481,16 +660,12 @@ class MaxNotifyIntegrationProvider:
     def build_delete_message_url(
         self, base_url: str, api_path_messages: str, message_id: str
     ) -> str:
-        return official_notify.build_delete_url(
-            base_url, api_path_messages, self.api_version, message_id
-        )
+        return f"{base_url}{api_path_messages}?message_id={message_id}&v={self.api_version}"
 
     def build_edit_message_url(
         self, base_url: str, api_path_messages: str, message_id: str
     ) -> str:
-        return official_notify.build_edit_url(
-            base_url, api_path_messages, self.api_version, message_id
-        )
+        return f"{base_url}{api_path_messages}?message_id={message_id}&v={self.api_version}"
 
     def resolve_simple_message_post_url(
         self,
@@ -583,9 +758,7 @@ class MaxNotifyIntegrationProvider:
     def build_upload_url(
         self, base_url: str, api_path_uploads: str, upload_type: str
     ) -> str:
-        return official_notify.build_upload_url(
-            base_url, api_path_uploads, self.api_version, upload_type
-        )
+        return f"{base_url}{api_path_uploads}?type={upload_type}&v={self.api_version}"
 
     def build_media_message_payload(
         self,
@@ -597,14 +770,21 @@ class MaxNotifyIntegrationProvider:
         buttons_api: list[list[dict[str, Any]]] | None,
         attachment_type: str,
     ) -> dict[str, Any]:
-        return official_notify.build_media_payload(
-            attachment_payloads=upload_payloads,
-            caption=caption,
-            max_message_length=max_message_length,
-            message_format=message_format,
-            buttons_api=buttons_api,
-            attachment_type=attachment_type,
-        )
+        media_type = attachment_type if attachment_type in ("image", "file") else "image"
+        attachments = [
+            {"type": media_type, "payload": payload} for payload in upload_payloads
+        ]
+        if buttons_api:
+            attachments.append(
+                {"type": "inline_keyboard", "payload": {"buttons": buttons_api}}
+            )
+        payload: dict[str, Any] = {
+            "text": (caption or "")[:max_message_length],
+            "attachments": attachments,
+        }
+        if message_format != "text":
+            payload["format"] = message_format
+        return payload
 
     def build_video_message_payload(
         self,
@@ -615,13 +795,21 @@ class MaxNotifyIntegrationProvider:
         message_format: str,
         buttons_api: list[list[dict[str, Any]]] | None,
     ) -> dict[str, Any]:
-        return official_notify.build_video_payload(
-            video_tokens=video_tokens,
-            caption=caption,
-            max_message_length=max_message_length,
-            message_format=message_format,
-            buttons_api=buttons_api,
-        )
+        attachments = [
+            {"type": "video", "payload": {"token": video_token}}
+            for video_token in video_tokens
+        ]
+        if buttons_api:
+            attachments.append(
+                {"type": "inline_keyboard", "payload": {"buttons": buttons_api}}
+            )
+        payload: dict[str, Any] = {
+            "text": (caption or "")[:max_message_length],
+            "attachments": attachments,
+        }
+        if message_format != "text":
+            payload["format"] = message_format
+        return payload
 
     def upload_step2_response_ok(self, resp: Any) -> bool:
         return isinstance(resp, dict) and bool(resp)

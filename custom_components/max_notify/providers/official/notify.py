@@ -10,7 +10,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
-from ...const import API_PATH_CHATS, CHATS_PAGE_SIZE
+from ...const import API_PATH_CHATS, API_PATH_ME, API_PATH_MESSAGES, CHATS_PAGE_SIZE
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -97,6 +97,201 @@ def build_edit_url(base_url: str, api_path_messages: str, api_version: str, mess
 def build_upload_url(base_url: str, api_path_uploads: str, api_version: str, upload_type: str) -> str:
     """URL POST /uploads для официального API и типа медиа."""
     return f"{base_url}{api_path_uploads}?type={upload_type}&v={api_version}"
+
+
+def _extract_message_id_from_item(message: dict[str, Any]) -> str | None:
+    for key in ("message_id", "messageId", "id"):
+        value = message.get(key)
+        if value is not None:
+            text = str(value).strip()
+            if text:
+                return text
+    body = message.get("body")
+    if isinstance(body, dict):
+        for key in ("mid", "message_id", "messageId", "id"):
+            value = body.get(key)
+            if value is not None:
+                text = str(value).strip()
+                if text:
+                    return text
+    return None
+
+
+def _extract_sender_user_id(message: dict[str, Any]) -> int | None:
+    sender = message.get("sender")
+    if isinstance(sender, dict):
+        for key in ("user_id", "userId", "id"):
+            value = sender.get(key)
+            if value is not None:
+                try:
+                    return int(value)
+                except (TypeError, ValueError):
+                    return None
+    return None
+
+
+async def _get_bot_user_id(
+    hass: HomeAssistant,
+    token: str,
+    *,
+    base_url: str,
+    api_version: str,
+) -> int | None:
+    url = f"{base_url}{API_PATH_ME}?v={api_version}"
+    session = async_get_clientsession(hass)
+    headers = {"Authorization": token}
+    try:
+        async with session.get(
+            url,
+            headers=headers,
+            timeout=aiohttp.ClientTimeout(total=10),
+        ) as resp:
+            body_text = await resp.text()
+            _LOGGER.info(
+                "Official API GET /me response: status=%s body=%s",
+                resp.status,
+                body_text[:500],
+            )
+            if resp.status != 200:
+                return None
+            try:
+                data = await resp.json()
+            except ValueError:
+                return None
+    except (aiohttp.ClientError, ValueError):
+        return None
+
+    if isinstance(data, dict):
+        for key in ("user_id", "userId", "id"):
+            value = data.get(key)
+            if value is not None:
+                try:
+                    return int(value)
+                except (TypeError, ValueError):
+                    return None
+        me_obj = data.get("user") or data.get("me")
+        if isinstance(me_obj, dict):
+            for key in ("user_id", "userId", "id"):
+                value = me_obj.get(key)
+                if value is not None:
+                    try:
+                        return int(value)
+                    except (TypeError, ValueError):
+                        return None
+    return None
+
+
+def _messages_query_variants(
+    *,
+    chat_ids: list[int],
+    scan_count: int,
+    api_version: str,
+) -> list[dict[str, Any]]:
+    base_params = [{"v": api_version, "count": scan_count}, {"v": api_version, "limit": scan_count}]
+    variants: list[dict[str, Any]] = []
+    for params in base_params:
+        for chat_id in chat_ids:
+            variants.append({**params, "chat_id": chat_id})
+    return variants
+
+
+async def find_last_outgoing_message_id(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    token: str,
+    *,
+    base_url: str,
+    api_version: str,
+    recipient_id: int,
+    scan_count: int,
+) -> str | None:
+    """Найти id последнего исходящего сообщения бота в чате/диалоге."""
+    session = async_get_clientsession(hass)
+    headers = {"Authorization": token}
+
+    chat_ids: list[int] = []
+    user_id: int | None
+    if recipient_id < 0:
+        chat_ids.append(recipient_id)
+        user_id = None
+    else:
+        user_id = recipient_id
+        resolved_chat_id = await resolve_dialog_chat_id(
+            hass,
+            entry,
+            token,
+            user_id,
+            base_url=base_url,
+            api_version=api_version,
+        )
+        if resolved_chat_id is not None:
+            chat_ids.append(resolved_chat_id)
+        _LOGGER.info(
+            "Official API message scan target resolved: recipient_id=%s user_id=%s chat_ids=%s resolved_chat_id=%s",
+            recipient_id,
+            user_id,
+            chat_ids,
+            resolved_chat_id,
+        )
+        if not chat_ids:
+            _LOGGER.info(
+                "Official API message scan skipped: dialog chat_id is not resolvable for user_id=%s. "
+                "MAX API /chats returns group chats only, so /messages history cannot be read for this dialog.",
+                user_id,
+            )
+            return None
+
+    bot_user_id = await _get_bot_user_id(
+        hass,
+        token,
+        base_url=base_url,
+        api_version=api_version,
+    )
+    if bot_user_id is None:
+        return None
+
+    url = f"{base_url}{API_PATH_MESSAGES}"
+    for params in _messages_query_variants(
+        chat_ids=chat_ids,
+        scan_count=scan_count,
+        api_version=api_version,
+    ):
+        try:
+            async with session.get(
+                url,
+                headers=headers,
+                params=params,
+                timeout=aiohttp.ClientTimeout(total=10),
+            ) as resp:
+                body_text = await resp.text()
+                _LOGGER.info(
+                    "Official API GET /messages response: status=%s params=%s body=%s",
+                    resp.status,
+                    params,
+                    body_text[:500],
+                )
+                if resp.status != 200:
+                    continue
+                try:
+                    data = await resp.json()
+                except ValueError:
+                    continue
+        except (aiohttp.ClientError, ValueError):
+            continue
+
+        messages = data.get("messages") if isinstance(data, dict) else None
+        if not isinstance(messages, list):
+            continue
+
+        for item in messages:
+            if not isinstance(item, dict):
+                continue
+            if _extract_sender_user_id(item) != bot_user_id:
+                continue
+            message_id = _extract_message_id_from_item(item)
+            if message_id:
+                return message_id
+    return None
 
 
 def build_media_payload(

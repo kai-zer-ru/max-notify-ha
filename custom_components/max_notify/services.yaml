@@ -375,7 +375,10 @@ send_document:
 delete_message:
   fields:
     message_id:
-      required: true
+      selector:
+        text:
+    message_ids:
+      description: "List of message IDs (comma-separated or array in YAML mode)"
       selector:
         text:
     entity_id:
@@ -389,6 +392,26 @@ delete_message:
       selector:
         config_entry:
           integration: max_notify
+
+delete_last_outgoing_message:
+  fields:
+    entity_id:
+      selector:
+        entity:
+          filter:
+            domain: notify
+          multiple: false
+    config_entry_id:
+      selector:
+        config_entry:
+          integration: max_notify
+    scan_count:
+      required: false
+      selector:
+        number:
+          min: 1
+          max: 100
+          mode: box
 
 edit_message:
   fields:

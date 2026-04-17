@@ -33,6 +33,9 @@ def test_resolve_official(mock_config_entry) -> None:
     assert get_capabilities(mock_config_entry).supports_receive_long_polling is True
     assert get_capabilities(mock_config_entry).supports_receive_webhook is True
     assert get_capabilities(mock_config_entry).supports_bot_commands is True
+    assert (
+        get_capabilities(mock_config_entry).supports_delete_last_outgoing_message is True
+    )
 
 
 def test_register_custom_capabilities(mock_config_entry) -> None:
@@ -55,3 +58,14 @@ def test_official_reports_upload_limit(mock_config_entry) -> None:
 def test_notify_a161_does_not_support_bot_commands(mock_config_entry) -> None:
     mock_config_entry.data[CONF_INTEGRATION_TYPE] = INTEGRATION_TYPE_NOTIFY_A161
     assert get_capabilities(mock_config_entry).supports_bot_commands is False
+
+
+def test_provider_recipient_error_for_group_when_unsupported(mock_config_entry) -> None:
+    mock_config_entry.data[CONF_INTEGRATION_TYPE] = INTEGRATION_TYPE_OFFICIAL
+    provider = get_provider(mock_config_entry)
+    original = provider.supports_group_chats
+    provider.supports_group_chats = False
+    try:
+        assert provider.config_flow_recipient_id_error(-42) == "group_chats_not_supported"
+    finally:
+        provider.supports_group_chats = original

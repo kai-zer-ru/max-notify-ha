@@ -17,6 +17,10 @@
           "name": "Title",
           "description": "Optional message title/heading."
         },
+        "format": {
+          "name": "Text format",
+          "description": "Message text format: text, markdown, or html. Overrides integration message format for this send."
+        },
         "send_keyboard": {
           "name": "Send keyboard",
           "description": "When enabled (default), the integration default inline keyboard is used if you omit Buttons or leave it empty; non-empty Buttons replace it. When disabled, only non-empty Buttons from this call are attached."
@@ -36,6 +40,11 @@
         "advanced": {
           "name": "Advanced"
         }
+      },
+      "sections": {
+        "advanced": {
+          "name": "Advanced"
+        }
       }
     },
     "send_text_to_all": {
@@ -51,8 +60,8 @@
           "description": "Optional message title/heading."
         },
         "format": {
-          "name": "Format",
-          "description": "Text format: text, markdown, or html. Overrides integration message format for this send."
+          "name": "Text format",
+          "description": "Message text format: text, markdown, or html. Overrides integration message format for this send."
         },
         "send_keyboard": {
           "name": "Send keyboard",
@@ -66,6 +75,11 @@
           "name": "Notify",
           "description": "If disabled, send without notifying recipients (silent)."
         },
+        "advanced": {
+          "name": "Advanced"
+        }
+      },
+      "sections": {
         "advanced": {
           "name": "Advanced"
         }
@@ -119,6 +133,10 @@
           "name": "Count requests",
           "description": "How many times to POST the message while waiting for attachment processing (attachment.not.ready). Increase for large files."
         },
+        "format": {
+          "name": "Text format",
+          "description": "Format for caption and message text: text, markdown, or html. Overrides integration message format for this send."
+        },
         "send_keyboard": {
           "name": "Send keyboard",
           "description": "When enabled (default), the integration default inline keyboard is used if you omit Buttons or leave it empty; non-empty Buttons replace it. When disabled, only non-empty Buttons from this call are attached."
@@ -131,6 +149,11 @@
           "name": "Notify",
           "description": "If disabled, send without notifying recipients (silent)."
         },
+        "advanced": {
+          "name": "Advanced"
+        }
+      },
+      "sections": {
         "advanced": {
           "name": "Advanced"
         }
@@ -180,6 +203,10 @@
           "name": "Count requests",
           "description": "How many times to POST the message while waiting for attachment processing (attachment.not.ready). Increase for large files."
         },
+        "format": {
+          "name": "Text format",
+          "description": "Format for caption and message text: text, markdown, or html. Overrides integration message format for this send."
+        },
         "send_keyboard": {
           "name": "Send keyboard",
           "description": "When enabled (default), the integration default inline keyboard is used if you omit Buttons or leave it empty; non-empty Buttons replace it. When disabled, only non-empty Buttons from this call are attached."
@@ -192,6 +219,11 @@
           "name": "Notify",
           "description": "If disabled, send without notifying recipients (silent)."
         },
+        "advanced": {
+          "name": "Advanced"
+        }
+      },
+      "sections": {
         "advanced": {
           "name": "Advanced"
         }
@@ -245,6 +277,10 @@
           "name": "Count requests",
           "description": "How many times to POST the message while waiting for attachment processing (attachment.not.ready). Increase for large videos."
         },
+        "format": {
+          "name": "Text format",
+          "description": "Format for caption and message text: text, markdown, or html. Overrides integration message format for this send."
+        },
         "send_keyboard": {
           "name": "Send keyboard",
           "description": "When enabled (default), the integration default inline keyboard is used if you omit Buttons or leave it empty; non-empty Buttons replace it. When disabled, only non-empty Buttons from this call are attached."
@@ -260,6 +296,11 @@
         "advanced": {
           "name": "Advanced"
         }
+      },
+      "sections": {
+        "advanced": {
+          "name": "Advanced"
+        }
       }
     },
     "delete_message": {
@@ -270,6 +311,10 @@
           "name": "Message ID",
           "description": "ID of the message to delete (e.g. from trigger.event.data.message_id)."
         },
+        "message_ids": {
+          "name": "Message IDs",
+          "description": "List of message IDs to delete in order."
+        },
         "entity_id": {
           "name": "Notify entity",
           "description": "MaxNotify notify entity. Can be used instead of config_entry_id."
@@ -277,6 +322,24 @@
         "config_entry_id": {
           "name": "Integration",
           "description": "MaxNotify integration to use (required if multiple exist)."
+        }
+      }
+    },
+    "delete_last_outgoing_message": {
+      "name": "Delete last outgoing message",
+      "description": "Find and delete the latest outgoing bot message in a selected group chat. Available for Official Max API.",
+      "fields": {
+        "entity_id": {
+          "name": "Notify entity",
+          "description": "Exactly one MaxNotify notify entity (chat)."
+        },
+        "config_entry_id": {
+          "name": "Integration",
+          "description": "MaxNotify integration (required if multiple integrations exist and no entity is specified)."
+        },
+        "scan_count": {
+          "name": "Scan count",
+          "description": "How many recent messages to scan in the chat while looking for the last outgoing bot message."
         }
       }
     },
@@ -305,8 +368,8 @@
           "description": "If true, remove all inline buttons from the message."
         },
         "format": {
-          "name": "Format",
-          "description": "Text format: text, markdown, or html."
+          "name": "Text format",
+          "description": "Message text format: text, markdown, or html."
         },
         "entity_id": {
           "name": "Notify entity",
@@ -327,12 +390,14 @@
   "no_matching_entities": "No matching notify entities for integration {config_entry_id}.",
   "plain_recipient_not_resolved": "Could not resolve recipient. Check the notify entity and integration settings.",
   "unsupported_for_notify_a161": "Operation {operation} is not supported for {provider_label}.",
+  "delete_last_outgoing_group_only": "This action works only for group chats (recipient_id < 0). For personal chats, delete by explicit message_id (for example, save it right after sending).",
   "provider_feature_not_supported": "{feature} is not supported for {provider}.",
   "third_party_attachment_too_large": "{provider} accepts photos and documents up to {max_mib} MB; this file is about {size_mib} MB.",
   "third_party_video_too_large": "{provider} accepts video up to {max_mib} MB; this file is about {size_mib} MB.",
   "third_party_upload_no_url": "{provider}: upload step returned no URL.",
   "third_party_video_upload_incomplete": "{provider}: video upload response must contain url and token.",
   "attachments_count_limit_exceeded": "{provider} allows up to {max_count} attachments per message (files + inline keyboard); requested: {actual_count}.",
+  "send_message_failed_after_retries": "Could not send the message after {attempts} attempts. Error: {error}.",
   "link_button_url_http_https_only": "Link button URL must use http or https (received: {url}).",
   "exceptions": {
     "invalid_notify_entity": {
@@ -359,6 +424,9 @@
     "unsupported_for_notify_a161": {
       "message": "Operation {operation} is not supported for {provider_label}."
     },
+    "delete_last_outgoing_group_only": {
+      "message": "This action works only for group chats (recipient_id < 0). For personal chats, delete by explicit message_id (for example, save it right after sending)."
+    },
     "provider_feature_not_supported": {
       "message": "{feature} is not supported for {provider}."
     },
@@ -376,6 +444,9 @@
     },
     "attachments_count_limit_exceeded": {
       "message": "{provider} allows up to {max_count} attachments per message in integration settings; requested: {actual_count}."
+    },
+    "send_message_failed_after_retries": {
+      "message": "Could not send the message after {attempts} attempts. Error: {error}."
     },
     "link_button_url_http_https_only": {
       "message": "Link button URL must use http or https (received: {url})."
@@ -622,11 +693,11 @@
       "webhook_requires_external_https_url": "WebHook requires an external HTTPS URL for Home Assistant (Settings → System → Network, or Home Assistant Cloud). Configure it first, then choose WebHook again.",
       "unknown": "An unknown error occurred",
       "invalid_id_format": "Enter an integer (positive — personal chat, negative — group)",
+      "group_chats_not_supported": "Group chats are not supported by the selected provider.",
       "invalid_command_name": "Enter a command name (no slash).",
       "invalid_button_text": "Enter a button label.",
       "invalid_button_url": "Enter an http(s) URL for link buttons.",
       "notify_a161_invalid_notify_token_length": "Access token must be {token_length} characters long.",
-      "notify_a161_notify_user_only": "{provider_label} accepts only positive user_id values.",
       "notify_a161_invalid_updates_interval": "Enter a polling interval from 2 to 30 seconds.",
       "notify_a161_invalid_a161_inactivity_period": "Choose 1, 2, or 3 days.",
       "notify_a161_polling_requires_buttons_switched_send_only": "No buttons configured. Receive mode was switched to Send only. Add at least one button to use Polling.",

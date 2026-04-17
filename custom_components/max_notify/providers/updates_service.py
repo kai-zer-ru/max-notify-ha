@@ -446,20 +446,22 @@ async def async_process_incoming_update_impl(
             _LOGGER.debug("Raw update from Max (full): %s", raw)
 
         event_data = _extract_event_data(entry, update)
-        rid_raw = event_data.get("recipient_id")
-        try:
-            incoming_rid = int(rid_raw) if rid_raw is not None else None
-        except (TypeError, ValueError):
-            incoming_rid = None
-        try:
-            set_last_incoming_message_id(
-                hass,
-                entry.entry_id,
-                event_data.get("message_id"),
-                recipient_id=incoming_rid,
-            )
-        except Exception as e:
-            _LOGGER.debug("Failed to update last incoming message ID: %s", e)
+        raw_update_type = str(update.get("update_type") or "").strip()
+        if raw_update_type == UPDATE_MESSAGE_CREATED:
+            rid_raw = event_data.get("recipient_id")
+            try:
+                incoming_rid = int(rid_raw) if rid_raw is not None else None
+            except (TypeError, ValueError):
+                incoming_rid = None
+            try:
+                set_last_incoming_message_id(
+                    hass,
+                    entry.entry_id,
+                    event_data.get("message_id"),
+                    recipient_id=incoming_rid,
+                )
+            except Exception as e:
+                _LOGGER.debug("Failed to update last incoming message ID: %s", e)
         update_type = event_data.get("update_type") or ""
         chat_id = event_data.get("chat_id")
         user_id = event_data.get("user_id")

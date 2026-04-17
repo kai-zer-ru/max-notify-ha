@@ -135,11 +135,6 @@ class NotifyA161IntegrationProvider(MaxNotifyIntegrationProvider):
             webhook_available=False
         )
 
-    def config_flow_recipient_id_error(self, recipient_id: int) -> str | None:
-        if recipient_id <= 0:
-            return "notify_user_only"
-        return None
-
     def should_restore_polling_after_first_keyboard_button(
         self, *, polling_requested: bool
     ) -> bool:
@@ -473,14 +468,12 @@ class NotifyA161IntegrationProvider(MaxNotifyIntegrationProvider):
         title: str | None = None,
         message_format: str | None = None,
     ) -> None:
-        from .. import notify_outbound
-
-        await notify_outbound.send_message_with_buttons(
+        await self.async_send_message(
             hass,
             entry,
             recipient,
             message,
-            buttons,
+            buttons=buttons,
             title=title,
             message_format=message_format,
         )
@@ -494,13 +487,35 @@ class NotifyA161IntegrationProvider(MaxNotifyIntegrationProvider):
         title: str | None = None,
         message_format: str | None = None,
     ) -> None:
-        from .. import notify_outbound
-
-        await notify_outbound.send_plain_message(
+        await self.async_send_message(
             hass,
             entry,
             recipient,
             message,
+            buttons=None,
+            title=title,
+            message_format=message_format,
+        )
+
+    async def async_send_message(
+        self,
+        hass: HomeAssistant,
+        entry: ConfigEntry,
+        recipient: dict[str, Any],
+        message: str,
+        *,
+        buttons: list[list[dict[str, Any]]] | None = None,
+        title: str | None = None,
+        message_format: str | None = None,
+    ) -> None:
+        from .. import notify_outbound
+
+        await notify_outbound.send_message(
+            hass,
+            entry,
+            recipient,
+            message,
+            buttons=buttons,
             title=title,
             message_format=message_format,
         )

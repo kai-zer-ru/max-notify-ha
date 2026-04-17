@@ -4,14 +4,18 @@ from __future__ import annotations
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import aiohttp
 import pytest
 from homeassistant.exceptions import ServiceValidationError
 
 from custom_components.max_notify.const import CONF_RECIPIENT_ID
 from custom_components.max_notify.notify import (
+    MaxNotifyEntity,
     delete_message,
     edit_message,
     recipient_dict_from_subentry,
+    send_message,
+    send_plain_message,
     upload_document_and_send,
     upload_image_and_send,
 )
@@ -20,6 +24,7 @@ from custom_components.max_notify.providers.notify_outbound import (
     _extract_url_auth_source,
     _message_id_candidates,
     _normalize_buttons_for_api,
+    entity_send_plain_message,
 )
 
 
@@ -277,6 +282,7 @@ class TestUploadDispatch:
             "custom_components.max_notify.notify.get_provider"
         ) as mock_get_provider:
             provider = MagicMock()
+            provider.ensure_can_upload_image = MagicMock()
             provider.async_upload_image_and_send = AsyncMock()
             mock_get_provider.return_value = provider
 
@@ -298,6 +304,7 @@ class TestUploadDispatch:
             "custom_components.max_notify.notify.get_provider"
         ) as mock_get_provider:
             provider = MagicMock()
+            provider.ensure_can_upload_document = MagicMock()
             provider.async_upload_document_and_send = AsyncMock()
             mock_get_provider.return_value = provider
 
@@ -312,19 +319,59 @@ class TestUploadDispatch:
 
             provider.async_upload_document_and_send.assert_awaited_once()
 
+    async def test_send_message_with_buttons_routes_to_provider(
+        self, hass, mock_config_entry
+    ) -> None:
+        with patch("custom_components.max_notify.notify.get_provider") as mock_get_provider:
+            provider = MagicMock()
+            provider.ensure_can_send_message = MagicMock()
+            provider.async_send_message = AsyncMock()
+            mock_get_provider.return_value = provider
+
+            buttons = [[{"type": "callback", "text": "A", "payload": "a"}]]
+            await send_message(
+                hass,
+                mock_config_entry,
+                {"recipient_id": 1},
+                "hi",
+                buttons=buttons,
+            )
+
+            provider.ensure_can_send_message.assert_called_once_with(
+                mock_config_entry, {"recipient_id": 1}, with_buttons=True
+            )
+            provider.async_send_message.assert_awaited_once()
+
+    async def test_send_plain_message_routes_to_provider(self, hass, mock_config_entry) -> None:
+        with patch("custom_components.max_notify.notify.get_provider") as mock_get_provider:
+            provider = MagicMock()
+            provider.ensure_can_send_message = MagicMock()
+            provider.async_send_message = AsyncMock()
+            mock_get_provider.return_value = provider
+
+            await send_plain_message(
+                hass,
+                mock_config_entry,
+                {"recipient_id": 1},
+                "plain",
+            )
+
+            provider.ensure_can_send_message.assert_called_once_with(
+                mock_config_entry, {"recipient_id": 1}, with_buttons=False
+            )
+            provider.async_send_message.assert_awaited_once()
+
     async def test_upload_document_rejects_without_capability(
         self, hass, mock_config_entry
     ) -> None:
-        with patch(
-            "custom_components.max_notify.notify.get_capabilities"
-        ) as mock_caps, patch(
-            "custom_components.max_notify.notify.get_provider"
-        ) as mock_get_provider:
-            caps = MagicMock()
-            caps.supports_send_document = False
-            caps.supports_inline_keyboard = True
-            mock_caps.return_value = caps
+        with patch("custom_components.max_notify.notify.get_provider") as mock_get_provider:
             provider = MagicMock()
+            provider.ensure_can_upload_document = MagicMock(
+                side_effect=ServiceValidationError(
+                    translation_domain="max_notify",
+                    translation_key="provider_feature_not_supported",
+                )
+            )
             provider.async_upload_document_and_send = AsyncMock()
             mock_get_provider.return_value = provider
 
@@ -337,3 +384,89 @@ class TestUploadDispatch:
                 )
             assert exc.value.translation_key == "provider_feature_not_supported"
             provider.async_upload_document_and_send.assert_not_called()
+
+    async def test_send_plain_message_rejects_group_without_capability(
+        self, hass, mock_config_entry
+    ) -> None:
+        with patch("custom_components.max_notify.notify.get_provider") as mock_get_provider:
+            provider = MagicMock()
+            provider.ensure_can_send_message = MagicMock(
+                side_effect=ServiceValidationError(
+                    translation_domain="max_notify",
+                    translation_key="provider_feature_not_supported",
+                )
+            )
+            provider.async_send_message = AsyncMock()
+            mock_get_provider.return_value = provider
+
+            with pytest.raises(ServiceValidationError) as exc:
+                await send_plain_message(
+                    hass,
+                    mock_config_entry,
+                    {"recipient_id": -100500},
+                    "test",
+                )
+
+            assert exc.value.translation_key == "provider_feature_not_supported"
+            provider.async_send_message.assert_not_called()
+
+    async def test_entity_send_message_applies_provider_guard(
+        self, hass, mock_config_entry
+    ) -> None:
+        with patch("custom_components.max_notify.notify.get_provider") as mock_get_provider:
+            provider = MagicMock()
+            provider.ensure_can_send_message = MagicMock()
+            provider.async_entity_send_plain_message = AsyncMock()
+            mock_get_provider.return_value = provider
+
+            subentry = MagicMock()
+            subentry.subentry_id = "sub-1"
+            subentry.title = "Recipient"
+            entity = MaxNotifyEntity(
+                mock_config_entry,
+                recipient={"recipient_id": -100},
+                subentry=subentry,
+            )
+            entity.hass = hass
+
+            await entity.async_send_message("hello")
+
+            provider.ensure_can_send_message.assert_called_once_with(
+                mock_config_entry,
+                {"recipient_id": -100},
+                with_buttons=False,
+            )
+            provider.async_entity_send_plain_message.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_entity_send_plain_message_raises_ui_error_after_retries(
+    hass, mock_config_entry
+) -> None:
+    with (
+        patch(
+            "custom_components.max_notify.providers.notify_outbound._get_message_url_and_recipient",
+            new=AsyncMock(return_value=("https://example.invalid/messages", {})),
+        ),
+        patch(
+            "custom_components.max_notify.providers.notify_outbound.async_get_clientsession"
+        ) as mock_session,
+        patch(
+            "custom_components.max_notify.providers.notify_outbound.asyncio.sleep",
+            new=AsyncMock(),
+        ),
+    ):
+        session = MagicMock()
+        session.post = MagicMock(side_effect=aiohttp.ClientError("network down"))
+        mock_session.return_value = session
+
+        with pytest.raises(ServiceValidationError) as exc:
+            await entity_send_plain_message(
+                hass,
+                mock_config_entry,
+                recipient={CONF_RECIPIENT_ID: 1},
+                message="test message",
+                title=None,
+            )
+
+    assert exc.value.translation_key == "send_message_failed_after_retries"
