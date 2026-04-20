@@ -66,10 +66,77 @@ from .const import (
     VIDEO_URL_DOWNLOAD_RETRY_DELAYS,
 )
 from .helpers import is_notify_a161_entry
-from .message_state import set_last_outgoing_message_id
+from .message_state import (
+    recipient_id_from_recipient_dict,
+    set_last_outgoing_message_id,
+    should_persist_message_id,
+)
 from .services import register_send_message_service
 
 _LOGGER = logging.getLogger(__name__)
+
+
+def _recipient_override_fragment_from_kwargs(kwargs: dict[str, Any]) -> dict[str, int] | None:
+    """If kwargs carry recipient_id / chat_id / user_id, return {CONF_USER_ID} or {CONF_CHAT_ID}."""
+    rid = kwargs.get(CONF_RECIPIENT_ID)
+    cid = kwargs.get(CONF_CHAT_ID)
+    uid = kwargs.get(CONF_USER_ID)
+    if rid is None and cid is None and uid is None:
+        return None
+    if rid is not None:
+        try:
+            n = int(rid)
+        except (TypeError, ValueError):
+            _LOGGER.warning("Invalid recipient_id in notify kwargs: %s", rid)
+            return None
+        if n == 0:
+            return None
+        if n < 0:
+            return {CONF_CHAT_ID: n}
+        return {CONF_USER_ID: n}
+    if cid is not None:
+        try:
+            c = int(cid)
+        except (TypeError, ValueError):
+            _LOGGER.warning("Invalid chat_id in notify kwargs: %s", cid)
+            return None
+        if c == 0:
+            return None
+        return {CONF_CHAT_ID: c}
+    try:
+        u = int(uid)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        _LOGGER.warning("Invalid user_id in notify kwargs: %s", uid)
+        return None
+    if u == 0:
+        return None
+    return {CONF_USER_ID: u}
+
+
+def _effective_notify_recipient(
+    entry: ConfigEntry, base: dict[str, Any], kwargs: dict[str, Any]
+) -> dict[str, Any] | None:
+    """Merge entity recipient with service kwargs; None if override is not among configured recipients."""
+    frag = _recipient_override_fragment_from_kwargs(kwargs)
+    if frag is None:
+        return dict(base)
+    recipient = dict(base)
+    recipient.pop(CONF_RECIPIENT_ID, None)
+    if CONF_USER_ID in frag:
+        recipient.pop(CONF_CHAT_ID, None)
+        recipient[CONF_USER_ID] = frag[CONF_USER_ID]
+    else:
+        recipient.pop(CONF_USER_ID, None)
+        recipient[CONF_CHAT_ID] = frag[CONF_CHAT_ID]
+    rid = recipient_id_from_recipient_dict(recipient)
+    if not should_persist_message_id(entry, rid):
+        _LOGGER.error(
+            "Recipient override %s is not among configured chats/users for this integration; refusing send",
+            recipient,
+        )
+        return None
+    return recipient
+
 
 _EXT_TO_CONTENT_TYPE = {
     ".png": "image/png",
@@ -917,13 +984,9 @@ async def _get_message_url_and_recipient(
     if cid is not None and int(cid) != 0:
         if is_notify_a161_entry(entry):
             if int(cid) > 0:
-                # notify.a161.ru ignores chat_id and accepts user_id only.
+                # Положительный ID в контексте чата — как user_id (личка).
                 return f"{base_url}{API_PATH_MESSAGES}?user_id={int(cid)}", {}
-            _LOGGER.error(
-                "notify.a161.ru mode does not support group chats (chat_id=%s)",
-                cid,
-            )
-            return None
+            return f"{base_url}{API_PATH_MESSAGES}?chat_id={int(cid)}", {}
         url = f"{base_url}{API_PATH_MESSAGES}?chat_id={int(cid)}&v={API_VERSION}"
         return url, {}
     return None
@@ -1180,88 +1243,104 @@ def _normalize_buttons_for_api(buttons: list[list[dict[str, Any]]]) -> list[list
     return out
 
 
+def _message_id_from_mapping(m: dict[str, Any]) -> str | None:
+    """Normalize id from one object (Max uses message_id, messageId, id, or mid)."""
+    for key in ("message_id", "messageId", "id", "mid"):
+        raw = m.get(key)
+        if raw is not None:
+            normalized = _normalize_message_id(raw)
+            if normalized:
+                return normalized
+    return None
+
+
+def _extract_message_id_from_response_regex(body: str) -> str | None:
+    """Last resort: find id in non-JSON or malformed bodies (logs may still show the id)."""
+    if not body:
+        return None
+    patterns = (
+        r'"message_id"\s*:\s*"([^"\\]+)"',
+        r'"messageId"\s*:\s*"([^"\\]+)"',
+        r'"mid"\s*:\s*"([^"\\]+)"',
+        r'"id"\s*:\s*"([^"\\]+)"',
+        r'"message_id"\s*:\s*(\d+)',
+        r'"messageId"\s*:\s*(\d+)',
+        r'"id"\s*:\s*(\d+)',
+    )
+    for p in patterns:
+        m = re.search(p, body)
+        if m:
+            normalized = _normalize_message_id(m.group(1))
+            if normalized:
+                return normalized
+    return None
+
+
 def _extract_message_id_from_response(body: str) -> str | None:
     """Extract message_id from Max API /messages response."""
+    if not body:
+        return None
+    body = body.lstrip("\ufeff").strip()
     if not body:
         return None
     try:
         data = json.loads(body)
     except (TypeError, ValueError):
-        return None
-    if isinstance(data, dict):
-        # Common forms:
-        # {"message_id": "..."}
-        # {"messageId": "..."}
-        # {"message": {"message_id": "..."}}
-        # {"messages": [{"message_id": "..."}]}
-        direct = data.get("message_id") or data.get("messageId")
-        if direct is not None:
-            normalized = _normalize_message_id(direct)
-            if normalized:
-                return normalized
+        return _extract_message_id_from_response_regex(body)
+    if not isinstance(data, dict):
+        return _extract_message_id_from_response_regex(body)
 
-        message = data.get("message")
-        if isinstance(message, dict):
-            mid = message.get("message_id") or message.get("messageId")
-            if mid is not None:
-                normalized = _normalize_message_id(mid)
-                if normalized:
-                    return normalized
+    mid = _message_id_from_mapping(data)
+    if mid:
+        return mid
 
-        messages = data.get("messages")
-        if isinstance(messages, list):
-            for item in messages:
-                if isinstance(item, dict):
-                    mid = item.get("message_id") or item.get("messageId")
-                    if mid is not None:
-                        normalized = _normalize_message_id(mid)
-                        if normalized:
-                            return normalized
-                    # Common nested shape: {"message": {"body": {"mid": "mid...."}}}
-                    message_obj = item.get("message")
-                    if isinstance(message_obj, dict):
-                        body_obj = message_obj.get("body")
-                        if isinstance(body_obj, dict):
-                            nested_mid = (
-                                body_obj.get("mid")
-                                or body_obj.get("message_id")
-                                or body_obj.get("messageId")
-                            )
-                            normalized = _normalize_message_id(nested_mid)
-                            if normalized:
-                                return normalized
+    message = data.get("message")
+    if isinstance(message, dict):
+        mid = _message_id_from_mapping(message)
+        if mid:
+            return mid
+        body_obj = message.get("body")
+        if isinstance(body_obj, dict):
+            mid = _message_id_from_mapping(body_obj)
+            if mid:
+                return mid
 
-        # Common shape from Max callbacks/messages:
-        # {"message": {"body": {"mid": "mid...."}}}
-        if isinstance(message, dict):
-            body_obj = message.get("body")
-            if isinstance(body_obj, dict):
-                nested_mid = (
-                    body_obj.get("mid")
-                    or body_obj.get("message_id")
-                    or body_obj.get("messageId")
-                )
-                normalized = _normalize_message_id(nested_mid)
-                if normalized:
-                    return normalized
-
-        # Additional wrappers occasionally used by APIs/proxies:
-        # {"result": {"message": {"body": {"mid": "mid...."}}}}
-        result_obj = data.get("result")
-        if isinstance(result_obj, dict):
-            message_obj = result_obj.get("message")
+    messages = data.get("messages")
+    if isinstance(messages, list):
+        for item in messages:
+            if not isinstance(item, dict):
+                continue
+            mid = _message_id_from_mapping(item)
+            if mid:
+                return mid
+            message_obj = item.get("message")
             if isinstance(message_obj, dict):
+                mid = _message_id_from_mapping(message_obj)
+                if mid:
+                    return mid
                 body_obj = message_obj.get("body")
                 if isinstance(body_obj, dict):
-                    nested_mid = (
-                        body_obj.get("mid")
-                        or body_obj.get("message_id")
-                        or body_obj.get("messageId")
-                    )
-                    normalized = _normalize_message_id(nested_mid)
-                    if normalized:
-                        return normalized
-    return None
+                    mid = _message_id_from_mapping(body_obj)
+                    if mid:
+                        return mid
+
+    result_obj = data.get("result")
+    if isinstance(result_obj, dict):
+        mid = _message_id_from_mapping(result_obj)
+        if mid:
+            return mid
+        message_obj = result_obj.get("message")
+        if isinstance(message_obj, dict):
+            mid = _message_id_from_mapping(message_obj)
+            if mid:
+                return mid
+            body_obj = message_obj.get("body")
+            if isinstance(body_obj, dict):
+                mid = _message_id_from_mapping(body_obj)
+                if mid:
+                    return mid
+
+    return _extract_message_id_from_response_regex(body)
 
 
 def _normalize_message_id(value: Any) -> str | None:
@@ -1280,19 +1359,50 @@ def _normalize_message_id(value: Any) -> str | None:
 
 def _store_outgoing_message_id_from_response(
     hass: HomeAssistant,
-    entry_id: str,
+    entry: ConfigEntry,
     body: str,
     source: str,
+    recipient: dict[str, Any] | None = None,
 ) -> None:
     """Extract message_id from response and store it for sensors."""
     message_id = _extract_message_id_from_response(body)
-    if message_id:
-        try:
-            set_last_outgoing_message_id(hass, entry_id, message_id)
-        except Exception as e:
-            _LOGGER.debug("Failed to update last outgoing message ID: %s", e)
-    else:
-        _LOGGER.debug("%s: message_id not found in response body: %s", source, (body or "")[:500])
+    if not message_id:
+        snippet = (body or "").strip()
+        if not snippet:
+            _LOGGER.warning(
+                "%s: empty HTTP body — cannot update last-outgoing message id sensors. "
+                "If the message was delivered, the API returned no JSON id in this reply.",
+                source,
+            )
+        else:
+            _LOGGER.warning(
+                "%s: could not parse message_id from response (first 400 chars): %s",
+                source,
+                snippet[:400],
+            )
+        return
+    try:
+        rid = recipient_id_from_recipient_dict(recipient)
+        if not should_persist_message_id(entry, rid):
+            _LOGGER.warning(
+                "%s: outgoing message_id %s not stored: target chat/user id %s (from notify "
+                "entity / API) is not in the integration's configured recipient list for "
+                "entry %s (not the optional service field recipient_id)",
+                source,
+                message_id,
+                rid,
+                entry.entry_id,
+            )
+            return
+        set_last_outgoing_message_id(
+            hass,
+            entry.entry_id,
+            message_id,
+            recipient_id=rid,
+            entry=entry,
+        )
+    except Exception as e:
+        _LOGGER.debug("Failed to update last outgoing message ID: %s", e)
 
 
 async def send_message_with_buttons(
@@ -1350,7 +1460,7 @@ async def send_message_with_buttons(
                 "send_message_with_buttons: message_id not found in response",
             )
         _store_outgoing_message_id_from_response(
-            hass, entry.entry_id, body, "send_message_with_buttons"
+            hass, entry, body, "send_message_with_buttons", recipient
         )
         _mark_a161_button_send(hass, entry)
 
@@ -1422,7 +1532,7 @@ async def send_plain_message(
                 "send_plain_message: message_id not found in response",
             )
         _store_outgoing_message_id_from_response(
-            hass, entry.entry_id, body, "send_plain_message"
+            hass, entry, body, "send_plain_message", recipient
         )
 
     await _post_message_with_retry(
@@ -1565,7 +1675,11 @@ async def upload_image_and_send(
 
         def _on_success_a161(resp_body: str) -> None:
             _store_outgoing_message_id_from_response(
-                hass, entry.entry_id, resp_body, "upload_image_and_send_notify_a161"
+                hass,
+                entry,
+                resp_body,
+                "upload_image_and_send_notify_a161",
+                recipient,
             )
             if buttons:
                 _mark_a161_button_send(hass, entry)
@@ -1671,7 +1785,7 @@ async def upload_image_and_send(
     #     payload["notify"] = False
     def _on_success(body: str) -> None:
         _store_outgoing_message_id_from_response(
-            hass, entry.entry_id, body, "upload_image_and_send"
+            hass, entry, body, "upload_image_and_send", recipient
         )
 
     await _post_message_with_retry(
@@ -1921,7 +2035,11 @@ async def upload_video_and_send(
 
         def _on_success_a161_vid(resp_body: str) -> None:
             _store_outgoing_message_id_from_response(
-                hass, entry.entry_id, resp_body, "upload_video_notify_a161"
+                hass,
+                entry,
+                resp_body,
+                "upload_video_notify_a161",
+                recipient,
             )
             if buttons:
                 _mark_a161_button_send(hass, entry)
@@ -1961,7 +2079,7 @@ async def upload_video_and_send(
 
     def _on_success(body: str) -> None:
         _store_outgoing_message_id_from_response(
-            hass, entry.entry_id, body, "upload_video_and_send"
+            hass, entry, body, "upload_video_and_send", recipient
         )
 
     await _post_message_with_retry(
@@ -2036,7 +2154,11 @@ class MaxNotifyEntity(NotifyEntity):
         self._attr_extra_state_attributes = {
             "integration_config_path": f"/config/integrations/integration/{entry.entry_id}",
         }
-    async def async_send_message(self, message: str, title: str | None = None) -> None:
+    async def async_send_message(self, message: str, title: str | None = None, **kwargs: Any) -> None:
+        recipient = _effective_notify_recipient(self._entry, self._recipient, kwargs)
+        if recipient is None:
+            return
+
         text = f"{title}\n{message}" if title else message
         if len(text) > MAX_MESSAGE_LENGTH:
             _LOGGER.warning("Message truncated from %d to %d characters", len(text), MAX_MESSAGE_LENGTH)
@@ -2047,8 +2169,8 @@ class MaxNotifyEntity(NotifyEntity):
             _LOGGER.error("No access token in config entry")
             return
 
-        uid = self._recipient.get(CONF_USER_ID)
-        cid = self._recipient.get(CONF_CHAT_ID)
+        uid = recipient.get(CONF_USER_ID)
+        cid = recipient.get(CONF_CHAT_ID)
         base_url = _api_base_url_for_entry(self._entry)
         msg_format = self._entry.data.get(CONF_MESSAGE_FORMAT, "text")
         payload = {"text": text}
@@ -2082,12 +2204,9 @@ class MaxNotifyEntity(NotifyEntity):
         elif cid is not None and int(cid) != 0:
             if is_notify_a161_entry(self._entry):
                 if int(cid) < 0:
-                    _LOGGER.error(
-                        "notify.a161.ru mode does not support group chats (chat_id=%s)",
-                        cid,
-                    )
-                    return
-                url = f"{base_url}{API_PATH_MESSAGES}?user_id={int(cid)}"
+                    url = f"{base_url}{API_PATH_MESSAGES}?chat_id={int(cid)}"
+                else:
+                    url = f"{base_url}{API_PATH_MESSAGES}?user_id={int(cid)}"
             else:
                 url = f"{base_url}{API_PATH_MESSAGES}?chat_id={int(cid)}&v={API_VERSION}"
         else:
@@ -2151,9 +2270,10 @@ class MaxNotifyEntity(NotifyEntity):
                             )
                         _store_outgoing_message_id_from_response(
                             self.hass,
-                            self._entry.entry_id,
+                            self._entry,
                             body,
                             "MaxNotifyEntity.async_send_message",
+                            recipient,
                         )
                         _LOGGER.debug("Max send finished successfully on attempt %s/5", attempt)
                         return True

@@ -17,6 +17,7 @@ from .const import (
     API_VERSION,
     CONF_ACCESS_TOKEN,
     CONF_COMMANDS,
+    CONF_INTEGRATION_TYPE,
     INTEGRATION_TYPE_NOTIFY_A161,
 )
 
@@ -67,6 +68,8 @@ async def sync_bot_commands_to_max(hass: HomeAssistant, entry: ConfigEntry) -> b
     Same as bot.api.setMyCommands() in the JS library — commands appear in the chat menu.
     Returns True on success."""
     _LOGGER.debug("sync_bot_commands_to_max: entry_id=%s", entry.entry_id)
+    if entry.data.get(CONF_INTEGRATION_TYPE) == INTEGRATION_TYPE_NOTIFY_A161:
+        return False
     token = entry.data.get(CONF_ACCESS_TOKEN)
     if not token:
         _LOGGER.debug("sync_bot_commands_to_max: no token, skip")

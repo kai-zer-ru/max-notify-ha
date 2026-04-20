@@ -45,6 +45,10 @@ from .const import (
     CONF_BUTTON_TO_REMOVE,
     CONF_BUTTON_TYPE,
     CONF_CHAT_ID,
+    CONF_COMMANDS,
+    CONF_COMMAND_DESCRIPTION,
+    CONF_COMMAND_NAME,
+    CONF_COMMAND_TO_REMOVE,
     CONF_ACTION,
     CONF_INTEGRATION_TYPE,
     CONF_MESSAGE_FORMAT,
@@ -73,9 +77,11 @@ from .const import (
 from .helpers import (
     buttons_choice_list,
     buttons_display_str,
+    commands_display_str,
     get_unique_entry_title,
     is_notify_a161_entry,
     normalize_buttons,
+    normalize_commands,
     only_official_long_polling_receive_entry,
     only_official_webhook_receive_entry,
     other_entry_has_receive_mode,
@@ -185,6 +191,7 @@ class MaxNotifyConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self._a161_polling_requested: bool = False
         self._updates_interval: int = NOTIFY_A161_UPDATES_INTERVAL_SECONDS
         self._a161_inactivity_period_days: int = NOTIFY_A161_INACTIVITY_PERIOD_DAYS_DEFAULT
+        self._commands: list[dict[str, str]] = []
 
     async def async_step_user(self, user_input: dict[str, Any] | None = None) -> FlowResult:
         """Entry point: choose integration type then run corresponding setup."""
@@ -309,6 +316,7 @@ class MaxNotifyConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             if self._receive_mode == RECEIVE_MODE_SEND_ONLY:
                 self._webhook_secret = ""
                 self._buttons_rows = []
+                self._commands = []
                 return await self.async_step_recipient(None)
             if self._receive_mode == RECEIVE_MODE_POLLING:
                 if other_entry_has_receive_mode(
@@ -440,7 +448,7 @@ class MaxNotifyConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     async def async_step_notify_recipient(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
-        """notify.a161.ru: add immutable user_id (positive only)."""
+        """notify.a161.ru: первый получатель — положительный user_id или отрицательный chat_id группы."""
         errors: dict[str, str] = {}
         if user_input is not None:
             try:
@@ -448,37 +456,53 @@ class MaxNotifyConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             except (ValueError, KeyError):
                 errors["base"] = "invalid_id_format"
             else:
-                unique_id = f"user_{n}"
-                title = f"User {n}"
-                data = {CONF_RECIPIENT_TYPE: RECIPIENT_TYPE_USER, CONF_USER_ID: n}
-                subentry: ConfigSubentryData = {
-                    "data": data,
-                    "subentry_type": SUBENTRY_TYPE_RECIPIENT,
-                    "title": title,
-                    "unique_id": unique_id,
-                }
-                options = {
-                    CONF_RECEIVE_MODE: self._receive_mode,
-                    CONF_WEBHOOK_SECRET: self._webhook_secret,
-                    CONF_BUTTONS: self._buttons_rows,
-                    CONF_UPDATES_INTERVAL: self._updates_interval,
-                    CONF_A161_INACTIVITY_PERIOD_DAYS: self._a161_inactivity_period_days,
-                }
-                mode_title = await get_receive_mode_title(self.hass, self._receive_mode)
-                base_title = f"MaxNotify (notify.a161.ru, {mode_title})"
-                entry_title = get_unique_entry_title(self.hass, DOMAIN, base_title)
-                result = self.async_create_entry(
-                    title=entry_title,
-                    data={
-                        CONF_ACCESS_TOKEN: self._token,
-                        CONF_INTEGRATION_TYPE: INTEGRATION_TYPE_NOTIFY_A161,
-                        CONF_MESSAGE_FORMAT: self._message_format,
-                    },
-                    options=options,
-                )
-                result["subentries"] = [subentry]
-                register_send_message_service(self.hass)
-                return result
+                if n == 0:
+                    errors["base"] = "invalid_id_format"
+                else:
+                    if n > 0:
+                        unique_id = f"user_{n}"
+                        title = f"User {n}"
+                        data = {
+                            CONF_RECIPIENT_TYPE: RECIPIENT_TYPE_USER,
+                            CONF_USER_ID: n,
+                        }
+                    else:
+                        unique_id = f"chat_{n}"
+                        title = f"Chat {n}"
+                        data = {
+                            CONF_RECIPIENT_TYPE: RECIPIENT_TYPE_CHAT,
+                            CONF_CHAT_ID: n,
+                        }
+                    subentry: ConfigSubentryData = {
+                        "data": data,
+                        "subentry_type": SUBENTRY_TYPE_RECIPIENT,
+                        "title": title,
+                        "unique_id": unique_id,
+                    }
+                    options = {
+                        CONF_RECEIVE_MODE: self._receive_mode,
+                        CONF_WEBHOOK_SECRET: self._webhook_secret,
+                        CONF_BUTTONS: self._buttons_rows,
+                        CONF_UPDATES_INTERVAL: self._updates_interval,
+                        CONF_A161_INACTIVITY_PERIOD_DAYS: self._a161_inactivity_period_days,
+                    }
+                    mode_title = await get_receive_mode_title(
+                        self.hass, self._receive_mode
+                    )
+                    base_title = f"MaxNotify (notify.a161.ru, {mode_title})"
+                    entry_title = get_unique_entry_title(self.hass, DOMAIN, base_title)
+                    result = self.async_create_entry(
+                        title=entry_title,
+                        data={
+                            CONF_ACCESS_TOKEN: self._token,
+                            CONF_INTEGRATION_TYPE: INTEGRATION_TYPE_NOTIFY_A161,
+                            CONF_MESSAGE_FORMAT: self._message_format,
+                        },
+                        options=options,
+                    )
+                    result["subentries"] = [subentry]
+                    register_send_message_service(self.hass)
+                    return result
         return self.async_show_form(
             step_id="notify_recipient",
             data_schema=vol.Schema({vol.Required(CONF_RECIPIENT_ID): vol.Coerce(int)}),
@@ -627,6 +651,8 @@ class MaxNotifyConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 return await self.async_step_add_button(None)
             if key == "remove_button":
                 return await self.async_step_remove_button(None)
+            if self._integration_type == INTEGRATION_TYPE_OFFICIAL:
+                return await self.async_step_commands_menu(None)
             return await self.async_step_recipient(None)
 
         return self.async_show_form(
@@ -642,6 +668,107 @@ class MaxNotifyConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 "buttons_intro": await _async_keyboard_menu_intro(
                     self.hass, "config", "receive_options_menu", self._buttons_rows
                 ),
+            },
+        )
+
+    async def async_step_commands_menu(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Slash-команды для официального API (после кнопок клавиатуры)."""
+        option_keys: list[tuple[str, str]] = [
+            ("add_command", ""),
+            ("next", ""),
+        ]
+        if self._commands:
+            option_keys.append(("remove_command", ""))
+        labels = await get_menu_labels(
+            self.hass, "config", "commands_menu", option_keys
+        )
+        label_to_key = {labels[k]: k for k, _ in option_keys}
+        choice_labels = [labels[k] for k, _ in option_keys]
+
+        if user_input is not None:
+            chosen_label = user_input.get(CONF_ACTION) or choice_labels[0]
+            key = label_to_key.get(chosen_label, "next")
+            if key == "add_command":
+                return await self.async_step_add_command(None)
+            if key == "remove_command":
+                return await self.async_step_remove_command(None)
+            return await self.async_step_recipient(None)
+
+        return self.async_show_form(
+            step_id="commands_menu",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(CONF_ACTION, default=choice_labels[0]): vol.In(
+                        choice_labels
+                    ),
+                }
+            ),
+            description_placeholders={
+                "commands_list": commands_display_str(self._commands) or "—",
+            },
+        )
+
+    async def async_step_add_command(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Добавить slash-команду (ввод /shop или shop)."""
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            raw_name = (user_input.get(CONF_COMMAND_NAME) or "").strip().lower()
+            name = raw_name[1:] if raw_name.startswith("/") else raw_name
+            if not name:
+                errors["base"] = "invalid_command_name"
+            elif any(c.get("name") == name for c in self._commands):
+                errors["base"] = "invalid_command_name"
+            if not errors:
+                description = (
+                    (user_input.get(CONF_COMMAND_DESCRIPTION) or "").strip() or name
+                )
+                self._commands.append({"name": name, "description": description})
+                self._commands = normalize_commands(self._commands)
+                return await self.async_step_commands_menu(None)
+        return self.async_show_form(
+            step_id="add_command",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(CONF_COMMAND_NAME, default=""): str,
+                    vol.Optional(CONF_COMMAND_DESCRIPTION, default=""): str,
+                }
+            ),
+            description_placeholders={
+                "commands_list": commands_display_str(self._commands) or "—",
+            },
+            errors=errors,
+        )
+
+    async def async_step_remove_command(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Удалить slash-команду из списка."""
+        if not self._commands:
+            return await self.async_step_commands_menu(None)
+        command_labels = [
+            f"/{cmd.get('name', '')} — {cmd.get('description', cmd.get('name', ''))}"
+            for cmd in self._commands
+        ]
+        label_to_index = {label: idx for idx, label in enumerate(command_labels)}
+        if user_input is not None:
+            selected_label = str(user_input.get(CONF_COMMAND_TO_REMOVE) or "").strip()
+            idx = label_to_index.get(selected_label)
+            if idx is not None:
+                self._commands.pop(idx)
+            return await self.async_step_commands_menu(None)
+        return self.async_show_form(
+            step_id="remove_command",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(CONF_COMMAND_TO_REMOVE): vol.In(command_labels),
+                }
+            ),
+            description_placeholders={
+                "commands_list": commands_display_str(self._commands) or "—",
             },
         )
 
@@ -795,13 +922,6 @@ class MaxNotifyConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             except (ValueError, KeyError):
                 errors["base"] = "invalid_id_format"
             else:
-                if self._integration_type == INTEGRATION_TYPE_NOTIFY_A161 and n <= 0:
-                    errors["base"] = "notify_user_only"
-                    return self.async_show_form(
-                        step_id="recipient",
-                        data_schema=vol.Schema({vol.Required(CONF_RECIPIENT_ID): vol.Coerce(int)}),
-                        errors=errors,
-                    )
                 if n == 0:
                     errors["base"] = "invalid_id_format"
                 else:
@@ -822,6 +942,11 @@ class MaxNotifyConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         CONF_WEBHOOK_SECRET: self._webhook_secret,
                         CONF_BUTTONS: self._buttons_rows,
                         CONF_UPDATES_INTERVAL: self._updates_interval,
+                        CONF_COMMANDS: normalize_commands(
+                            self._commands
+                            if self._integration_type == INTEGRATION_TYPE_OFFICIAL
+                            else []
+                        ),
                     }
                     if self._integration_type == INTEGRATION_TYPE_NOTIFY_A161:
                         options[CONF_A161_INACTIVITY_PERIOD_DAYS] = (
@@ -858,7 +983,7 @@ class MaxNotifyConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     def async_get_supported_subentry_types(
         config_entry: config_entries.ConfigEntry,
     ) -> dict[str, type[ConfigSubentryFlow]]:
-        """Тип subentry «Добавить чат» для всех записей; для notify.a161.ru поток сразу прерывается с подсказкой."""
+        """Тип subentry «Добавить чат»; для notify.a161.ru поток сразу прерывается с подсказкой."""
         if not HAS_CONFIG_SUBENTRY:
             return {}
         return {SUBENTRY_TYPE_RECIPIENT: RecipientSubEntryFlowHandler}
@@ -1125,7 +1250,7 @@ class MaxNotifyConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
 
 class MaxNotifyOptionsFlow(OptionsFlow):
-    """Options flow: token, format, receive mode, WebHook secret, commands (add/remove menu)."""
+    """Options flow: token, format, receive mode, WebHook secret, keyboard, slash commands (official API)."""
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
@@ -1135,6 +1260,7 @@ class MaxNotifyOptionsFlow(OptionsFlow):
         self._opt_remove_button_label_to_value: dict[str, str] = {}
         self._opt_edit_index: tuple[int, int] | None = None
         self._opt_edit_label_to_value: dict[str, str] = {}
+        self._opt_commands: list[dict[str, str]] = []
         self._a161_polling_requested: bool = False
         self._pending_updates_interval: int = NOTIFY_A161_UPDATES_INTERVAL_SECONDS
         self._pending_a161_inactivity_days: int | None = None
@@ -1207,6 +1333,9 @@ class MaxNotifyOptionsFlow(OptionsFlow):
                     CONF_RECEIVE_MODE: new_receive_mode,
                     CONF_WEBHOOK_SECRET: new_webhook_secret,
                     CONF_BUTTONS: [],
+                    CONF_COMMANDS: normalize_commands(
+                        (entry.options or {}).get(CONF_COMMANDS)
+                    ),
                 }
                 base_title = f"MaxNotify ({await get_receive_mode_title(self.hass, new_receive_mode)})"
                 new_title = get_unique_entry_title(
@@ -1277,6 +1406,9 @@ class MaxNotifyOptionsFlow(OptionsFlow):
                 CONF_WEBHOOK_SECRET: new_webhook_secret,
             }
             self._opt_buttons = normalize_buttons((entry.options or {}).get(CONF_BUTTONS))
+            self._opt_commands = normalize_commands(
+                (entry.options or {}).get(CONF_COMMANDS)
+            )
             if new_receive_mode == RECEIVE_MODE_WEBHOOK:
                 return await self.async_step_webhook_secret(None)
             return await self.async_step_buttons_menu(None)
@@ -1555,7 +1687,9 @@ class MaxNotifyOptionsFlow(OptionsFlow):
                 return await self.async_step_opt_edit_button(None)
             if key == "opt_remove_button":
                 return await self.async_step_opt_remove_button(None)
-            return await self.async_step_opt_next(None)
+            if is_notify_a161_entry(self.config_entry):
+                return await self.async_step_opt_next(None)
+            return await self.async_step_commands_menu(None)
 
         return self.async_show_form(
             step_id="buttons_menu",
@@ -1823,6 +1957,106 @@ class MaxNotifyOptionsFlow(OptionsFlow):
             errors=errors,
         )
 
+    async def async_step_commands_menu(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Меню slash-команд (официальный API) после кнопок в настройках."""
+        option_keys: list[tuple[str, str]] = [
+            ("opt_add_command", ""),
+            ("opt_next", ""),
+        ]
+        if self._opt_commands:
+            option_keys.append(("opt_remove_command", ""))
+        labels = await get_menu_labels(
+            self.hass, "options", "commands_menu", option_keys
+        )
+        label_to_key = {labels[k]: k for k, _ in option_keys}
+        choice_labels = [labels[k] for k, _ in option_keys]
+
+        if user_input is not None:
+            chosen_label = user_input.get(CONF_ACTION) or choice_labels[0]
+            key = label_to_key.get(chosen_label, "opt_next")
+            if key == "opt_add_command":
+                return await self.async_step_opt_add_command(None)
+            if key == "opt_remove_command":
+                return await self.async_step_opt_remove_command(None)
+            return await self.async_step_opt_next(None)
+
+        return self.async_show_form(
+            step_id="commands_menu",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(CONF_ACTION, default=choice_labels[0]): vol.In(
+                        choice_labels
+                    ),
+                }
+            ),
+            description_placeholders={
+                "commands_list": commands_display_str(self._opt_commands) or "—",
+            },
+        )
+
+    async def async_step_opt_add_command(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Добавить slash-команду в настройках."""
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            raw_name = (user_input.get(CONF_COMMAND_NAME) or "").strip().lower()
+            name = raw_name[1:] if raw_name.startswith("/") else raw_name
+            if not name or any(c.get("name") == name for c in self._opt_commands):
+                errors["base"] = "invalid_command_name"
+            if not errors:
+                description = (
+                    (user_input.get(CONF_COMMAND_DESCRIPTION) or "").strip() or name
+                )
+                self._opt_commands.append({"name": name, "description": description})
+                self._opt_commands = normalize_commands(self._opt_commands)
+                return await self.async_step_commands_menu(None)
+        return self.async_show_form(
+            step_id="opt_add_command",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(CONF_COMMAND_NAME, default=""): str,
+                    vol.Optional(CONF_COMMAND_DESCRIPTION, default=""): str,
+                }
+            ),
+            description_placeholders={
+                "commands_list": commands_display_str(self._opt_commands) or "—",
+            },
+            errors=errors,
+        )
+
+    async def async_step_opt_remove_command(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Удалить slash-команду в настройках."""
+        if not self._opt_commands:
+            return await self.async_step_commands_menu(None)
+
+        command_labels = [
+            f"/{cmd.get('name', '')} — {cmd.get('description', cmd.get('name', ''))}"
+            for cmd in self._opt_commands
+        ]
+        label_to_index = {label: idx for idx, label in enumerate(command_labels)}
+        if user_input is not None:
+            selected_label = str(user_input.get(CONF_COMMAND_TO_REMOVE) or "").strip()
+            idx = label_to_index.get(selected_label)
+            if idx is not None:
+                self._opt_commands.pop(idx)
+            return await self.async_step_commands_menu(None)
+        return self.async_show_form(
+            step_id="opt_remove_command",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(CONF_COMMAND_TO_REMOVE): vol.In(command_labels),
+                }
+            ),
+            description_placeholders={
+                "commands_list": commands_display_str(self._opt_commands) or "—",
+            },
+        )
+
     async def async_step_opt_next(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
@@ -1833,6 +2067,8 @@ class MaxNotifyOptionsFlow(OptionsFlow):
             CONF_BUTTONS: self._opt_buttons,
             CONF_UPDATES_INTERVAL: self._pending_updates_interval,
         }
+        if not is_notify_a161_entry(entry):
+            new_options[CONF_COMMANDS] = normalize_commands(self._opt_commands)
         if is_notify_a161_entry(entry):
             if self._pending_a161_inactivity_days is not None:
                 days_out = self._pending_a161_inactivity_days

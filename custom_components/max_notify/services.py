@@ -152,6 +152,24 @@ def _notify_allowed_user_ids(entry: ConfigEntry) -> set[int]:
     return out
 
 
+def _notify_allowed_chat_ids(entry: ConfigEntry) -> set[int]:
+    """Group chat_ids (negative) configured as subentries for notify.a161.ru."""
+    out: set[int] = set()
+    for subentry in (getattr(entry, "subentries", None) or {}).values():
+        if not isinstance(subentry, ConfigSubentry):
+            continue
+        cid = subentry.data.get(CONF_CHAT_ID)
+        if cid is None:
+            continue
+        try:
+            n = int(cid)
+        except (TypeError, ValueError):
+            continue
+        if n < 0:
+            out.add(n)
+    return out
+
+
 def register_send_message_service(hass: HomeAssistant) -> None:
     """Register max_notify services (send_message, send_text_to_all, send_photo, send_document, send_video, delete_message, edit_message)."""
     _LOGGER.debug("Registering MaxNotify services")
@@ -325,24 +343,44 @@ def _resolve_entity_ids(
     return entity_ids_out
 
 
+def _entry_from_notify_entity_targets(
+    hass: HomeAssistant, entity_ids: list[str] | None
+) -> ConfigEntry | None:
+    """Pick MaxNotify config entry from the first notify.* entity in the list."""
+    if not entity_ids:
+        return None
+    reg = er.async_get(hass)
+    for eid in entity_ids:
+        en = reg.async_get(eid)
+        if not en or en.domain != "notify":
+            continue
+        ce = hass.config_entries.async_get_entry(en.config_entry_id)
+        if ce and ce.domain == DOMAIN:
+            return ce
+    return None
+
+
 def _get_entry_for_send(
     hass: HomeAssistant,
     config_entry_id: str | None,
     chat_ids: list[int] | None,
     user_ids: list[int] | None,
+    *,
+    entity_ids: list[str] | None = None,
 ) -> ConfigEntry | None:
-    """Resolve config entry (from id or single entry)."""
-    entry: ConfigEntry | None = (
-        hass.config_entries.async_get_entry(config_entry_id) if config_entry_id else None
-    )
-    if not entry or entry.domain != DOMAIN:
-        if config_entry_id:
+    """Resolve config entry: explicit id, then entity targets, then single integration."""
+    if config_entry_id:
+        entry = hass.config_entries.async_get_entry(config_entry_id)
+        if not entry or entry.domain != DOMAIN:
             return None
-        entries = hass.config_entries.async_entries(DOMAIN)
-        if len(entries) == 1:
-            return entries[0]
-        return None
-    return entry
+        return entry
+    entry = _entry_from_notify_entity_targets(hass, entity_ids)
+    if entry is not None:
+        return entry
+    entries = hass.config_entries.async_entries(DOMAIN)
+    if len(entries) == 1:
+        return entries[0]
+    return None
 
 
 async def async_delete_message_handler(service: ServiceCall) -> None:
@@ -589,7 +627,13 @@ async def async_send_message_handler(service: ServiceCall) -> None:
     )
 
     if chat_ids or user_ids:
-        entry = _get_entry_for_send(hass, config_entry_id, chat_ids, user_ids)
+        entry = _get_entry_for_send(
+            hass,
+            config_entry_id,
+            chat_ids,
+            user_ids,
+            entity_ids=entity_ids,
+        )
         if not entry:
             raise ServiceValidationError(
                 translation_domain=DOMAIN,
@@ -597,8 +641,14 @@ async def async_send_message_handler(service: ServiceCall) -> None:
                 translation_placeholders={"config_entry_id": config_entry_id or ""},
             )
         if is_notify_a161_entry(entry):
-            if chat_ids:
-                _raise_notify_unsupported("chat_id targeting")
+            allowed_chat_ids = _notify_allowed_chat_ids(entry)
+            for cid in chat_ids or []:
+                if int(cid) not in allowed_chat_ids:
+                    raise ServiceValidationError(
+                        translation_domain=DOMAIN,
+                        translation_key="no_matching_entities",
+                        translation_placeholders={"config_entry_id": entry.entry_id},
+                    )
             allowed_user_ids = _notify_allowed_user_ids(entry)
             for uid in user_ids or []:
                 if int(uid) not in allowed_user_ids:

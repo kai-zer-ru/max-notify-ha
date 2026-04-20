@@ -53,6 +53,8 @@ INTEGRATION_TYPES = [INTEGRATION_TYPE_OFFICIAL, INTEGRATION_TYPE_NOTIFY_A161]
 # Update types from Max API (GET /updates, POST /subscriptions)
 UPDATE_MESSAGE_CREATED = "message_created"
 UPDATE_MESSAGE_CALLBACK = "message_callback"
+# Derived client-side for official API when a slash command is detected in message text
+UPDATE_SLASH_COMMAND = "slash_command"
 UPDATE_TYPES_RECEIVE = [UPDATE_MESSAGE_CREATED, UPDATE_MESSAGE_CALLBACK]
 
 # Home Assistant event fired when an update is received

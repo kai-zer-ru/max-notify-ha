@@ -43,7 +43,10 @@ send_message:
             config_entry:
               integration: max_notify
         recipient_id:
-          # Положительное число — личный чат (User ID), отрицательное — группа (Chat ID)
+          description: >
+            Положительное число — личный чат (User ID), отрицательное — группа (Chat ID).
+            Указывайте только если идентификатор не совпадает с идентификатором в выбранной
+            сущности notify; при совпадении поле можно не заполнять.
           example: "-12345 или 12345"
           selector:
             text:
@@ -143,6 +146,10 @@ send_photo:
             config_entry:
               integration: max_notify
         recipient_id:
+          description: >
+            Положительное число — личный чат (User ID), отрицательное — группа (Chat ID).
+            Указывайте только если идентификатор не совпадает с идентификатором в выбранной
+            сущности notify; при совпадении поле можно не заполнять.
           example: "-12345 или 12345"
           selector:
             text:
@@ -262,6 +269,10 @@ send_video:
             config_entry:
               integration: max_notify
         recipient_id:
+          description: >
+            Положительное число — личный чат (User ID), отрицательное — группа (Chat ID).
+            Указывайте только если идентификатор не совпадает с идентификатором в выбранной
+            сущности notify; при совпадении поле можно не заполнять.
           example: "-12345 или 12345"
           selector:
             text:
@@ -381,6 +392,10 @@ send_document:
             config_entry:
               integration: max_notify
         recipient_id:
+          description: >
+            Положительное число — личный чат (User ID), отрицательное — группа (Chat ID).
+            Указывайте только если идентификатор не совпадает с идентификатором в выбранной
+            сущности notify; при совпадении поле можно не заполнять.
           example: "-12345 или 12345"
           selector:
             text:
@@ -471,6 +486,10 @@ delete_message:
           multiple: true
           reorder: true
     recipient_id:
+      description: >
+        Положительное число — личный чат (User ID), отрицательное — группа (Chat ID).
+        Указывайте только если идентификатор не совпадает с идентификатором в выбранной
+        сущности notify; при совпадении поле можно не заполнять.
       selector:
         text:
     chat_id:
@@ -533,6 +552,10 @@ edit_message:
           multiple: true
           reorder: true
     recipient_id:
+      description: >
+        Положительное число — личный чат (User ID), отрицательное — группа (Chat ID).
+        Указывайте только если идентификатор не совпадает с идентификатором в выбранной
+        сущности notify; при совпадении поле можно не заполнять.
       selector:
         text:
     chat_id:

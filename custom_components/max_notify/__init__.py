@@ -36,7 +36,9 @@ from .const import (
     RECEIVE_MODE_SEND_ONLY,
     RECEIVE_MODE_WEBHOOK,
 )
+from .api import sync_bot_commands_to_max
 from .helpers import get_unique_entry_title, is_notify_a161_entry
+from .message_state import async_load_integration_store
 from .services import register_send_message_service
 from .translations import get_receive_mode_title
 from .updates import start_polling, stop_polling
@@ -238,6 +240,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.async_create_task(_async_register_service_once(hass))
     if DOMAIN not in hass.data:
         hass.data[DOMAIN] = {}
+    await async_load_integration_store(hass)
     debouncers = hass.data[DOMAIN]
     entry_id = entry.entry_id
     if entry_id not in debouncers:
@@ -314,6 +317,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         await hass.config_entries.async_forward_entry_setups(entry, [Platform.SENSOR])
     except Exception as e:
         _LOGGER.warning("Failed to set up sensor platform for entry_id=%s: %s", entry.entry_id, e)
+    if official:
+        try:
+            await sync_bot_commands_to_max(hass, entry)
+        except Exception as e:
+            _LOGGER.warning("sync_bot_commands_to_max failed for entry_id=%s: %s", entry.entry_id, e)
     _LOGGER.debug("async_setup_entry: forward done for entry_id=%s", entry.entry_id)
     return True
 

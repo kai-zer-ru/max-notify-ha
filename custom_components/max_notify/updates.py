@@ -33,6 +33,8 @@ from .const import (
     POLLING_LIMIT,
     POLLING_RETRY_DELAY,
     POLLING_TIMEOUT,
+    UPDATE_MESSAGE_CREATED,
+    UPDATE_SLASH_COMMAND,
     UPDATE_TYPES_RECEIVE,
 )
 from .helpers import is_notify_a161_entry
@@ -160,6 +162,27 @@ def _extract_user_id(update: dict[str, Any], message: dict[str, Any], update_typ
     return sender.get("user_id") or sender.get("userId")
 
 
+def _extract_slash_command_from_text(text: str) -> tuple[str | None, str | None]:
+    """Extract /command from message text (official API: supports ``@bot /cmd args``)."""
+    stripped = text.strip()
+    if not stripped:
+        return None, None
+    parts = stripped.split()
+    cmd_index = -1
+    for idx, token in enumerate(parts):
+        if token.startswith("/") and len(token) > 1:
+            cmd_index = idx
+            break
+    if cmd_index < 0:
+        return None, None
+
+    raw_cmd = parts[cmd_index][1:].strip().lower()
+    if not raw_cmd:
+        return None, None
+    rest = " ".join(parts[cmd_index + 1 :]).strip()
+    return raw_cmd, (rest or None)
+
+
 def _extract_event_data(entry: ConfigEntry, update: dict[str, Any]) -> dict[str, Any]:
     """Build flat event data from Max Update for automations."""
     update_type = update.get("update_type") or ""
@@ -194,13 +217,10 @@ def _extract_event_data(entry: ConfigEntry, update: dict[str, Any]) -> dict[str,
     if isinstance(body.get("text"), str):
         text = body["text"].strip()
 
-    # Command: text starting with /
     command = None
     args = None
-    if text and text.startswith("/"):
-        parts = text[1:].split(None, 1)
-        command = parts[0].lower() if parts else ""
-        args = parts[1] if len(parts) > 1 else ""
+    if text:
+        command, args = _extract_slash_command_from_text(text)
 
     # Callback payload (message_callback) — payload нажатой кнопки для триггеров
     callback_data = _get_callback_payload(update, message, body)
@@ -218,9 +238,19 @@ def _extract_event_data(entry: ConfigEntry, update: dict[str, Any]) -> dict[str,
     if update_type == "message_callback" and callback_data and not command:
         command = str(callback_data).strip()
 
+    normalized_update_type = (
+        UPDATE_SLASH_COMMAND
+        if (
+            not is_notify_a161_entry(entry)
+            and update_type == UPDATE_MESSAGE_CREATED
+            and command
+        )
+        else update_type
+    )
+
     event_data: dict[str, Any] = {
         "config_entry_id": entry.entry_id,
-        "update_type": update_type,
+        "update_type": normalized_update_type,
         "timestamp": timestamp,
         "user_id": user_id,
         "chat_id": chat_id,
@@ -432,10 +462,17 @@ async def async_process_update(
 
         event_data = _extract_event_data(entry, update)
         try:
+            rid_raw = event_data.get("recipient_id")
+            try:
+                incoming_rid = int(rid_raw) if rid_raw is not None else None
+            except (TypeError, ValueError):
+                incoming_rid = None
             set_last_incoming_message_id(
                 hass,
                 entry.entry_id,
                 event_data.get("message_id"),
+                recipient_id=incoming_rid,
+                entry=entry,
             )
         except Exception as e:
             _LOGGER.debug("Failed to update last incoming message ID: %s", e)

@@ -6,10 +6,15 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from custom_components.max_notify.const import (
+    CONF_INTEGRATION_TYPE,
+    INTEGRATION_TYPE_NOTIFY_A161,
+)
 from custom_components.max_notify.updates import (
     _parse_json_response_text,
     _extract_updates_from_payload,
     _extract_event_data,
+    _extract_slash_command_from_text,
     _extract_message_id,
     _get_callback_payload,
     _normalize_notify_a161_reply_update,
@@ -60,6 +65,41 @@ class TestExtractEventData:
         assert data["update_type"] == "message_callback"
         assert data["callback_data"] == "light_on"
         assert data["command"] == "light_on"
+
+    def test_slash_command_after_bot_mention_official(self, mock_entry) -> None:
+        update = {
+            "update_type": "message_created",
+            "message": {
+                "body": {"text": "@id123_bot /report arg1"},
+                "recipient": {"chat_id": -1},
+                "sender": {"user_id": 99},
+            },
+        }
+        data = _extract_event_data(mock_entry, update)
+        assert data["update_type"] == "slash_command"
+        assert data["command"] == "report"
+        assert data["args"] == "arg1"
+
+    def test_slash_command_notify_a161_stays_message_created(self, mock_entry) -> None:
+        mock_entry.data = {CONF_INTEGRATION_TYPE: INTEGRATION_TYPE_NOTIFY_A161}
+        update = {
+            "update_type": "message_created",
+            "message": {
+                "body": {"text": "/start"},
+                "recipient": {"chat_id": 1},
+                "sender": {"user_id": 99},
+            },
+        }
+        data = _extract_event_data(mock_entry, update)
+        assert data["update_type"] == "message_created"
+        assert data["command"] == "start"
+
+
+class TestExtractSlashCommandFromText:
+    def test_midline_command(self) -> None:
+        cmd, args = _extract_slash_command_from_text("hello /x y")
+        assert cmd == "x"
+        assert args == "y"
 
 
 class TestGetCallbackPayload:

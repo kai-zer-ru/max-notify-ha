@@ -9,13 +9,18 @@ from homeassistant.exceptions import ServiceValidationError
 
 from custom_components.max_notify.const import (
     API_BASE_URL_NOTIFY_A161,
+    CONF_CHAT_ID,
+    CONF_RECIPIENT_ID,
+    CONF_USER_ID,
     INTEGRATION_TYPE_NOTIFY_A161,
 )
 from custom_components.max_notify.notify import (
+    _effective_notify_recipient,
     _extract_message_id_from_response,
-    _extract_url_and_basic_auth,
-    _normalize_buttons_for_api,
+    _extract_url_auth_source,
     _message_id_candidates,
+    _normalize_buttons_for_api,
+    _recipient_override_fragment_from_kwargs,
     delete_message,
     edit_message,
 )
@@ -84,28 +89,48 @@ class TestExtractMessageIdFromResponse:
         body = '{"result":{"message":{"body":{"mid":"mid.xyz987"}}}}'
         assert _extract_message_id_from_response(body) == "xyz987"
 
+    def test_from_message_object_id_field(self) -> None:
+        """Official POST /messages often returns Message with id, not message_id."""
+        body = '{"message":{"id":"mid.abc999","body":{"text":"hi"}}}'
+        assert _extract_message_id_from_response(body) == "abc999"
 
-class TestExtractUrlAndBasicAuth:
+    def test_from_message_object_numeric_id(self) -> None:
+        body = '{"message":{"id": 42}}'
+        assert _extract_message_id_from_response(body) == "42"
+
+    def test_regex_when_json_invalid_but_id_present(self) -> None:
+        body = 'not json but "message_id":"mid.fallback1" trailing'
+        assert _extract_message_id_from_response(body) == "fallback1"
+
+    def test_regex_top_level_numeric_id(self) -> None:
+        body = 'prefix "id": 999888, suffix'
+        assert _extract_message_id_from_response(body) == "999888"
+
+
+class TestExtractUrlAuthSource:
     """Tests for URL/userinfo and explicit basic auth parsing."""
 
     def test_uses_explicit_basic_auth(self) -> None:
-        url, auth = _extract_url_and_basic_auth(
-            "http://camera.local/snapshot.jpg", "admin:12345678"
+        url, login, password = _extract_url_auth_source(
+            "http://camera.local/snapshot.jpg",
+            auth_login=None,
+            auth_password=None,
+            url_basic_auth="admin:12345678",
         )
         assert url == "http://camera.local/snapshot.jpg"
-        assert auth is not None
-        assert auth.login == "admin"
-        assert auth.password == "12345678"
+        assert login == "admin"
+        assert password == "12345678"
 
     def test_uses_basic_auth_from_url(self) -> None:
-        url, auth = _extract_url_and_basic_auth(
+        url, login, password = _extract_url_auth_source(
             "http://admin:12345678@192.168.2.253/cgi-bin/snapshot.cgi?channel=1",
-            None,
+            auth_login=None,
+            auth_password=None,
+            url_basic_auth=None,
         )
         assert url == "http://192.168.2.253/cgi-bin/snapshot.cgi?channel=1"
-        assert auth is not None
-        assert auth.login == "admin"
-        assert auth.password == "12345678"
+        assert login == "admin"
+        assert password == "12345678"
 
 
 class TestMessageIdCandidates:
@@ -303,3 +328,41 @@ class TestEditMessage:
             assert called_url.startswith(API_BASE_URL_NOTIFY_A161)
             assert "v=" not in called_url
             assert "message_id=mid.msg-1" in called_url
+
+
+class TestRecipientOverrideFromNotifyKwargs:
+    """recipient_id / chat_id / user_id in notify entity kwargs (when passed through)."""
+
+    def test_recipient_id_negative_maps_to_chat(self) -> None:
+        assert _recipient_override_fragment_from_kwargs(
+            {CONF_RECIPIENT_ID: -73199518591043}
+        ) == {CONF_CHAT_ID: -73199518591043}
+
+    def test_recipient_id_positive_maps_to_user(self) -> None:
+        assert _recipient_override_fragment_from_kwargs({CONF_RECIPIENT_ID: 3391555}) == {
+            CONF_USER_ID: 3391555
+        }
+
+    def test_effective_merges_user_entity_to_group_chat(self) -> None:
+        sub = MagicMock()
+        sub.data = {CONF_CHAT_ID: -73199518591043}
+        entry = MagicMock()
+        entry.subentries = {"a": sub}
+        base = {CONF_USER_ID: 3391555}
+        out = _effective_notify_recipient(
+            entry, base, {CONF_RECIPIENT_ID: -73199518591043}
+        )
+        assert out is not None
+        assert out.get(CONF_CHAT_ID) == -73199518591043
+        assert CONF_USER_ID not in out
+
+    def test_effective_rejects_unconfigured_override(self) -> None:
+        sub = MagicMock()
+        sub.data = {CONF_USER_ID: 3391555}
+        entry = MagicMock()
+        entry.subentries = {"a": sub}
+        base = {CONF_USER_ID: 3391555}
+        assert (
+            _effective_notify_recipient(entry, base, {CONF_RECIPIENT_ID: -999999999})
+            is None
+        )
