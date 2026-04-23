@@ -51,6 +51,25 @@ class TestSendMessageSchema:
         })
         assert data["buttons"][0]["text"] == "Button 1"
 
+    def test_accepts_recipient_id_for_automations(self) -> None:
+        """recipient_id must validate (int or coerced string from templates)."""
+        data = SERVICE_SEND_MESSAGE_SCHEMA({
+            "message": "Hi",
+            "config_entry_id": "01KNMJFE8M52NYCBSBTT9RJJAJ",
+            "recipient_id": 18787925,
+        })
+        assert data["recipient_id"] == 18787925
+        data_str = SERVICE_SEND_MESSAGE_SCHEMA({
+            "message": "Hi",
+            "recipient_id": "18787925",
+        })
+        assert data_str["recipient_id"] == 18787925
+        data_group = SERVICE_SEND_MESSAGE_SCHEMA({
+            "message": "Hi",
+            "recipient_id": "-1001234567890",
+        })
+        assert data_group["recipient_id"] == -1001234567890
+
 
 class TestDeleteMessageSchema:
     """Тесты SERVICE_DELETE_MESSAGE_SCHEMA."""

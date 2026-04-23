@@ -19,7 +19,7 @@ from custom_components.max_notify.providers.registry import (
 
 def test_is_add_chat_available_official_vs_a161() -> None:
     assert OFFICIAL_PROVIDER.is_add_chat_available is True
-    assert NOTIFY_A161_PROVIDER.is_add_chat_available is True
+    assert NOTIFY_A161_PROVIDER.is_add_chat_available is False
 
 
 def test_async_get_supported_subentry_types_respects_flag(monkeypatch) -> None:

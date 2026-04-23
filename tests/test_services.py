@@ -91,6 +91,8 @@ async def test_delete_last_outgoing_message_handler(hass, mock_config_entry) -> 
     entity_entry = SimpleNamespace(
         config_entry_id=mock_config_entry.entry_id,
         config_subentry_id="sub-1",
+        domain="notify",
+        platform="max_notify",
     )
     registry.async_get = MagicMock(return_value=entity_entry)
     subentry = SimpleNamespace(data={CONF_RECIPIENT_ID: -100500})

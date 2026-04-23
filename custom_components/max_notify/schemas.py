@@ -12,6 +12,7 @@ from .const import (
     CONF_COUNT_REQUESTS,
     CONF_DISABLE_SSL,
     CONF_FILES,
+    CONF_RECIPIENT_ID,
     CONF_URL_AUTH_LOGIN,
     CONF_URL_AUTH_PASSWORD,
     CONF_URL_AUTH_TOKEN,
@@ -118,6 +119,7 @@ SERVICE_SEND_MESSAGE_SCHEMA = vol.Schema(
         vol.Optional("buttons"): vol.Any(dict, list),
         vol.Optional(ATTR_ENTITY_ID): vol.All(cv.ensure_list, [cv.entity_id]),
         vol.Optional(CONF_CONFIG_ENTRY_ID): cv.string,
+        vol.Optional(CONF_RECIPIENT_ID): vol.Coerce(int),
     }
 )
 

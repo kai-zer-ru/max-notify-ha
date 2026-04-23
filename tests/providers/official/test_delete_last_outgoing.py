@@ -45,7 +45,7 @@ async def test_delete_last_outgoing_group_uses_messages_scan(
 
     with (
         patch(
-            "custom_components.max_notify.providers.official.integration_provider.find_last_outgoing_message_id",
+            "custom_components.max_notify.providers.official.notify.find_last_outgoing_message_id",
             new=AsyncMock(return_value="group-mid-1"),
         ) as mock_find,
         patch(
