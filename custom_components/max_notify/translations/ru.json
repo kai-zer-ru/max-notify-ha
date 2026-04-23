@@ -943,7 +943,7 @@
       },
       "opt_remove_command": {
         "title": "Удалить slash-команду",
-        "description": "Выберите команду для удаления. Текущие: {buttons_list}",
+        "description": "Выберите команду для удаления. Текущие: {commands_list}",
         "data": {
           "command_to_remove": "Команда для удаления"
         },
