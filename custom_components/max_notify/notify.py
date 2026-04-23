@@ -227,7 +227,14 @@ def _request_ssl(disable_ssl: bool) -> bool | None:
     return False if disable_ssl else None
 
 
-def _media_download_ssl(disable_ssl: bool) -> bool | ssl.SSLContext | None:
+def _build_media_download_ssl_context() -> ssl.SSLContext:
+    """Build SSL context for media downloads in a worker thread."""
+    ctx = ssl.create_default_context()
+    ctx.check_hostname = False
+    return ctx
+
+
+async def _media_download_ssl(disable_ssl: bool) -> bool | ssl.SSLContext | None:
     """TLS только для скачивания медиа по URL (не для Max / notify.a161 API).
 
     По умолчанию: проверяем цепочку до УЦ, но не сверяем имя хоста с SAN (частые частные URL).
@@ -235,9 +242,7 @@ def _media_download_ssl(disable_ssl: bool) -> bool | ssl.SSLContext | None:
     """
     if disable_ssl:
         return False
-    ctx = ssl.create_default_context()
-    ctx.check_hostname = False
-    return ctx
+    return await asyncio.to_thread(_build_media_download_ssl_context)
 
 
 def _api_base_url_for_entry(entry: ConfigEntry) -> str:
@@ -505,7 +510,7 @@ async def _download_http_media(
         url_basic_auth=url_basic_auth,
     )
 
-    download_ssl = _media_download_ssl(disable_ssl)
+    download_ssl = await _media_download_ssl(disable_ssl)
 
     if auth_type is None:
         return await session.get(
