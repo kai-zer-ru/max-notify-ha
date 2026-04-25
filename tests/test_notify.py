@@ -341,6 +341,8 @@ class TestUploadDispatch:
                 mock_config_entry, {"recipient_id": 1}, with_buttons=True
             )
             provider.async_send_message.assert_awaited_once()
+            call = provider.async_send_message.await_args
+            assert call.kwargs["notify"] is True
 
     async def test_send_plain_message_routes_to_provider(self, hass, mock_config_entry) -> None:
         with patch("custom_components.max_notify.notify.get_provider") as mock_get_provider:
@@ -360,6 +362,27 @@ class TestUploadDispatch:
                 mock_config_entry, {"recipient_id": 1}, with_buttons=False
             )
             provider.async_send_message.assert_awaited_once()
+
+    async def test_send_message_routes_notify_flag_to_provider(
+        self, hass, mock_config_entry
+    ) -> None:
+        with patch("custom_components.max_notify.notify.get_provider") as mock_get_provider:
+            provider = MagicMock()
+            provider.ensure_can_send_message = MagicMock()
+            provider.async_send_message = AsyncMock()
+            mock_get_provider.return_value = provider
+
+            await send_message(
+                hass,
+                mock_config_entry,
+                {"recipient_id": 1},
+                "hi",
+                notify=False,
+            )
+
+            provider.async_send_message.assert_awaited_once()
+            call = provider.async_send_message.await_args
+            assert call.kwargs["notify"] is False
 
     async def test_upload_document_rejects_without_capability(
         self, hass, mock_config_entry

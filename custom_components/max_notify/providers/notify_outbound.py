@@ -1355,6 +1355,7 @@ async def send_message(
     buttons: list[list[dict[str, Any]]] | None = None,
     title: str | None = None,
     message_format: str | None = None,
+    notify: bool = True,
 ) -> None:
     """Отправить текст: с inline-клавиатурой или без неё."""
     token = entry.data.get(CONF_ACCESS_TOKEN)
@@ -1387,6 +1388,8 @@ async def send_message(
                 "payload": {"buttons": _normalize_buttons_for_api(buttons or [])},
             }
         ]
+    if not notify:
+        payload["notify"] = False
 
     headers = {"Authorization": token}
     session = async_get_clientsession(hass)
@@ -1488,7 +1491,6 @@ async def _upload_media_and_send(
     message_format: str | None = None,
 ) -> None:
     """Загрузить photo/document в Max (POST /uploads) и отправить (POST /messages)."""
-    _ = notify
     if attachment_type not in ("image", "file"):
         attachment_type = "image"
     as_document = attachment_type == "file"
@@ -1647,6 +1649,8 @@ async def _upload_media_and_send(
             buttons_api=_normalize_buttons_for_api(buttons) if buttons else None,
             attachment_type=attachment_type,
         )
+        if not notify:
+            payload_tp["notify"] = False
         att_count_tp, att_types_tp = _payload_attachments_summary(payload_tp)
         _LOGGER.info(
             "Built third-party media payload: provider=%s attachments=%s attachment_types=%s payload=%s",
@@ -1776,6 +1780,8 @@ async def _upload_media_and_send(
         buttons_api=_normalize_buttons_for_api(buttons) if buttons else None,
         attachment_type=attachment_type,
     )
+    if not notify:
+        payload["notify"] = False
     att_count, att_types = _payload_attachments_summary(payload)
     _LOGGER.info(
         "Built official media payload: attachments=%s attachment_types=%s payload=%s",
@@ -1994,7 +2000,6 @@ async def upload_video_and_send(
     message_format: str | None = None,
 ) -> None:
     """Загрузить видео в Max (POST /uploads?type=video) и отправить (POST /messages)."""
-    _ = notify
     file_sources = _normalize_file_sources(file_path_or_url, file_paths_or_urls)
     _validate_attachments_count_limit(
         entry,
@@ -2123,6 +2128,8 @@ async def upload_video_and_send(
             message_format=msg_format,
             buttons_api=_normalize_buttons_for_api(buttons) if buttons else None,
         )
+        if not notify:
+            payload_tp["notify"] = False
 
         def _on_success_third_party_vid(resp_body: str) -> None:
             _store_outgoing_message_id_from_response(
@@ -2158,6 +2165,8 @@ async def upload_video_and_send(
         message_format=msg_format,
         buttons_api=_normalize_buttons_for_api(buttons) if buttons else None,
     )
+    if not notify:
+        payload["notify"] = False
 
     def _on_success(body: str) -> None:
         _store_outgoing_message_id_from_response(

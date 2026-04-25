@@ -18,11 +18,6 @@ send_message:
       selector:
         text:
           multiline: true
-    # notify:
-    #   default: true
-    #   selector:
-    #     boolean:
-    #   description: "If false, send without notifying recipients (silent)."
     advanced:
       collapsed: true
       fields:
@@ -89,6 +84,13 @@ send_text_to_all:
 
 send_photo:
   fields:
+    entity_id:
+      selector:
+        entity:
+          filter:
+            domain: notify
+          multiple: true
+          reorder: true
     file:
       description: "Local path (/config/..., /media/...) or image URL (http/https)"
       selector:
@@ -101,18 +103,6 @@ send_photo:
       selector:
         text:
           multiline: true
-    # notify:
-    #   default: true
-    #   selector:
-    #     boolean:
-    #   description: "If false, send without notifying recipients (silent)."
-    entity_id:
-      selector:
-        entity:
-          filter:
-            domain: notify
-          multiple: true
-          reorder: true
     advanced:
       collapsed: true
       fields:
@@ -185,6 +175,13 @@ send_photo:
 
 send_video:
   fields:
+    entity_id:
+      selector:
+        entity:
+          filter:
+            domain: notify
+          multiple: true
+          reorder: true
     file:
       description: "Local path (/config/..., /media/...) or video URL (mp4, mov, webm, mkv)"
       selector:
@@ -197,18 +194,6 @@ send_video:
       selector:
         text:
           multiline: true
-    # notify:
-    #   default: true
-    #   selector:
-    #     boolean:
-    #   description: "If false, send without notifying recipients (silent)."
-    entity_id:
-      selector:
-        entity:
-          filter:
-            domain: notify
-          multiple: true
-          reorder: true
     advanced:
       collapsed: true
       fields:
@@ -281,6 +266,13 @@ send_video:
 
 send_document:
   fields:
+    entity_id:
+      selector:
+        entity:
+          filter:
+            domain: notify
+          multiple: true
+          reorder: true
     file:
       required: true
       description: "Local path or file URL — sent as document (file) in Max"
@@ -290,18 +282,6 @@ send_document:
       selector:
         text:
           multiline: true
-    # notify:
-    #   default: true
-    #   selector:
-    #     boolean:
-    #   description: "If false, send without notifying recipients (silent)."
-    entity_id:
-      selector:
-        entity:
-          filter:
-            domain: notify
-          multiple: true
-          reorder: true
     advanced:
       collapsed: true
       fields:
@@ -374,13 +354,6 @@ send_document:
 
 delete_message:
   fields:
-    message_id:
-      selector:
-        text:
-    message_ids:
-      description: "List of message IDs (comma-separated or array in YAML mode)"
-      selector:
-        text:
     entity_id:
       selector:
         entity:
@@ -388,6 +361,13 @@ delete_message:
             domain: notify
           multiple: true
           reorder: true
+    message_id:
+      selector:
+        text:
+    message_ids:
+      description: "List of message IDs (comma-separated or array in YAML mode)"
+      selector:
+        text:
     config_entry_id:
       selector:
         config_entry:
@@ -415,6 +395,17 @@ delete_last_outgoing_message:
 
 edit_message:
   fields:
+    entity_id:
+      selector:
+        entity:
+          filter:
+            domain: notify
+          multiple: true
+          reorder: true
+    config_entry_id:
+      selector:
+        config_entry:
+          integration: max_notify
     message_id:
       required: true
       selector:
@@ -446,14 +437,4 @@ edit_message:
             - text
             - markdown
             - html
-    entity_id:
-      selector:
-        entity:
-          filter:
-            domain: notify
-          multiple: true
-          reorder: true
-    config_entry_id:
-      selector:
-        config_entry:
-          integration: max_notify
+          mode: dropdown

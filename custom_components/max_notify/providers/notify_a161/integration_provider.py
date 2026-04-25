@@ -467,6 +467,7 @@ class NotifyA161IntegrationProvider(MaxNotifyIntegrationProvider):
         buttons: list[list[dict[str, Any]]],
         title: str | None = None,
         message_format: str | None = None,
+        notify: bool = True,
     ) -> None:
         await self.async_send_message(
             hass,
@@ -476,6 +477,7 @@ class NotifyA161IntegrationProvider(MaxNotifyIntegrationProvider):
             buttons=buttons,
             title=title,
             message_format=message_format,
+            notify=notify,
         )
 
     async def async_send_plain_message(
@@ -486,6 +488,7 @@ class NotifyA161IntegrationProvider(MaxNotifyIntegrationProvider):
         message: str,
         title: str | None = None,
         message_format: str | None = None,
+        notify: bool = True,
     ) -> None:
         await self.async_send_message(
             hass,
@@ -495,6 +498,7 @@ class NotifyA161IntegrationProvider(MaxNotifyIntegrationProvider):
             buttons=None,
             title=title,
             message_format=message_format,
+            notify=notify,
         )
 
     async def async_send_message(
@@ -507,6 +511,7 @@ class NotifyA161IntegrationProvider(MaxNotifyIntegrationProvider):
         buttons: list[list[dict[str, Any]]] | None = None,
         title: str | None = None,
         message_format: str | None = None,
+        notify: bool = True,
     ) -> None:
         from .. import notify_outbound
 
@@ -518,6 +523,7 @@ class NotifyA161IntegrationProvider(MaxNotifyIntegrationProvider):
             buttons=buttons,
             title=title,
             message_format=message_format,
+            notify=notify,
         )
 
     def options_finalize_pending_options(

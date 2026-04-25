@@ -356,6 +356,7 @@ class OfficialIntegrationProvider(MaxNotifyIntegrationProvider):
         buttons: list[list[dict[str, Any]]],
         title: str | None = None,
         message_format: str | None = None,
+        notify: bool = True,
     ) -> None:
         await self.async_send_message(
             hass,
@@ -365,6 +366,7 @@ class OfficialIntegrationProvider(MaxNotifyIntegrationProvider):
             buttons=buttons,
             title=title,
             message_format=message_format,
+            notify=notify,
         )
 
     async def async_send_plain_message(
@@ -375,6 +377,7 @@ class OfficialIntegrationProvider(MaxNotifyIntegrationProvider):
         message: str,
         title: str | None = None,
         message_format: str | None = None,
+        notify: bool = True,
     ) -> None:
         await self.async_send_message(
             hass,
@@ -384,6 +387,7 @@ class OfficialIntegrationProvider(MaxNotifyIntegrationProvider):
             buttons=None,
             title=title,
             message_format=message_format,
+            notify=notify,
         )
 
     async def async_send_message(
@@ -396,6 +400,7 @@ class OfficialIntegrationProvider(MaxNotifyIntegrationProvider):
         buttons: list[list[dict[str, Any]]] | None = None,
         title: str | None = None,
         message_format: str | None = None,
+        notify: bool = True,
     ) -> None:
         from .. import notify_outbound
 
@@ -407,6 +412,7 @@ class OfficialIntegrationProvider(MaxNotifyIntegrationProvider):
             buttons=buttons,
             title=title,
             message_format=message_format,
+            notify=notify,
         )
 
     async def async_upload_image_and_send(

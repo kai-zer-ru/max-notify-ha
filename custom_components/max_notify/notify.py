@@ -84,6 +84,7 @@ async def send_message_with_buttons(
     buttons: list[list[dict[str, Any]]],
     title: str | None = None,
     message_format: str | None = None,
+    notify: bool = True,
 ) -> None:
     await send_message(
         hass,
@@ -93,6 +94,7 @@ async def send_message_with_buttons(
         buttons=buttons,
         title=title,
         message_format=message_format,
+        notify=notify,
     )
 
 
@@ -105,6 +107,7 @@ async def send_message(
     buttons: list[list[dict[str, Any]]] | None = None,
     title: str | None = None,
     message_format: str | None = None,
+    notify: bool = True,
 ) -> None:
     provider = get_provider(entry)
     provider.ensure_can_send_message(entry, recipient, with_buttons=bool(buttons))
@@ -116,6 +119,7 @@ async def send_message(
         buttons=buttons,
         title=title,
         message_format=message_format,
+        notify=notify,
     )
 
 async def send_plain_message(
@@ -125,6 +129,7 @@ async def send_plain_message(
     message: str,
     title: str | None = None,
     message_format: str | None = None,
+    notify: bool = True,
 ) -> None:
     await send_message(
         hass,
@@ -134,6 +139,7 @@ async def send_plain_message(
         buttons=None,
         title=title,
         message_format=message_format,
+        notify=notify,
     )
 
 

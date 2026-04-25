@@ -7,6 +7,7 @@ from typing import Any
 from homeassistant.components.sensor import RestoreSensor
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.const import EntityCategory
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
@@ -59,6 +60,11 @@ async def async_setup_entry(
                 hass, entry, recipient_id=recipient_id, subentry=subentry
             )
             async_add_entities([inc], config_subentry_id=subentry_id)
+    # Legacy sensors (entry-level scope) must stay available after v2 migration.
+    # Keep old unique_id values so recorder/entity registry continue to resolve them.
+    async_add_entities([MaxNotifyLegacyLastOutgoingMessageIdSensor(hass, entry)])
+    if want_incoming:
+        async_add_entities([MaxNotifyLegacyLastIncomingMessageIdSensor(hass, entry)])
 
 
 class _BaseMessageIdSensor(RestoreSensor):
@@ -179,3 +185,81 @@ class MaxNotifyLastIncomingMessageIdSensor(_BaseMessageIdSensor):
         return get_last_incoming_message_id(
             self.hass, self._entry_id, recipient_id=self._recipient_id
         )
+
+
+class _BaseLegacyMessageIdSensor(RestoreSensor):
+    """Legacy entry-level sensors kept for backward compatibility."""
+
+    _attr_has_entity_name = True
+    _attr_should_poll = False
+    _attr_icon = "mdi:identifier"
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
+        self.hass = hass
+        self._entry = entry
+        self._scope_key = message_state_scope_key(entry.entry_id, None)
+        self._attr_device_info = {
+            "identifiers": {(DOMAIN, entry.entry_id)},
+            "name": entry.title,
+        }
+        self._attr_extra_state_attributes = {
+            "deprecated": True,
+            "deprecation_note": "Устаревший сенсор, используйте сенсоры по чатам.",
+        }
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        last = await self.async_get_last_sensor_data()
+        if last and last.native_value:
+            mid = str(last.native_value).strip()
+            if mid:
+                self._merge_from_recorder_if_empty(mid)
+        signal = f"{SIGNAL_MESSAGE_STATE_UPDATED}_{self._scope_key}"
+        self.async_on_remove(
+            async_dispatcher_connect(self.hass, signal, self._on_state_update)
+        )
+
+    @property
+    def _entry_id(self) -> str:
+        return self._entry.entry_id
+
+    def _on_state_update(self) -> None:
+        self.schedule_update_ha_state()
+
+    def _merge_from_recorder_if_empty(self, mid: str) -> None:
+        raise NotImplementedError
+
+
+class MaxNotifyLegacyLastOutgoingMessageIdSensor(_BaseLegacyMessageIdSensor):
+    """Legacy sensor: last outgoing message ID on entry scope."""
+
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
+        super().__init__(hass, entry)
+        self._attr_unique_id = f"{entry.entry_id}_last_outgoing_message_id"
+        self._attr_name = "Идентификатор последнего исходящего сообщения (Устаревший)"
+
+    def _merge_from_recorder_if_empty(self, mid: str) -> None:
+        if not get_last_outgoing_message_id(self.hass, self._entry_id):
+            set_last_outgoing_message_id(self.hass, self._entry_id, mid)
+
+    @property
+    def native_value(self) -> str | None:
+        return get_last_outgoing_message_id(self.hass, self._entry_id)
+
+
+class MaxNotifyLegacyLastIncomingMessageIdSensor(_BaseLegacyMessageIdSensor):
+    """Legacy sensor: last incoming message ID on entry scope."""
+
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
+        super().__init__(hass, entry)
+        self._attr_unique_id = f"{entry.entry_id}_last_incoming_message_id"
+        self._attr_name = "Идентификатор последнего входящего сообщения (Устаревший)"
+
+    def _merge_from_recorder_if_empty(self, mid: str) -> None:
+        if not get_last_incoming_message_id(self.hass, self._entry_id):
+            set_last_incoming_message_id(self.hass, self._entry_id, mid)
+
+    @property
+    def native_value(self) -> str | None:
+        return get_last_incoming_message_id(self.hass, self._entry_id)

@@ -244,6 +244,7 @@ class MaxNotifyIntegrationProvider:
         buttons: list[list[dict[str, Any]]],
         title: str | None = None,
         message_format: str | None = None,
+        notify: bool = True,
     ) -> None:
         return None
 
@@ -257,6 +258,7 @@ class MaxNotifyIntegrationProvider:
         buttons: list[list[dict[str, Any]]] | None = None,
         title: str | None = None,
         message_format: str | None = None,
+        notify: bool = True,
     ) -> None:
         """Единая отправка текста: с кнопками или без, в зависимости от ``buttons``."""
         if buttons:
@@ -268,6 +270,7 @@ class MaxNotifyIntegrationProvider:
                 buttons,
                 title=title,
                 message_format=message_format,
+                notify=notify,
             )
             return
         await self.async_send_plain_message(
@@ -277,6 +280,7 @@ class MaxNotifyIntegrationProvider:
             message,
             title=title,
             message_format=message_format,
+            notify=notify,
         )
 
     async def async_send_plain_message(
@@ -287,6 +291,7 @@ class MaxNotifyIntegrationProvider:
         message: str,
         title: str | None = None,
         message_format: str | None = None,
+        notify: bool = True,
     ) -> None:
         return None
 

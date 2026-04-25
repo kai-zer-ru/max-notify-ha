@@ -626,6 +626,7 @@ async def async_send_message_handler(service: ServiceCall) -> None:
     title = data.get("title")
     message_format = data.get("format")
     send_kb = data.get(CONF_SEND_KEYBOARD, True)
+    notify_flag = data.get("notify", True)
     buttons_provided = "buttons" in data
     entity_ids = data.get(ATTR_ENTITY_ID)
     config_entry_id = data.get(CONF_CONFIG_ENTRY_ID)
@@ -704,6 +705,7 @@ async def async_send_message_handler(service: ServiceCall) -> None:
                 buttons=all_buttons,
                 title=title,
                 message_format=message_format,
+                notify=notify_flag,
             )
 
     for eid in without_keyboard:
@@ -725,6 +727,7 @@ async def async_send_message_handler(service: ServiceCall) -> None:
             buttons=None,
             title=title,
             message_format=message_format,
+            notify=notify_flag,
         )
     _LOGGER.info(
         "%s.%s finished: targets=%s with_keyboard=%s without_keyboard=%s",
@@ -745,6 +748,7 @@ async def async_send_text_to_all_handler(service: ServiceCall) -> None:
     title = data.get("title")
     message_format = data.get("format")
     send_kb = data.get(CONF_SEND_KEYBOARD, True)
+    notify_flag = data.get("notify", True)
     buttons_provided = "buttons" in data
 
     entries = hass.config_entries.async_entries(DOMAIN)
@@ -804,6 +808,7 @@ async def async_send_text_to_all_handler(service: ServiceCall) -> None:
                         buttons=all_buttons,
                         title=title,
                         message_format=message_format,
+                        notify=notify_flag,
                     )
                 else:
                     await send_message(
@@ -814,6 +819,7 @@ async def async_send_text_to_all_handler(service: ServiceCall) -> None:
                         buttons=None,
                         title=title,
                         message_format=message_format,
+                        notify=notify_flag,
                     )
                 ok_sends += 1
             except Exception as e:
@@ -844,6 +850,7 @@ async def _send_photo(
     message_format = data.get("format")
     disable_ssl = data.get(CONF_DISABLE_SSL, False)
     send_kb = data.get(CONF_SEND_KEYBOARD, True)
+    notify_flag = data.get("notify", True)
     buttons_provided = "buttons" in data
     count_requests = data.get(CONF_COUNT_REQUESTS)
     auth_type, auth_login, auth_password, auth_token = _normalize_url_auth_data(
@@ -909,13 +916,13 @@ async def _send_photo(
             caption=caption,
             buttons=all_buttons,
             count_requests=count_requests,
+            notify=notify_flag,
             disable_ssl=disable_ssl,
             url_auth_type=auth_type,
             url_auth_login=auth_login,
             url_auth_password=auth_password,
             url_auth_token=auth_token,
             message_format=message_format,
-            # notify=data.get("notify", True),  # отключено: Max не отключает push/звук
         )
 
 
@@ -935,6 +942,7 @@ async def _send_document(
     message_format = data.get("format")
     disable_ssl = data.get(CONF_DISABLE_SSL, False)
     send_kb = data.get(CONF_SEND_KEYBOARD, True)
+    notify_flag = data.get("notify", True)
     buttons_provided = "buttons" in data
     count_requests = data.get(CONF_COUNT_REQUESTS)
     auth_type, auth_login, auth_password, auth_token = _normalize_url_auth_data(
@@ -998,6 +1006,7 @@ async def _send_document(
             caption=caption,
             buttons=all_buttons,
             count_requests=count_requests,
+            notify=notify_flag,
             disable_ssl=disable_ssl,
             url_auth_type=auth_type,
             url_auth_login=auth_login,
@@ -1029,6 +1038,7 @@ async def _send_video(
     message_format = data.get("format")
     disable_ssl = data.get(CONF_DISABLE_SSL, False)
     send_kb = data.get(CONF_SEND_KEYBOARD, True)
+    notify_flag = data.get("notify", True)
     buttons_provided = "buttons" in data
     entity_ids = data.get(ATTR_ENTITY_ID)
     config_entry_id = data.get(CONF_CONFIG_ENTRY_ID)
@@ -1093,13 +1103,13 @@ async def _send_video(
             caption=caption,
             buttons=all_buttons,
             count_requests=count_requests,
+            notify=notify_flag,
             disable_ssl=disable_ssl,
             url_auth_type=auth_type,
             url_auth_login=auth_login,
             url_auth_password=auth_password,
             url_auth_token=auth_token,
             message_format=message_format,
-            # notify=data.get("notify", True),  # отключено: Max не отключает push/звук
         )
 
 
