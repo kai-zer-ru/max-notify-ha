@@ -315,6 +315,18 @@
           "name": "Message IDs",
           "description": "List of message IDs to delete in order."
         },
+        "date": {
+          "name": "Date",
+          "description": "One calendar day (local 00:00–23:59). Date only or Unix timestamp. Ignored if message_id or message_ids is set; otherwise takes precedence over the period start/end fields."
+        },
+        "from": {
+          "name": "From",
+          "description": "Period start (with period end): Unix timestamp or date/datetime. Used only without message_id, message_ids, and without Date."
+        },
+        "to": {
+          "name": "To",
+          "description": "Period end (with period start): same formats as period start. Both bounds required when using this mode."
+        },
         "entity_id": {
           "name": "Notify entity",
           "description": "MaxNotify notify entity. Can be used instead of config_entry_id."
@@ -384,6 +396,10 @@
   },
   "invalid_notify_entity": "Invalid MaxNotify entity: {entity_id}",
   "invalid_message_id": "Message ID cannot be empty.",
+  "delete_from_to_both_required": "Set both period start and period end together, or leave both empty when using message ID, message IDs, or date.",
+  "delete_requires_id_date_or_period": "Specify message ID, message IDs, date, or a full period (start and end). Choosing only a notify entity is not enough.",
+  "provider_delete_by_period_not_supported": "{provider} does not support deleting messages by date or time range. Use message_id or message_ids.",
+  "provider_delete_last_outgoing_not_supported": "{provider} does not support deleting the last outgoing message.",
   "missing_target": "Specify a MaxNotify notify entity_id or config_entry_id when multiple integrations exist.",
   "invalid_config_entry": "Invalid config entry: {config_entry_id}",
   "missing_config_entry_id": "Multiple MaxNotify integrations found; specify config_entry_id.",
@@ -391,6 +407,12 @@
   "plain_recipient_not_resolved": "Could not resolve recipient. Check the notify entity and integration settings.",
   "unsupported_for_notify_a161": "Operation {operation} is not supported for {provider_label}.",
   "delete_last_outgoing_group_only": "This action works only for group chats (recipient_id < 0). For personal chats, delete by explicit message_id (for example, save it right after sending).",
+  "delete_message_permission_denied": "No permission to delete messages. In a group chat, make the bot an administrator and grant it permission to delete messages.",
+  "delete_message_no_access_token": "This integration has no access token configured.",
+  "delete_message_unauthorized": "The bot token was rejected (unauthorized). Check the token in Max developer settings.",
+  "delete_message_not_found": "The message was not found or cannot be deleted: {detail}.",
+  "delete_message_api_error": "Could not delete the message (HTTP {status}): {detail}.",
+  "delete_message_network_error": "Network error while deleting the message: {error}.",
   "provider_feature_not_supported": "{feature} is not supported for {provider}.",
   "third_party_attachment_too_large": "{provider} accepts photos and documents up to {max_mib} MB; this file is about {size_mib} MB.",
   "third_party_video_too_large": "{provider} accepts video up to {max_mib} MB; this file is about {size_mib} MB.",
@@ -405,6 +427,18 @@
     },
     "invalid_message_id": {
       "message": "Message ID cannot be empty."
+    },
+    "delete_from_to_both_required": {
+      "message": "Set both period start and period end together, or leave both empty when using message ID, message IDs, or date."
+    },
+    "delete_requires_id_date_or_period": {
+      "message": "Specify message ID, message IDs, date, or a full period (start and end). Choosing only a notify entity is not enough."
+    },
+    "provider_delete_by_period_not_supported": {
+      "message": "{provider} does not support deleting messages by date or time range. Use message_id or message_ids."
+    },
+    "provider_delete_last_outgoing_not_supported": {
+      "message": "{provider} does not support deleting the last outgoing message."
     },
     "missing_target": {
       "message": "Specify a MaxNotify notify entity_id or config_entry_id when multiple integrations exist."
@@ -450,6 +484,24 @@
     },
     "link_button_url_http_https_only": {
       "message": "Link button URL must use http or https (received: {url})."
+    },
+    "delete_message_permission_denied": {
+      "message": "No permission to delete messages. In a group chat, make the bot an administrator and grant it permission to delete messages."
+    },
+    "delete_message_no_access_token": {
+      "message": "This integration has no access token configured."
+    },
+    "delete_message_unauthorized": {
+      "message": "The bot token was rejected (unauthorized). Check the token in Max developer settings."
+    },
+    "delete_message_not_found": {
+      "message": "The message was not found or cannot be deleted: {detail}."
+    },
+    "delete_message_api_error": {
+      "message": "Could not delete the message (HTTP {status}): {detail}."
+    },
+    "delete_message_network_error": {
+      "message": "Network error while deleting the message: {error}."
     }
   },
   "config": {

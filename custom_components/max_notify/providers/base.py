@@ -8,6 +8,8 @@ if TYPE_CHECKING:
     from homeassistant.config_entries import ConfigEntry
     from homeassistant.core import HomeAssistant
 
+from homeassistant.exceptions import ServiceValidationError
+
 _T = TypeVar("_T")
 
 from ..const import (
@@ -212,6 +214,25 @@ class MaxNotifyIntegrationProvider:
         self, hass: HomeAssistant, entry: ConfigEntry, message_id: str
     ) -> bool:
         return False
+
+    async def async_list_message_ids_in_period(
+        self,
+        hass: HomeAssistant,
+        entry: ConfigEntry,
+        recipient: dict[str, Any],
+        *,
+        ts_from: int | None,
+        ts_to: int | None,
+    ) -> list[str]:
+        from . import notify_outbound
+
+        return await notify_outbound.list_message_ids_in_period(
+            hass,
+            entry,
+            recipient,
+            ts_from=ts_from,
+            ts_to=ts_to,
+        )
 
     async def async_delete_last_outgoing_message(
         self,
@@ -506,14 +527,29 @@ class MaxNotifyIntegrationProvider:
             entry, feature="delete_message", enabled=caps.supports_delete_message
         )
 
+    def ensure_can_delete_message_by_period(self, entry: ConfigEntry) -> None:
+        """Удаление по дате/интервалу from–to (поиск в API и пакетное удаление)."""
+        from .registry import get_capabilities
+
+        caps = get_capabilities(entry)
+        if caps.supports_delete_message_by_period:
+            return
+        raise ServiceValidationError(
+            translation_domain=DOMAIN,
+            translation_key="provider_delete_by_period_not_supported",
+            translation_placeholders={"provider": self.label},
+        )
+
     def ensure_can_delete_last_outgoing_message(self, entry: ConfigEntry) -> None:
         from .registry import get_capabilities
 
         caps = get_capabilities(entry)
-        self._require_feature(
-            entry,
-            feature="delete_last_outgoing_message",
-            enabled=caps.supports_delete_last_outgoing_message,
+        if caps.supports_delete_last_outgoing_message:
+            return
+        raise ServiceValidationError(
+            translation_domain=DOMAIN,
+            translation_key="provider_delete_last_outgoing_not_supported",
+            translation_placeholders={"provider": self.label},
         )
 
     def ensure_can_edit_message(self, entry: ConfigEntry) -> None:

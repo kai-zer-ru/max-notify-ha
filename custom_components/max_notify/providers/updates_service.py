@@ -28,6 +28,7 @@ from ..const import (
     UPDATE_SLASH_COMMAND,
 )
 from ..message_state import schedule_integration_persist, set_last_incoming_message_id
+from ..outbound_rate import async_acquire_outbound_api_slot
 from .registry import get_provider
 
 _LOGGER = logging.getLogger(__name__)
@@ -534,6 +535,7 @@ async def async_run_polling_loop(hass: HomeAssistant, entry: ConfigEntry) -> Non
         headers = {"Authorization": token}
 
         try:
+            await async_acquire_outbound_api_slot(hass)
             async with session.get(
                 url,
                 headers=headers,

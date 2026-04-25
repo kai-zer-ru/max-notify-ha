@@ -8,11 +8,18 @@ import aiohttp
 import pytest
 from homeassistant.exceptions import ServiceValidationError
 
-from custom_components.max_notify.const import CONF_RECIPIENT_ID
+from custom_components.max_notify.const import (
+    CONF_INTEGRATION_TYPE,
+    CONF_RECIPIENT_ID,
+    INTEGRATION_TYPE_NOTIFY_A161,
+)
 from custom_components.max_notify.notify import (
     MaxNotifyEntity,
+    delete_last_outgoing_message,
     delete_message,
+    delete_messages,
     edit_message,
+    list_message_ids_in_period,
     recipient_dict_from_subentry,
     send_message,
     send_plain_message,
@@ -20,6 +27,7 @@ from custom_components.max_notify.notify import (
     upload_image_and_send,
 )
 from custom_components.max_notify.providers.notify_outbound import (
+    _extract_message_id_from_messages_item,
     _extract_message_id_from_response,
     _extract_url_auth_source,
     _message_id_candidates,
@@ -90,6 +98,17 @@ class TestExtractMessageIdFromResponse:
     def test_from_result_message_body_mid(self) -> None:
         body = '{"result":{"message":{"body":{"mid":"mid.xyz987"}}}}'
         assert _extract_message_id_from_response(body) == "xyz987"
+
+
+class TestExtractMessageIdFromMessagesItem:
+    """Тесты извлечения ID из элементов messages[] (GET /messages)."""
+
+    def test_from_top_level_body_mid(self) -> None:
+        item = {"body": {"mid": "mid.ffffbd6ce8b257bd019dbd45ca355188"}}
+        assert (
+            _extract_message_id_from_messages_item(item)
+            == "ffffbd6ce8b257bd019dbd45ca355188"
+        )
 
 
 class TestExtractUrlAuthSource:
@@ -171,10 +190,11 @@ class TestDeleteMessage:
             assert result is True
             mock_ctx.delete.assert_called_once()
 
-    async def test_no_token_returns_false(self, hass, mock_config_entry) -> None:
+    async def test_no_token_raises(self, hass, mock_config_entry) -> None:
         mock_config_entry.data = {}
-        result = await delete_message(hass, mock_config_entry, "msg-1")
-        assert result is False
+        with pytest.raises(ServiceValidationError) as exc:
+            await delete_message(hass, mock_config_entry, "msg-1")
+        assert exc.value.translation_key == "delete_message_no_access_token"
 
     async def test_normalizes_to_mid_prefix(self, hass, mock_config_entry) -> None:
         mock_config_entry.data = {"access_token": "token", "message_format": "text"}
@@ -195,6 +215,114 @@ class TestDeleteMessage:
             assert result is True
             called_url = mock_ctx.delete.call_args[0][0]
             assert "message_id=mid.abc" in called_url
+
+    async def test_api_403_permission_raises(self, hass, mock_config_entry) -> None:
+        mock_config_entry.data = {"access_token": "token", "message_format": "text"}
+        with patch(
+            "custom_components.max_notify.providers.notify_outbound.async_get_clientsession"
+        ) as mock_session:
+            mock_resp = AsyncMock()
+            mock_resp.status = 403
+            mock_resp.text = AsyncMock(
+                return_value='{"code":"access.denied","message":"Insufficient permissions to delete message"}'
+            )
+            mock_resp.__aenter__ = AsyncMock(return_value=mock_resp)
+            mock_resp.__aexit__ = AsyncMock(return_value=None)
+
+            mock_ctx = MagicMock()
+            mock_ctx.delete = MagicMock(return_value=mock_resp)
+            mock_session.return_value = mock_ctx
+
+            with pytest.raises(ServiceValidationError) as exc:
+                await delete_message(hass, mock_config_entry, "mid-1")
+            assert exc.value.translation_key == "delete_message_permission_denied"
+
+
+@pytest.mark.asyncio
+class TestDeleteMessages:
+    """Несколько id: по одному DELETE; глобальный пейсинг между запросами."""
+
+    async def test_official_deletes_one_by_one(self, hass, mock_config_entry) -> None:
+        mock_config_entry.data = {"access_token": "token", "message_format": "text"}
+        with patch(
+            "custom_components.max_notify.providers.notify_outbound.async_get_clientsession"
+        ) as mock_session:
+            mock_resp = AsyncMock()
+            mock_resp.status = 200
+            mock_resp.text = AsyncMock(return_value='{"success": true}')
+            mock_resp.__aenter__ = AsyncMock(return_value=mock_resp)
+            mock_resp.__aexit__ = AsyncMock(return_value=None)
+
+            mock_ctx = MagicMock()
+            mock_ctx.delete = MagicMock(return_value=mock_resp)
+            mock_session.return_value = mock_ctx
+
+            result = await delete_messages(hass, mock_config_entry, ["a", "b"])
+            assert result == ["mid.a", "mid.b"]
+            assert mock_ctx.delete.call_count == 2
+
+    async def test_a161_deletes_sequentially(self, hass, mock_config_entry) -> None:
+        mock_config_entry.data = {
+            "access_token": "token",
+            "message_format": "text",
+            CONF_INTEGRATION_TYPE: INTEGRATION_TYPE_NOTIFY_A161,
+        }
+        with patch(
+            "custom_components.max_notify.providers.notify_outbound.async_get_clientsession"
+        ) as mock_session:
+            mock_resp = AsyncMock()
+            mock_resp.status = 200
+            mock_resp.text = AsyncMock(return_value="{}")
+            mock_resp.__aenter__ = AsyncMock(return_value=mock_resp)
+            mock_resp.__aexit__ = AsyncMock(return_value=None)
+
+            mock_ctx = MagicMock()
+            mock_ctx.delete = MagicMock(return_value=mock_resp)
+            mock_session.return_value = mock_ctx
+
+            result = await delete_messages(hass, mock_config_entry, ["x", "y"])
+            assert result == ["mid.x", "mid.y"]
+            assert mock_ctx.delete.call_count == 2
+
+
+@pytest.mark.asyncio
+class TestNotifyA161DeleteRestrictions:
+    """notify.a161.ru: без удаления по периоду и без delete_last_outgoing."""
+
+    async def test_list_message_ids_in_period_not_supported(
+        self, hass, mock_config_entry
+    ) -> None:
+        mock_config_entry.data = {
+            "access_token": "token",
+            "message_format": "text",
+            CONF_INTEGRATION_TYPE: INTEGRATION_TYPE_NOTIFY_A161,
+        }
+        with pytest.raises(ServiceValidationError) as exc:
+            await list_message_ids_in_period(
+                hass,
+                mock_config_entry,
+                {CONF_RECIPIENT_ID: -1},
+                ts_from=1,
+                ts_to=2,
+            )
+        assert exc.value.translation_key == "provider_delete_by_period_not_supported"
+
+    async def test_delete_last_outgoing_not_supported(
+        self, hass, mock_config_entry
+    ) -> None:
+        mock_config_entry.data = {
+            "access_token": "token",
+            "message_format": "text",
+            CONF_INTEGRATION_TYPE: INTEGRATION_TYPE_NOTIFY_A161,
+        }
+        with pytest.raises(ServiceValidationError) as exc:
+            await delete_last_outgoing_message(
+                hass,
+                mock_config_entry,
+                {CONF_RECIPIENT_ID: -100},
+                scan_count=5,
+            )
+        assert exc.value.translation_key == "provider_delete_last_outgoing_not_supported"
 
 
 @pytest.mark.asyncio

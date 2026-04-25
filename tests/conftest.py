@@ -22,7 +22,9 @@ from custom_components.max_notify.const import (
 @pytest.fixture
 def hass() -> MagicMock:
     """Минимальный mock-экземпляр Home Assistant."""
-    return MagicMock()
+    h = MagicMock()
+    h.data = {}
+    return h
 
 
 @pytest.fixture

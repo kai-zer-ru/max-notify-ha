@@ -36,6 +36,9 @@ def test_resolve_official(mock_config_entry) -> None:
     assert (
         get_capabilities(mock_config_entry).supports_delete_last_outgoing_message is True
     )
+    assert (
+        get_capabilities(mock_config_entry).supports_delete_message_by_period is True
+    )
 
 
 def test_register_custom_capabilities(mock_config_entry) -> None:

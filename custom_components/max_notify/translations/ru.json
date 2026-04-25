@@ -315,6 +315,18 @@
           "name": "ID сообщений",
           "description": "Список ID сообщений для удаления по порядку."
         },
+        "date": {
+          "name": "Дата",
+          "description": "Удалить за один календарный день (локально 00:00:00–23:59:59). Только дата без времени или Unix timestamp. Игнорируется, если заданы message_id или message_ids; иначе важнее интервала «Начало периода для поиска» / «Конец периода для поиска»."
+        },
+        "from": {
+          "name": "Начало периода для поиска",
+          "description": "Начало интервала (вместе с полем «Конец периода для поиска»): Unix timestamp или дата/время. Используется только без message_id/message_ids и без поля «Дата»."
+        },
+        "to": {
+          "name": "Конец периода для поиска",
+          "description": "Конец интервала (вместе с «Начало периода для поиска»): те же форматы даты/времени. Без обеих границ вызов будет отклонён."
+        },
         "entity_id": {
           "name": "Сущность уведомления",
           "description": "Сущность MaxNotify. Можно использовать вместо config_entry_id."
@@ -384,6 +396,10 @@
   },
   "invalid_notify_entity": "Недопустимая сущность MaxNotify: {entity_id}",
   "invalid_message_id": "ID сообщения не может быть пустым.",
+  "delete_from_to_both_required": "Укажите вместе «Начало периода для поиска» и «Конец периода для поиска», либо не заполняйте их, если используете ID сообщения, список ID или дату.",
+  "delete_requires_id_date_or_period": "Укажите ID сообщения, список ID, дату или интервал (начало и конец периода для поиска). Одной только сущности уведомления недостаточно.",
+  "provider_delete_by_period_not_supported": "Провайдер {provider} не поддерживает удаление сообщений по дате или интервалу. Используйте message_id или message_ids.",
+  "provider_delete_last_outgoing_not_supported": "Провайдер {provider} не поддерживает удаление последнего исходящего сообщения.",
   "missing_target": "Укажите entity_id сущности notify MaxNotify или config_entry_id (если интеграций несколько).",
   "invalid_config_entry": "Недопустимая запись конфигурации: {config_entry_id}",
   "missing_config_entry_id": "Найдено несколько интеграций MaxNotify; укажите config_entry_id.",
@@ -391,6 +407,12 @@
   "plain_recipient_not_resolved": "Не удалось определить получателя. Проверьте сущность notify и настройки интеграции.",
   "unsupported_for_notify_a161": "Операция {operation} не поддерживается для {provider_label}.",
   "delete_last_outgoing_group_only": "Это действие работает только для групповых чатов (recipient_id < 0). Для личных чатов удаляйте сообщение по явному message_id (например, сохраните его сразу после отправки).",
+  "delete_message_permission_denied": "Нет прав на удаление сообщений. В групповом чате назначьте бота администратором и выдайте право удалять сообщения.",
+  "delete_message_no_access_token": "У этой интеграции не настроен токен доступа.",
+  "delete_message_unauthorized": "Токен бота отклонён (нет авторизации). Проверьте токен в кабинете разработчика Max.",
+  "delete_message_not_found": "Сообщение не найдено или его нельзя удалить: {detail}.",
+  "delete_message_api_error": "Не удалось удалить сообщение (HTTP {status}): {detail}.",
+  "delete_message_network_error": "Ошибка сети при удалении сообщения: {error}.",
   "provider_feature_not_supported": "Для {provider} не поддерживается: {feature}.",
   "third_party_attachment_too_large": "У провайдера {provider} максимальный размер фото и документов — {max_mib} МБ; этот файл — около {size_mib} МБ.",
   "third_party_video_too_large": "У провайдера {provider} максимальный размер видео — {max_mib} МБ; этот файл — около {size_mib} МБ.",
@@ -405,6 +427,18 @@
     },
     "invalid_message_id": {
       "message": "ID сообщения не может быть пустым."
+    },
+    "delete_from_to_both_required": {
+      "message": "Укажите вместе «Начало периода для поиска» и «Конец периода для поиска», либо не заполняйте их, если используете ID сообщения, список ID или дату."
+    },
+    "delete_requires_id_date_or_period": {
+      "message": "Укажите ID сообщения, список ID, дату или интервал (начало и конец периода для поиска). Одной только сущности уведомления недостаточно."
+    },
+    "provider_delete_by_period_not_supported": {
+      "message": "Провайдер {provider} не поддерживает удаление сообщений по дате или интервалу. Используйте message_id или message_ids."
+    },
+    "provider_delete_last_outgoing_not_supported": {
+      "message": "Провайдер {provider} не поддерживает удаление последнего исходящего сообщения."
     },
     "missing_target": {
       "message": "Укажите entity_id сущности notify MaxNotify или config_entry_id (если интеграций несколько)."
@@ -450,6 +484,24 @@
     },
     "link_button_url_http_https_only": {
       "message": "URL кнопки-ссылки должен быть только http или https (получено: {url})."
+    },
+    "delete_message_permission_denied": {
+      "message": "Нет прав на удаление сообщений. В групповом чате назначьте бота администратором и выдайте право удалять сообщения."
+    },
+    "delete_message_no_access_token": {
+      "message": "У этой интеграции не настроен токен доступа."
+    },
+    "delete_message_unauthorized": {
+      "message": "Токен бота отклонён (нет авторизации). Проверьте токен в кабинете разработчика Max."
+    },
+    "delete_message_not_found": {
+      "message": "Сообщение не найдено или его нельзя удалить: {detail}."
+    },
+    "delete_message_api_error": {
+      "message": "Не удалось удалить сообщение (HTTP {status}): {detail}."
+    },
+    "delete_message_network_error": {
+      "message": "Ошибка сети при удалении сообщения: {error}."
     }
   },
   "config": {

@@ -10,6 +10,7 @@ from homeassistant.helpers import config_validation as cv
 from .const import (
     CONF_CONFIG_ENTRY_ID,
     CONF_COUNT_REQUESTS,
+    CONF_DELETE_DATE,
     CONF_DISABLE_SSL,
     CONF_FILES,
     CONF_RECIPIENT_ID,
@@ -92,20 +93,25 @@ def _normalize_message_ids_list(raw: object) -> list[str]:
 
 
 def _validate_message_id_or_ids(data: dict) -> dict:
-    """Разрешить ровно одно из полей: message_id или message_ids."""
+    """Разрешить message_id/message_ids или период date / from+to (пары from+to)."""
     has_message_id = "message_id" in data
     has_message_ids = "message_ids" in data
+    has_date = CONF_DELETE_DATE in data
     if has_message_id and has_message_ids:
         raise vol.Invalid("Use only one of message_id or message_ids")
-    if not has_message_id and not has_message_ids:
-        raise vol.Invalid("Either message_id or message_ids is required")
+    if has_date:
+        raw_date = data[CONF_DELETE_DATE]
+        if raw_date is None:
+            raise vol.Invalid("date cannot be empty")
+        if isinstance(raw_date, str) and not str(raw_date).strip():
+            raise vol.Invalid("date cannot be empty")
     if has_message_id:
         message_id = str(data["message_id"]).strip()
         if not message_id:
             raise vol.Invalid("message_id cannot be empty")
         data["message_id"] = message_id
-        return data
-    data["message_ids"] = _normalize_message_ids_list(data["message_ids"])
+    if has_message_ids:
+        data["message_ids"] = _normalize_message_ids_list(data["message_ids"])
     return data
 
 
@@ -207,6 +213,9 @@ SERVICE_DELETE_MESSAGE_SCHEMA = vol.All(
         {
             vol.Optional(CONF_MESSAGE_ID): cv.string,
             vol.Optional("message_ids"): object,
+            vol.Optional(CONF_DELETE_DATE): object,
+            vol.Optional("from"): object,
+            vol.Optional("to"): object,
             vol.Optional(ATTR_ENTITY_ID): vol.All(cv.ensure_list, [cv.entity_id]),
             vol.Optional(CONF_CONFIG_ENTRY_ID): cv.string,
         }

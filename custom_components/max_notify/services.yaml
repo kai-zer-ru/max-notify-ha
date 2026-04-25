@@ -368,6 +368,18 @@ delete_message:
       description: "List of message IDs (comma-separated or array in YAML mode)"
       selector:
         text:
+    date:
+      description: "One local calendar day. Ignored if message_id/message_ids set; else overrides from/to. Date-only string or Unix timestamp."
+      selector:
+        text:
+    from:
+      description: "Period start — only with to; used when no message_id(s) and no date. Unix or flexible date/datetime."
+      selector:
+        text:
+    to:
+      description: "Period end — required together with from in that mode."
+      selector:
+        text:
     config_entry_id:
       selector:
         config_entry:

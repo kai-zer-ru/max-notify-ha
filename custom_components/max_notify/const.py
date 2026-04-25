@@ -34,6 +34,7 @@ CONF_URL_AUTH_LOGIN = "url_auth_login"
 CONF_URL_AUTH_PASSWORD = "url_auth_password"
 CONF_URL_AUTH_TOKEN = "url_auth_token"
 CONF_MESSAGE_ID = "message_id"
+CONF_DELETE_DATE = "date"
 CONF_SCAN_COUNT = "scan_count"
 CONF_UPDATES_INTERVAL = "updates_interval"
 
@@ -118,6 +119,9 @@ FILE_DOWNLOAD_TIMEOUT = 120
 # Единый профиль повторов при сетевых/HTTP сбоях исходящего API.
 API_REQUEST_RETRY_DELAYS = (2, 4, 8)
 API_REQUEST_RETRYABLE_STATUSES = (408, 425, 429, 500, 502, 503, 504)
+
+# Глобально на экземпляр Home Assistant: исходящие запросы к API Max / notify.a161.
+OUTBOUND_API_MAX_REQUESTS_PER_SECOND = 30
 
 UPLOAD_VIDEO_TIMEOUT = 300
 # Retries for GET video from http(s) URL (e.g. Frigate/HA clip returns 400 until file is ready).

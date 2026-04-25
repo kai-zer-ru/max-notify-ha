@@ -9,6 +9,7 @@ OFFICIAL_CAPABILITIES = IntegrationCapabilities(
     supports_inline_keyboard=True,
     supports_receive_polling=False,
     supports_delete_message=True,
+    supports_delete_message_by_period=True,
     supports_delete_last_outgoing_message=True,
     supports_edit_message=True,
     supports_send_photo=True,

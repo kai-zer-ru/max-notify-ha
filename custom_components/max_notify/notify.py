@@ -37,6 +37,36 @@ async def delete_message(
     return await provider.async_delete_message(hass, entry, message_id)
 
 
+async def delete_messages(
+    hass: HomeAssistant, entry: ConfigEntry, message_ids: list[str]
+) -> list[str]:
+    provider = get_provider(entry)
+    provider.ensure_can_delete_message(entry)
+    from .providers import notify_outbound
+
+    return await notify_outbound.delete_messages(hass, entry, message_ids)
+
+
+async def list_message_ids_in_period(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    recipient: dict[str, Any],
+    *,
+    ts_from: int | None,
+    ts_to: int | None,
+) -> list[str]:
+    provider = get_provider(entry)
+    provider.ensure_can_delete_message(entry)
+    provider.ensure_can_delete_message_by_period(entry)
+    return await provider.async_list_message_ids_in_period(
+        hass,
+        entry,
+        recipient,
+        ts_from=ts_from,
+        ts_to=ts_to,
+    )
+
+
 async def edit_message(
     hass: HomeAssistant,
     entry: ConfigEntry,

@@ -21,6 +21,7 @@ from ...const import (
     UPDATE_MESSAGE_CREATED,
     WEBHOOK_SECRET_HEADER,
 )
+from ...outbound_rate import async_acquire_outbound_api_slot
 from ...updates import async_process_update
 
 _LOGGER = logging.getLogger(__name__)
@@ -95,6 +96,7 @@ async def async_list_subscription_urls(
     params = {"v": api_version}
     headers = {"Authorization": token}
     try:
+        await async_acquire_outbound_api_slot(hass)
         session = async_get_clientsession(hass)
         async with session.get(
             api_url,
@@ -134,6 +136,7 @@ async def async_delete_subscription_url(
     params = {"url": webhook_url, "v": api_version}
     headers = {"Authorization": token}
     try:
+        await async_acquire_outbound_api_slot(hass)
         session = async_get_clientsession(hass)
         async with session.delete(
             api_url,
@@ -219,6 +222,7 @@ async def async_register_platform_webhook(
         {**body, "secret": "***" if "secret" in body else None},
     )
     try:
+        await async_acquire_outbound_api_slot(hass)
         session = async_get_clientsession(hass)
         async with session.post(
             api_url,

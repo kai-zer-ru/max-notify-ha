@@ -14,7 +14,7 @@ import secrets
 import ssl
 import hashlib
 from typing import Any, Awaitable, Callable
-from urllib.parse import unquote, urlparse, urlunparse
+from urllib.parse import parse_qsl, unquote, urlparse, urlunparse
 
 import aiohttp
 import requests
@@ -54,6 +54,7 @@ from ..const import (
     VIDEO_URL_DOWNLOAD_RETRY_DELAYS,
 )
 from ..message_state import set_last_outgoing_message_id
+from ..outbound_rate import async_acquire_outbound_api_slot
 from .registry import get_capabilities, get_provider
 _LOGGER = logging.getLogger(__name__)
 
@@ -233,11 +234,6 @@ async def _media_download_ssl(disable_ssl: bool) -> bool | ssl.SSLContext | None
 def _api_base_url_for_entry(entry: ConfigEntry) -> str:
     """Базовый URL API для текущей записи."""
     return get_provider(entry).api_base_url
-
-
-def _api_version_for_entry(entry: ConfigEntry) -> str:
-    """Параметр v= для запросов API провайдера."""
-    return get_provider(entry).api_version
 
 
 async def _run_with_send_pace_lock(
@@ -675,6 +671,7 @@ def recipient_dict_from_subentry(subentry: Any) -> dict[str, Any]:
 
 
 async def _request_upload_url_json_with_retry(
+    hass: HomeAssistant,
     session: aiohttp.ClientSession,
     url: str,
     *,
@@ -687,6 +684,7 @@ async def _request_upload_url_json_with_retry(
     delays = list(API_REQUEST_RETRY_DELAYS)
     max_attempts = 1 + len(delays)
     for attempt in range(max_attempts):
+        await async_acquire_outbound_api_slot(hass)
         try:
             async with session.post(
                 url,
@@ -962,6 +960,7 @@ async def _post_message_with_retry(
             payload,
         )
         for attempt in range(n):
+            await async_acquire_outbound_api_slot(hass)
             try:
                 async with session.post(
                     url,
@@ -1033,43 +1032,114 @@ async def _post_message_with_retry(
     return await _run_with_send_pace_lock(hass, entry, _inner)
 
 
+def _raise_delete_api_error(status: int, body: str) -> None:
+    """Перевести отказ API DELETE /messages в ServiceValidationError для UI."""
+    code = ""
+    api_message = ""
+    try:
+        data = json.loads(body) if (body or "").strip() else {}
+        if isinstance(data, dict):
+            code = str(data.get("code") or "")
+            api_message = str(data.get("message") or "")
+    except (json.JSONDecodeError, TypeError):
+        pass
+    combined = f"{code} {api_message} {body}".lower()
+    if status == 403 and (
+        code == "access.denied"
+        or "insufficient permissions" in combined
+        or ("permission" in combined and "delete" in combined)
+    ):
+        raise ServiceValidationError(
+            translation_domain=DOMAIN,
+            translation_key="delete_message_permission_denied",
+        )
+    if status == 401:
+        raise ServiceValidationError(
+            translation_domain=DOMAIN,
+            translation_key="delete_message_unauthorized",
+        )
+    if status == 404:
+        raise ServiceValidationError(
+            translation_domain=DOMAIN,
+            translation_key="delete_message_not_found",
+            translation_placeholders={
+                "detail": (api_message or body)[:300] or str(status),
+            },
+        )
+    raise ServiceValidationError(
+        translation_domain=DOMAIN,
+        translation_key="delete_message_api_error",
+        translation_placeholders={
+            "status": str(status),
+            "detail": (api_message or body)[:300] or "-",
+        },
+    )
+
+
 async def delete_message(
     hass: HomeAssistant, entry: ConfigEntry, message_id: str
 ) -> bool:
     """Удалить сообщение через Max API DELETE /messages."""
     token = entry.data.get(CONF_ACCESS_TOKEN)
     if not token:
-        _LOGGER.error("No access token in config entry")
-        return False
+        raise ServiceValidationError(
+            translation_domain=DOMAIN,
+            translation_key="delete_message_no_access_token",
+        )
     mid = _message_id_candidates(message_id)
     if not mid:
-        _LOGGER.error("delete_message: empty message_id")
-        return False
+        raise ServiceValidationError(
+            translation_domain=DOMAIN,
+            translation_key="invalid_message_id",
+        )
     base = _api_base_url_for_entry(entry)
     prov = get_provider(entry)
     url = prov.build_delete_message_url(base, API_PATH_MESSAGES, mid)
     headers = {"Authorization": token}
     session = async_get_clientsession(hass)
+    await async_acquire_outbound_api_slot(hass)
     try:
         async with session.delete(
             url, headers=headers, timeout=aiohttp.ClientTimeout(total=15)
         ) as resp:
             body = await resp.text()
-            _LOGGER.info(
-                "delete_message HTTP response: status=%s body=%s", resp.status, body
-            )
             if resp.status < 400:
-                _LOGGER.info("Message %s deleted successfully", mid)
+                _LOGGER.debug("delete_message OK message_id=%s", mid)
                 return True
-            _LOGGER.error(
-                "Max API delete message failed: status=%s body=%s",
-                resp.status,
-                body,
+            _LOGGER.debug(
+                "delete_message failed status=%s body=%s", resp.status, body[:500]
             )
-            return False
+            _raise_delete_api_error(resp.status, body)
+    except ServiceValidationError:
+        raise
     except aiohttp.ClientError as e:
-        _LOGGER.error("Max API delete message request failed: %s", e)
-        return False
+        _LOGGER.warning("delete_message network error: %s", e)
+        raise ServiceValidationError(
+            translation_domain=DOMAIN,
+            translation_key="delete_message_network_error",
+            translation_placeholders={"error": str(e)[:300]},
+        ) from e
+
+
+async def delete_messages(
+    hass: HomeAssistant, entry: ConfigEntry, message_ids: list[str]
+) -> list[str]:
+    """Удалить несколько сообщений по одному запросу DELETE на id. Возвращает успешные mid.*."""
+    seen: set[str] = set()
+    mids: list[str] = []
+    for raw in message_ids:
+        m = _message_id_candidates(str(raw).strip())
+        if m and m not in seen:
+            seen.add(m)
+            mids.append(m)
+    if not mids:
+        return []
+
+    out: list[str] = []
+    for mid in mids:
+        if await delete_message(hass, entry, mid):
+            out.append(mid)
+    return out
 
 
 async def edit_message(
@@ -1118,6 +1188,7 @@ async def edit_message(
     session = async_get_clientsession(hass)
 
     async def _put() -> bool:
+        await async_acquire_outbound_api_slot(hass)
         try:
             async with session.put(
                 url, json=payload, headers=headers, timeout=aiohttp.ClientTimeout(total=15)
@@ -1344,6 +1415,116 @@ def _store_outgoing_message_id_from_response(
             _LOGGER.debug("Failed to update last outgoing message ID: %s", e)
     else:
         _LOGGER.debug("%s: message_id not found in response body: %s", source, (body or "")[:500])
+
+
+def _extract_message_id_from_messages_item(item: dict[str, Any]) -> str | None:
+    mid = item.get("message_id") or item.get("messageId") or item.get("id")
+    normalized = _normalize_message_id(mid)
+    if normalized:
+        return normalized
+    body_obj_top = item.get("body")
+    if isinstance(body_obj_top, dict):
+        mid_top_body = (
+            body_obj_top.get("mid")
+            or body_obj_top.get("message_id")
+            or body_obj_top.get("messageId")
+        )
+        normalized = _normalize_message_id(mid_top_body)
+        if normalized:
+            return normalized
+    message_obj = item.get("message")
+    if isinstance(message_obj, dict):
+        mid_nested = (
+            message_obj.get("message_id")
+            or message_obj.get("messageId")
+            or message_obj.get("id")
+        )
+        normalized = _normalize_message_id(mid_nested)
+        if normalized:
+            return normalized
+        body_obj = message_obj.get("body")
+        if isinstance(body_obj, dict):
+            mid_body = body_obj.get("mid") or body_obj.get("message_id") or body_obj.get("messageId")
+            normalized = _normalize_message_id(mid_body)
+            if normalized:
+                return normalized
+    return None
+
+
+async def list_message_ids_in_period(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    recipient: dict[str, Any],
+    *,
+    ts_from: int | None,
+    ts_to: int | None,
+) -> list[str]:
+    """GET /messages для получателя и извлечение message_id за период."""
+    token = entry.data.get(CONF_ACCESS_TOKEN)
+    if not token:
+        _LOGGER.error("No access token in config entry")
+        return []
+    resolved = await _get_message_url_and_recipient(hass, entry, token, recipient)
+    if not resolved:
+        return []
+    msg_url, _ = resolved
+    parsed = urlparse(msg_url)
+    base_params = dict(parse_qsl(parsed.query, keep_blank_values=False))
+    # MAX API range uses reverse bounds semantics in practice for /messages:
+    # user-facing [from..to] -> API query from=to, to=from (milliseconds).
+    api_from = ts_to if ts_from is not None and ts_to is not None else ts_from
+    api_to = ts_from if ts_from is not None and ts_to is not None else ts_to
+
+    params_ms = dict(base_params)
+    if api_from is not None:
+        params_ms["from"] = str(api_from)
+    if api_to is not None:
+        params_ms["to"] = str(api_to)
+
+    variants: list[dict[str, str]] = []
+    if "count" in params_ms or "limit" in params_ms:
+        variants.append(params_ms)
+    else:
+        variants.append({**params_ms, "count": "100"})
+    url = f"{parsed.scheme}://{parsed.netloc}{parsed.path}"
+    headers = {"Authorization": token}
+    session = async_get_clientsession(hass)
+    seen: set[str] = set()
+    out: list[str] = []
+    for params in variants:
+        try:
+            await async_acquire_outbound_api_slot(hass)
+            async with session.get(
+                url,
+                headers=headers,
+                params=params,
+                timeout=aiohttp.ClientTimeout(total=15),
+            ) as resp:
+                body_text = await resp.text()
+                if resp.status != 200:
+                    continue
+                try:
+                    data = json.loads(body_text) if body_text.strip() else {}
+                except json.JSONDecodeError:
+                    continue
+        except (aiohttp.ClientError, ValueError):
+            continue
+        messages = data.get("messages") if isinstance(data, dict) else None
+        if not isinstance(messages, list):
+            continue
+        for item in messages:
+            if not isinstance(item, dict):
+                continue
+            mid = _extract_message_id_from_messages_item(item)
+            if not mid or mid in seen:
+                continue
+            seen.add(mid)
+            out.append(mid)
+        if out:
+            break
+    if out:
+        _LOGGER.info("GET /messages for delete range: %s", ", ".join(out))
+    return out
 
 
 async def send_message(
@@ -1579,6 +1760,7 @@ async def _upload_media_and_send(
                 _api_base_url_for_entry(entry), API_PATH_UPLOADS, upload_type
             )
             data = await _request_upload_url_json_with_retry(
+                hass,
                 session,
                 upload_req_url,
                 headers=headers,
@@ -1596,6 +1778,7 @@ async def _upload_media_and_send(
             try:
                 form = aiohttp.FormData()
                 form.add_field("data", body, filename=filename, content_type=content_type)
+                await async_acquire_outbound_api_slot(hass)
                 async with session.post(
                     upload_url,
                     data=form,
@@ -1693,6 +1876,7 @@ async def _upload_media_and_send(
             _api_base_url_for_entry(entry), API_PATH_UPLOADS, upload_type
         )
         data = await _request_upload_url_json_with_retry(
+            hass,
             session,
             upload_req_url,
             headers=headers,
@@ -1731,6 +1915,7 @@ async def _upload_media_and_send(
         try:
             form = aiohttp.FormData()
             form.add_field("data", body, filename=filename, content_type=content_type)
+            await async_acquire_outbound_api_slot(hass)
             async with session.post(
                 upload_url,
                 data=form,
@@ -2035,6 +2220,7 @@ async def upload_video_and_send(
             _api_base_url_for_entry(entry), API_PATH_UPLOADS, "video"
         )
         data = await _request_upload_url_json_with_retry(
+            hass,
             session,
             upload_req_url,
             headers=headers,
@@ -2091,6 +2277,7 @@ async def upload_video_and_send(
         try:
             form = aiohttp.FormData()
             form.add_field("data", body, filename=filename, content_type=content_type)
+            await async_acquire_outbound_api_slot(hass)
             async with session.post(
                 upload_url,
                 data=form,
@@ -2259,6 +2446,7 @@ async def entity_send_plain_message(
         for attempt in range(1, 6):
             _LOGGER.debug("Max send attempt %s/5: url=%s", attempt, url)
             try:
+                await async_acquire_outbound_api_slot(hass)
                 async with session.post(
                     url,
                     json=payload,

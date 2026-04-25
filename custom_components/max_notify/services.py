@@ -5,13 +5,20 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
+from datetime import date, datetime, timezone
+import re
 from collections.abc import Mapping
 from typing import Any
 from urllib.parse import urlparse
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import ATTR_ENTITY_ID
-from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.core import (
+    HomeAssistant,
+    ServiceCall,
+    ServiceResponse,
+    SupportsResponse,
+)
 from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import entity_registry as er
 
@@ -23,9 +30,10 @@ except ImportError:
 
 from .helpers import resolve_service_inline_keyboard
 from .notify import (
-    delete_message,
+    delete_messages,
     delete_last_outgoing_message,
     edit_message,
+    list_message_ids_in_period,
     recipient_dict_from_subentry,
     send_message,
     upload_document_and_send,
@@ -35,13 +43,14 @@ from .notify import (
 from .const import (
     CONF_CONFIG_ENTRY_ID,
     CONF_COUNT_REQUESTS,
+    CONF_DELETE_DATE,
+    CONF_MESSAGE_ID,
     CONF_DISABLE_SSL,
     CONF_FILES,
     CONF_URL_AUTH_LOGIN,
     CONF_URL_AUTH_PASSWORD,
     CONF_URL_AUTH_TOKEN,
     CONF_URL_AUTH_TYPE,
-    CONF_MESSAGE_ID,
     CONF_SCAN_COUNT,
     CONF_RECIPIENT_ID,
     CONF_SEND_KEYBOARD,
@@ -72,7 +81,127 @@ from .schemas import (
 )
 
 _LOGGER = logging.getLogger(__name__)
-_DELETE_MESSAGE_MAX_REQUESTS_PER_SECOND = 30
+
+_YMD_RE = re.compile(r"^(\d{4})[-./](\d{1,2})[-./](\d{1,2})$")
+_DMY_RE = re.compile(r"^(\d{1,2})[-./](\d{1,2})[-./](\d{4})$")
+_HMS_CORE_RE = re.compile(r"^(\d{1,2})[:-](\d{1,2})[:-](\d{1,2})(?:\.\d+)?$")
+_TZ_SUFFIX_RE = re.compile(r"^(.+?)([+-]\d{2}:\d{2})$")
+
+
+def _ms_normalize(ts: int) -> int:
+    if abs(ts) < 10**12:
+        return ts * 1000
+    return ts
+
+
+def _parse_date_token(date_token: str, field_name: str) -> date:
+    """Календарная дата: Y-M-D или D-M-Y с разделителями - . /"""
+    token = date_token.strip()
+    m = _YMD_RE.match(token)
+    if m:
+        y, mo, d = int(m.group(1)), int(m.group(2)), int(m.group(3))
+        try:
+            return date(y, mo, d)
+        except ValueError as exc:
+            raise ServiceValidationError(
+                f"Invalid calendar date in '{field_name}'"
+            ) from exc
+    m = _DMY_RE.match(token)
+    if m:
+        d, mo, y = int(m.group(1)), int(m.group(2)), int(m.group(3))
+        try:
+            return date(y, mo, d)
+        except ValueError as exc:
+            raise ServiceValidationError(
+                f"Invalid calendar date in '{field_name}'"
+            ) from exc
+    raise ServiceValidationError(
+        f"Invalid '{field_name}' date format. Use e.g. 2026-10-23, 2026.10.23, "
+        f"2026/10/23, 23.10.2026, 23-10-2026, 23/10/2026 or Unix timestamp."
+    )
+
+
+def _split_date_time_portion(raw: str) -> tuple[str, str | None]:
+    """Дата и опционально время (после T или первого пробела)."""
+    raw = raw.strip()
+    if not raw:
+        raise ServiceValidationError("Date/time value cannot be empty")
+    if "T" in raw:
+        dpart, tpart = raw.split("T", 1)
+        tpart = tpart.strip()
+        return dpart.strip(), tpart if tpart else None
+    parts = raw.split(None, 1)
+    if len(parts) == 1:
+        return parts[0], None
+    return parts[0], parts[1]
+
+
+def _split_time_core_and_tz(time_rest: str) -> tuple[str, str | None]:
+    """'00:00:00+03:00' / '00-00-00' / с Z на конце."""
+    s = time_rest.strip()
+    if s.endswith("Z"):
+        return s[:-1].rstrip(), "+00:00"
+    m = _TZ_SUFFIX_RE.match(s)
+    if m:
+        return m.group(1).strip(), m.group(2)
+    return s, None
+
+
+def _hms_core_to_iso_fragment(core: str) -> str:
+    m = _HMS_CORE_RE.match(core.strip())
+    if not m:
+        raise ServiceValidationError("Invalid time format (use HH:MM:SS or HH-MM-SS)")
+    h, mi, sec = int(m.group(1)), int(m.group(2)), int(m.group(3))
+    if h > 23 or mi > 59 or sec > 59:
+        raise ServiceValidationError("Invalid time (hour/minute/second out of range)")
+    return f"{h:02d}:{mi:02d}:{sec:02d}"
+
+
+def _local_tz() -> timezone:
+    return datetime.now().astimezone().tzinfo or timezone.utc
+
+
+def _service_datetime_string_to_ms(
+    raw: str,
+    *,
+    field_name: str,
+    is_to_bound: bool,
+    date_only: bool,
+) -> int:
+    """Разбор строки даты/времени для from/to или только даты для поля date."""
+    local_tz = _local_tz()
+    dstr, trest = _split_date_time_portion(raw)
+    d = _parse_date_token(dstr, field_name)
+    if date_only:
+        if trest is not None and trest.strip():
+            raise ServiceValidationError(
+                f"'{field_name}' must be a calendar date only, without time"
+            )
+        if is_to_bound:
+            dt = datetime(d.year, d.month, d.day, 23, 59, 59, tzinfo=local_tz)
+        else:
+            dt = datetime(d.year, d.month, d.day, 0, 0, 0, tzinfo=local_tz)
+        return int(dt.timestamp() * 1000)
+    if trest is not None and trest.strip():
+        core, tz_suf = _split_time_core_and_tz(trest)
+        hms = _hms_core_to_iso_fragment(core)
+        iso = f"{d.isoformat()}T{hms}"
+        if tz_suf:
+            iso += tz_suf
+        try:
+            dt = datetime.fromisoformat(iso)
+        except ValueError as exc:
+            raise ServiceValidationError(
+                f"Invalid '{field_name}' date/time value"
+            ) from exc
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=local_tz)
+    else:
+        if is_to_bound:
+            dt = datetime(d.year, d.month, d.day, 23, 59, 59, tzinfo=local_tz)
+        else:
+            dt = datetime(d.year, d.month, d.day, 0, 0, 0, tzinfo=local_tz)
+    return int(dt.timestamp() * 1000)
 
 _SENSITIVE_SERVICE_FIELDS = frozenset(
     {
@@ -240,6 +369,7 @@ def register_send_message_service(hass: HomeAssistant) -> None:
         SERVICE_DELETE_MESSAGE,
         async_delete_message_handler,
         schema=SERVICE_DELETE_MESSAGE_SCHEMA,
+        supports_response=SupportsResponse.OPTIONAL,
     )
     hass.services.async_register(
         DOMAIN,
@@ -339,26 +469,39 @@ def _resolve_entity_ids(
     return entity_ids_out
 
 
-async def async_delete_message_handler(service: ServiceCall) -> None:
+async def async_delete_message_handler(service: ServiceCall) -> ServiceResponse:
     """Обработка max_notify.delete_message: удаление сообщения по ID."""
     hass = service.hass
     data = service.data
     _log_service_started(SERVICE_DELETE_MESSAGE, data)
-    message_ids: list[str] = []
-    if CONF_MESSAGE_ID in data:
-        message_id_raw = str(data[CONF_MESSAGE_ID]).strip()
-        if message_id_raw:
-            message_ids.extend(
-                [item.strip() for item in message_id_raw.split(",") if item.strip()]
-            )
-    for raw in data.get("message_ids", []):
-        mid = str(raw).strip()
-        if mid:
-            message_ids.append(mid)
-    if not message_ids:
+    if (
+        not _delete_service_has_message_id(data)
+        and not _delete_service_has_message_ids(data)
+        and CONF_DELETE_DATE not in data
+        and ("from" in data) != ("to" in data)
+    ):
         raise ServiceValidationError(
             translation_domain=DOMAIN,
-            translation_key="invalid_message_id",
+            translation_key="delete_from_to_both_required",
+        )
+    total_deleted = 0
+    ts_from, ts_to = _resolve_delete_period(data)
+    use_period = ts_from is not None and ts_to is not None
+    message_ids: list[str] = []
+    if _delete_service_has_message_id(data):
+        message_id_raw = str(data[CONF_MESSAGE_ID]).strip()
+        message_ids.extend(
+            [item.strip() for item in message_id_raw.split(",") if item.strip()]
+        )
+    elif _delete_service_has_message_ids(data):
+        for raw in data["message_ids"]:
+            mid = str(raw).strip()
+            if mid:
+                message_ids.append(mid)
+    if not message_ids and not use_period:
+        raise ServiceValidationError(
+            translation_domain=DOMAIN,
+            translation_key="delete_requires_id_date_or_period",
         )
     entity_ids = data.get(ATTR_ENTITY_ID)
     config_entry_id = data.get(CONF_CONFIG_ENTRY_ID)
@@ -370,30 +513,91 @@ async def async_delete_message_handler(service: ServiceCall) -> None:
     caps = get_capabilities(entry)
     _ensure_capability(entry, caps.supports_delete_message, feature="delete_message")
 
-    delay_between_requests = 1 / _DELETE_MESSAGE_MAX_REQUESTS_PER_SECOND
-    for idx, message_id in enumerate(message_ids):
-        ok = await delete_message(hass, entry, message_id)
-        _LOGGER.info(
-            "%s.%s delete result: entry_id=%s message_id=%s deleted=%s",
-            DOMAIN,
-            SERVICE_DELETE_MESSAGE,
-            entry.entry_id,
-            message_id,
-            ok,
-        )
-        if ok:
+    async def _delete_batch(entry_obj: ConfigEntry, ids: list[str]) -> int:
+        if not ids:
+            return 0
+        deleted_list = await delete_messages(hass, entry_obj, ids)
+        for message_id in deleted_list:
+            _LOGGER.info(
+                "%s.%s delete result: entry_id=%s message_id=%s deleted=True",
+                DOMAIN,
+                SERVICE_DELETE_MESSAGE,
+                entry_obj.entry_id,
+                message_id,
+            )
             hass.bus.async_fire(
                 EVENT_MAX_NOTIFY_RECEIVED,
                 {
-                    "config_entry_id": entry.entry_id,
+                    "config_entry_id": entry_obj.entry_id,
                     "update_type": "message_removed",
                     "timestamp": int(time.time() * 1000),
                     "message_id": message_id,
                     "event_id": f"local_message_removed_{message_id}",
                 },
             )
-        if idx < len(message_ids) - 1:
-            await asyncio.sleep(delay_between_requests)
+        return len(deleted_list)
+
+    if message_ids:
+        total_deleted += await _delete_batch(entry, message_ids)
+
+    if not use_period:
+        if not message_ids:
+            _LOGGER.info(
+                "%s.%s no messages found for deletion",
+                DOMAIN,
+                SERVICE_DELETE_MESSAGE,
+            )
+        return {"deleted": total_deleted}
+
+    resolved_entities = _resolve_entity_ids(
+        hass,
+        entity_ids=entity_ids,
+        config_entry_id=config_entry_id,
+    )
+    reg = er.async_get(hass)
+    for eid in resolved_entities:
+        entity_entry = reg.async_get(eid)
+        if (
+            not entity_entry
+            or not entity_entry.config_entry_id
+            or not entity_entry.config_subentry_id
+        ):
+            continue
+        entry_for_entity = hass.config_entries.async_get_entry(entity_entry.config_entry_id)
+        if not entry_for_entity or entry_for_entity.domain != DOMAIN:
+            continue
+        subentry = (getattr(entry_for_entity, "subentries", None) or {}).get(
+            entity_entry.config_subentry_id
+        )
+        if not subentry:
+            continue
+        recipient = recipient_dict_from_subentry(subentry)
+        while True:
+            batch_ids = await list_message_ids_in_period(
+                hass,
+                entry_for_entity,
+                recipient,
+                ts_from=ts_from,
+                ts_to=ts_to,
+            )
+            if not batch_ids:
+                break
+            deleted_ok = await _delete_batch(entry_for_entity, batch_ids)
+            total_deleted += deleted_ok
+            # Protect from endless loop if API keeps returning same messages.
+            if deleted_ok == 0:
+                _LOGGER.warning(
+                    "%s.%s period delete made no progress; stopping loop "
+                    "(entry_id=%s recipient=%s batch_size=%s)",
+                    DOMAIN,
+                    SERVICE_DELETE_MESSAGE,
+                    entry_for_entity.entry_id,
+                    recipient,
+                    len(batch_ids),
+                )
+                break
+
+    return {"deleted": total_deleted}
 
 
 def _resolve_single_notify_target(
@@ -441,6 +645,89 @@ def _resolve_single_notify_target(
     return entry, recipient_dict_from_subentry(subentry)
 
 
+def _coerce_service_datetime_to_unix(
+    value: Any, *, field_name: str, is_to_bound: bool
+) -> int:
+    if value is None:
+        raise ServiceValidationError(f"'{field_name}' cannot be null")
+    if isinstance(value, (int, float)):
+        return _ms_normalize(int(value))
+    raw = str(value).strip()
+    if not raw:
+        raise ServiceValidationError(f"'{field_name}' cannot be empty")
+    if raw.lstrip("-").isdigit():
+        return _ms_normalize(int(raw))
+    return _service_datetime_string_to_ms(
+        raw, field_name=field_name, is_to_bound=is_to_bound, date_only=False
+    )
+
+
+def _day_bounds_ms_from_delete_date(value: Any, *, field_name: str) -> tuple[int, int]:
+    """Одна календарная дата → интервал 00:00:00…23:59:59 в локальной TZ; в поле date без времени."""
+    local_tz = _local_tz()
+    if isinstance(value, (int, float)):
+        ts = _ms_normalize(int(value))
+        day_ref = datetime.fromtimestamp(ts / 1000, tz=timezone.utc).astimezone(local_tz)
+        d = day_ref.date()
+    elif isinstance(value, str):
+        raw = str(value).strip()
+        if not raw:
+            raise ServiceValidationError(f"'{field_name}' cannot be empty")
+        if raw.lstrip("-").isdigit():
+            ts = _ms_normalize(int(raw))
+            day_ref = datetime.fromtimestamp(ts / 1000, tz=timezone.utc).astimezone(
+                local_tz
+            )
+            d = day_ref.date()
+        else:
+            dstr, trest = _split_date_time_portion(raw)
+            if trest is not None and trest.strip():
+                raise ServiceValidationError(
+                    f"'{field_name}' must be a calendar date only, without time"
+                )
+            d = _parse_date_token(dstr, field_name)
+    else:
+        raise ServiceValidationError(
+            f"Invalid '{field_name}' type. Use a date string or Unix timestamp."
+        )
+    start = datetime(d.year, d.month, d.day, 0, 0, 0, tzinfo=local_tz)
+    end = datetime(d.year, d.month, d.day, 23, 59, 59, tzinfo=local_tz)
+    return int(start.timestamp() * 1000), int(end.timestamp() * 1000)
+
+
+def _delete_service_has_message_id(data: Mapping[str, Any]) -> bool:
+    if CONF_MESSAGE_ID not in data:
+        return False
+    return bool(str(data[CONF_MESSAGE_ID]).strip())
+
+
+def _delete_service_has_message_ids(data: Mapping[str, Any]) -> bool:
+    return "message_ids" in data
+
+
+def _resolve_delete_period(data: Mapping[str, Any]) -> tuple[int | None, int | None]:
+    """Период: message_id/message_ids отменяют период; затем date; затем from+to."""
+    if _delete_service_has_message_id(data):
+        return None, None
+    if _delete_service_has_message_ids(data):
+        return None, None
+    if CONF_DELETE_DATE in data:
+        return _day_bounds_ms_from_delete_date(
+            data[CONF_DELETE_DATE], field_name=CONF_DELETE_DATE
+        )
+    if "from" in data and "to" in data:
+        ts_from = _coerce_service_datetime_to_unix(
+            data["from"], field_name="from", is_to_bound=False
+        )
+        ts_to = _coerce_service_datetime_to_unix(
+            data["to"], field_name="to", is_to_bound=True
+        )
+        if ts_from > ts_to:
+            ts_from, ts_to = ts_to, ts_from
+        return ts_from, ts_to
+    return None, None
+
+
 async def async_delete_last_outgoing_message_handler(service: ServiceCall) -> None:
     """Удалить последнее исходящее сообщение бота в указанном чате."""
     hass = service.hass
@@ -459,12 +746,6 @@ async def async_delete_last_outgoing_message_handler(service: ServiceCall) -> No
         config_entry_id=config_entry_id,
     )
 
-    caps = get_capabilities(entry)
-    _ensure_capability(
-        entry,
-        caps.supports_delete_last_outgoing_message,
-        feature="delete_last_outgoing_message",
-    )
     scan_count = int(data.get(CONF_SCAN_COUNT, 20))
     deleted = await delete_last_outgoing_message(
         hass,

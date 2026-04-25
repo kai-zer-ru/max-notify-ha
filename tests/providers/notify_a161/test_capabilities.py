@@ -40,6 +40,9 @@ def test_resolve_a161_by_data(mock_config_entry) -> None:
     assert (
         get_capabilities(mock_config_entry).supports_delete_last_outgoing_message is False
     )
+    assert (
+        get_capabilities(mock_config_entry).supports_delete_message_by_period is False
+    )
 
 
 def test_resolve_a161_by_title_fallback(mock_config_entry) -> None:

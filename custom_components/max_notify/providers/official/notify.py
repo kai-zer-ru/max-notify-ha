@@ -11,6 +11,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from ...const import API_PATH_CHATS, API_PATH_ME, API_PATH_MESSAGES, CHATS_PAGE_SIZE
+from ...outbound_rate import async_acquire_outbound_api_slot
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -32,6 +33,7 @@ async def resolve_dialog_chat_id(
     for _ in range(50):
         u = f"{url}&marker={marker}" if marker is not None else url
         try:
+            await async_acquire_outbound_api_slot(hass)
             async with session.get(u, headers=headers, timeout=aiohttp.ClientTimeout(total=10)) as resp:
                 if resp.status != 200:
                     return None
@@ -141,6 +143,7 @@ async def _get_bot_user_id(
     session = async_get_clientsession(hass)
     headers = {"Authorization": token}
     try:
+        await async_acquire_outbound_api_slot(hass)
         async with session.get(
             url,
             headers=headers,
@@ -257,6 +260,7 @@ async def find_last_outgoing_message_id(
         api_version=api_version,
     ):
         try:
+            await async_acquire_outbound_api_slot(hass)
             async with session.get(
                 url,
                 headers=headers,

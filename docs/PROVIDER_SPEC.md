@@ -63,6 +63,8 @@
 | `supports_group_chats` | Отрицательный `recipient_id`. |
 | `supports_inline_keyboard` | Inline-кнопки в исходящих сообщениях и при редактировании. |
 | `supports_delete_message` | Удаление сообщения по `message_id`. |
+| `supports_delete_message_by_period` | Поиск в API по дате/интервалу и удаление найденных сообщений по одному `message_id` на запрос (`delete_message` с `date` / `from`+`to`). |
+| `supports_delete_last_outgoing_message` | Служба «удалить последнее исходящее сообщение» в чате. |
 | `supports_edit_message` | Редактирование текста/клавиатуры. |
 | `supports_send_photo` | Цепочка загрузки + сообщение с вложением «фото». |
 | `supports_send_document` | Аналогично для файла. |

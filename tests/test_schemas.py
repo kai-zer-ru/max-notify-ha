@@ -74,9 +74,9 @@ class TestSendMessageSchema:
 class TestDeleteMessageSchema:
     """Тесты SERVICE_DELETE_MESSAGE_SCHEMA."""
 
-    def test_requires_message_id_or_message_ids(self) -> None:
-        with pytest.raises(vol.MultipleInvalid):
-            SERVICE_DELETE_MESSAGE_SCHEMA({})
+    def test_accepts_empty_payload_validation_in_service(self) -> None:
+        data = SERVICE_DELETE_MESSAGE_SCHEMA({})
+        assert data == {}
 
     def test_valid(self) -> None:
         data = SERVICE_DELETE_MESSAGE_SCHEMA({"message_id": "msg-123"})
@@ -102,6 +102,26 @@ class TestDeleteMessageSchema:
             SERVICE_DELETE_MESSAGE_SCHEMA(
                 {"message_id": "msg-1", "message_ids": ["msg-2"]}
             )
+
+    def test_accepts_period_without_message_ids(self) -> None:
+        data = SERVICE_DELETE_MESSAGE_SCHEMA({"from": 1714020000, "to": 1714023600})
+        assert data["from"] == 1714020000
+        assert data["to"] == 1714023600
+
+    def test_accepts_date_without_message_ids(self) -> None:
+        data = SERVICE_DELETE_MESSAGE_SCHEMA({"date": "2026-04-25"})
+        assert data["date"] == "2026-04-25"
+
+    def test_accepts_date_with_from_to_same_call(self) -> None:
+        data = SERVICE_DELETE_MESSAGE_SCHEMA(
+            {"date": "2026-04-25", "from": 1714020000, "to": 1714023600}
+        )
+        assert data["date"] == "2026-04-25"
+        assert data["from"] == 1714020000
+
+    def test_rejects_empty_date_string(self) -> None:
+        with pytest.raises(vol.MultipleInvalid):
+            SERVICE_DELETE_MESSAGE_SCHEMA({"date": "  "})
 
 class TestEditMessageSchema:
     """Тесты SERVICE_EDIT_MESSAGE_SCHEMA."""

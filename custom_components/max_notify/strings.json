@@ -314,6 +314,18 @@
           "name": "Message IDs",
           "description": "List of message IDs to delete in order."
         },
+        "date": {
+          "name": "Date",
+          "description": "One calendar day (local 00:00–23:59). Date only or Unix timestamp. Ignored if message_id or message_ids is set; otherwise takes precedence over the period start/end fields."
+        },
+        "from": {
+          "name": "From",
+          "description": "Period start (with period end): Unix timestamp or date/datetime. Used only without message_id, message_ids, and without Date."
+        },
+        "to": {
+          "name": "To",
+          "description": "Period end (with period start): same formats as period start. Both bounds required when using this mode."
+        },
         "entity_id": {
           "name": "Notify entity",
           "description": "MaxNotify notify entity. Can be used instead of config_entry_id."
