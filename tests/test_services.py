@@ -310,6 +310,70 @@ def test_services_helpers_importable() -> None:
     assert callable(_resolve_entity_ids)
 
 
+def test_resolve_entity_ids_accepts_legacy_entity_id(hass, mock_config_entry) -> None:
+    from custom_components.max_notify.services import _resolve_entity_ids
+
+    hass.config_entries = MagicMock()
+    hass.config_entries.async_entries = MagicMock(return_value=[mock_config_entry])
+    hass.config_entries.async_get_entry = MagicMock(return_value=mock_config_entry)
+
+    subentry = SimpleNamespace(
+        data={CONF_RECIPIENT_ID: 72936537541960},
+        unique_id="user_72936537541960",
+    )
+    mock_config_entry.subentries = {"sub-1": subentry}
+
+    current_entity = SimpleNamespace(
+        entity_id="notify.max_notify_user_72936537541960",
+        domain="notify",
+        platform="max_notify",
+        config_entry_id=mock_config_entry.entry_id,
+        config_subentry_id="sub-1",
+    )
+    registry = SimpleNamespace(
+        async_get=MagicMock(return_value=None),
+        entities={current_entity.entity_id: current_entity},
+    )
+    with patch("custom_components.max_notify.services.er.async_get", return_value=registry):
+        resolved = _resolve_entity_ids(
+            hass,
+            entity_ids=["notify.max_notify_notify_a161_ru_user_72936537541960"],
+        )
+    assert resolved == ["notify.max_notify_user_72936537541960"]
+
+
+def test_resolve_entity_ids_accepts_legacy_user_suffix_for_group(hass, mock_config_entry) -> None:
+    from custom_components.max_notify.services import _resolve_entity_ids
+
+    hass.config_entries = MagicMock()
+    hass.config_entries.async_entries = MagicMock(return_value=[mock_config_entry])
+    hass.config_entries.async_get_entry = MagicMock(return_value=mock_config_entry)
+
+    subentry = SimpleNamespace(
+        data={CONF_RECIPIENT_ID: -72936537541960},
+        unique_id="chat_-72936537541960",
+    )
+    mock_config_entry.subentries = {"sub-1": subentry}
+
+    current_entity = SimpleNamespace(
+        entity_id="notify.max_notify_chat_72936537541960",
+        domain="notify",
+        platform="max_notify",
+        config_entry_id=mock_config_entry.entry_id,
+        config_subentry_id="sub-1",
+    )
+    registry = SimpleNamespace(
+        async_get=MagicMock(return_value=None),
+        entities={current_entity.entity_id: current_entity},
+    )
+    with patch("custom_components.max_notify.services.er.async_get", return_value=registry):
+        resolved = _resolve_entity_ids(
+            hass,
+            entity_ids=["notify.max_notify_notify_a161_ru_user_72936537541960"],
+        )
+    assert resolved == ["notify.max_notify_chat_72936537541960"]
+
+
 def test_coerce_service_datetime_to_unix_normalizes_to_milliseconds() -> None:
     from custom_components.max_notify.services import _coerce_service_datetime_to_unix
 

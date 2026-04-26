@@ -86,6 +86,7 @@ _YMD_RE = re.compile(r"^(\d{4})[-./](\d{1,2})[-./](\d{1,2})$")
 _DMY_RE = re.compile(r"^(\d{1,2})[-./](\d{1,2})[-./](\d{4})$")
 _HMS_CORE_RE = re.compile(r"^(\d{1,2})[:-](\d{1,2})[:-](\d{1,2})(?:\.\d+)?$")
 _TZ_SUFFIX_RE = re.compile(r"^(.+?)([+-]\d{2}:\d{2})$")
+_LEGACY_RECIPIENT_SUFFIX_RE = re.compile(r"(?:^|[_-])(user|chat)_(-?\d+)$")
 
 
 def _ms_normalize(ts: int) -> int:
@@ -404,6 +405,78 @@ def register_send_message_service(hass: HomeAssistant) -> None:
     )
 
 
+def _legacy_recipient_id_from_entity_id(entity_id: str) -> int | None:
+    """Извлечь recipient_id из старого notify entity_id, если в конце есть user_/chat_."""
+    _, _, object_id = entity_id.partition(".")
+    if not object_id:
+        return None
+    match = _LEGACY_RECIPIENT_SUFFIX_RE.search(object_id)
+    if not match:
+        return None
+    kind, raw = match.group(1), int(match.group(2))
+    if kind == "user":
+        return abs(raw)
+    return raw if raw < 0 else -raw
+
+
+def _legacy_recipient_id_candidates_from_entity_id(entity_id: str) -> list[int]:
+    """Candidate recipient IDs for legacy notify entity IDs."""
+    parsed = _legacy_recipient_id_from_entity_id(entity_id)
+    if parsed is None:
+        return []
+    # Some old installs had "...user_<id>" even for group chats.
+    candidates = [parsed]
+    opposite = -parsed
+    if opposite not in candidates:
+        candidates.append(opposite)
+    return candidates
+
+
+def _resolve_legacy_notify_entity_id(
+    hass: HomeAssistant,
+    entity_id: str,
+    *,
+    config_entry_id: str | None = None,
+) -> str | None:
+    """Сопоставить старый notify entity_id с текущей сущностью по recipient_id."""
+    legacy_candidates = _legacy_recipient_id_candidates_from_entity_id(entity_id)
+    if not legacy_candidates:
+        return None
+    reg = er.async_get(hass)
+    matches: list[str] = []
+    for ent in reg.entities.values():
+        if ent.domain != "notify" or ent.platform != DOMAIN:
+            continue
+        if config_entry_id and getattr(ent, "config_entry_id", None) != config_entry_id:
+            continue
+        if not ent.config_entry_id or not ent.config_subentry_id:
+            continue
+        entry = hass.config_entries.async_get_entry(ent.config_entry_id)
+        if not entry or entry.domain != DOMAIN:
+            continue
+        subentry = (getattr(entry, "subentries", None) or {}).get(ent.config_subentry_id)
+        if not subentry:
+            continue
+        recipient = recipient_dict_from_subentry(
+            subentry, hass=hass, entry_id=entry.entry_id
+        )
+        rid_raw = recipient.get(CONF_RECIPIENT_ID)
+        try:
+            rid = int(rid_raw)
+        except (TypeError, ValueError):
+            continue
+        if rid in legacy_candidates:
+            matches.append(ent.entity_id)
+    if len(matches) == 1:
+        _LOGGER.info("Resolved legacy notify entity_id %s -> %s", entity_id, matches[0])
+        return matches[0]
+    if len(matches) > 1:
+        _LOGGER.warning(
+            "Legacy notify entity_id %s is ambiguous (matches=%s)", entity_id, matches
+        )
+    return None
+
+
 def _resolve_entity_ids(
     hass: HomeAssistant,
     *,
@@ -423,6 +496,12 @@ def _resolve_entity_ids(
         for eid in entity_ids:
             ent = reg.async_get(eid)
             if not ent or ent.domain != "notify" or ent.platform != DOMAIN:
+                legacy = _resolve_legacy_notify_entity_id(
+                    hass, eid, config_entry_id=config_entry_id
+                )
+                if legacy:
+                    out.append(legacy)
+                    continue
                 raise ServiceValidationError(
                     translation_domain=DOMAIN,
                     translation_key="invalid_notify_entity",
@@ -571,7 +650,9 @@ async def async_delete_message_handler(service: ServiceCall) -> ServiceResponse:
         )
         if not subentry:
             continue
-        recipient = recipient_dict_from_subentry(subentry)
+        recipient = recipient_dict_from_subentry(
+            subentry, hass=hass, entry_id=entry_for_entity.entry_id
+        )
         while True:
             batch_ids = await list_message_ids_in_period(
                 hass,
@@ -642,7 +723,9 @@ def _resolve_single_notify_target(
             translation_key="invalid_notify_entity",
             translation_placeholders={"entity_id": resolved[0]},
         )
-    return entry, recipient_dict_from_subentry(subentry)
+    return entry, recipient_dict_from_subentry(
+        subentry, hass=hass, entry_id=entry.entry_id
+    )
 
 
 def _coerce_service_datetime_to_unix(
@@ -981,7 +1064,9 @@ async def async_send_message_handler(service: ServiceCall) -> None:
             await send_message(
                 hass,
                 entry,
-                recipient_dict_from_subentry(subentry),
+                recipient_dict_from_subentry(
+                    subentry, hass=hass, entry_id=entry.entry_id
+                ),
                 message,
                 buttons=all_buttons,
                 title=title,
@@ -1003,7 +1088,9 @@ async def async_send_message_handler(service: ServiceCall) -> None:
         await send_message(
             hass,
             entry,
-            recipient_dict_from_subentry(subentry),
+            recipient_dict_from_subentry(
+                subentry, hass=hass, entry_id=entry.entry_id
+            ),
             message,
             buttons=None,
             title=title,
@@ -1084,7 +1171,9 @@ async def async_send_text_to_all_handler(service: ServiceCall) -> None:
                     await send_message(
                         hass,
                         entry,
-                        recipient_dict_from_subentry(subentry),
+                        recipient_dict_from_subentry(
+                            subentry, hass=hass, entry_id=entry.entry_id
+                        ),
                         message,
                         buttons=all_buttons,
                         title=title,
@@ -1095,7 +1184,9 @@ async def async_send_text_to_all_handler(service: ServiceCall) -> None:
                     await send_message(
                         hass,
                         entry,
-                        recipient_dict_from_subentry(subentry),
+                        recipient_dict_from_subentry(
+                            subentry, hass=hass, entry_id=entry.entry_id
+                        ),
                         message,
                         buttons=None,
                         title=title,
@@ -1191,7 +1282,9 @@ async def _send_photo(
         await upload_image_and_send(
             hass,
             entry,
-            recipient_dict_from_subentry(subentry),
+            recipient_dict_from_subentry(
+                subentry, hass=hass, entry_id=entry.entry_id
+            ),
             file_paths_or_urls[0],
             file_paths_or_urls=file_paths_or_urls,
             caption=caption,
@@ -1281,7 +1374,9 @@ async def _send_document(
         await upload_document_and_send(
             hass,
             entry,
-            recipient_dict_from_subentry(subentry),
+            recipient_dict_from_subentry(
+                subentry, hass=hass, entry_id=entry.entry_id
+            ),
             file_paths_or_urls[0],
             file_paths_or_urls=file_paths_or_urls,
             caption=caption,
@@ -1378,7 +1473,9 @@ async def _send_video(
         await upload_video_and_send(
             hass,
             entry,
-            recipient_dict_from_subentry(subentry),
+            recipient_dict_from_subentry(
+                subentry, hass=hass, entry_id=entry.entry_id
+            ),
             file_paths_or_urls[0],
             file_paths_or_urls=file_paths_or_urls,
             caption=caption,

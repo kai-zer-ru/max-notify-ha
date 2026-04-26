@@ -45,7 +45,9 @@ async def async_setup_entry(
     for subentry_id, subentry in subentries.items():
         if not isinstance(subentry, ConfigSubentry):
             continue
-        recipient = recipient_dict_from_subentry(subentry)
+        recipient = recipient_dict_from_subentry(
+            subentry, hass=hass, entry_id=entry.entry_id
+        )
         rid_raw = recipient.get(CONF_RECIPIENT_ID)
         try:
             recipient_id = int(rid_raw)  # type: ignore[arg-type]
@@ -55,11 +57,27 @@ async def async_setup_entry(
             hass, entry, recipient_id=recipient_id, subentry=subentry
         )
         async_add_entities([out], config_subentry_id=subentry_id)
+        async_add_entities(
+            [
+                MaxNotifyLegacyRecipientLastOutgoingMessageIdSensor(
+                    hass, entry, recipient_id=recipient_id, subentry=subentry
+                )
+            ],
+            config_subentry_id=subentry_id,
+        )
         if want_incoming:
             inc = MaxNotifyLastIncomingMessageIdSensor(
                 hass, entry, recipient_id=recipient_id, subentry=subentry
             )
             async_add_entities([inc], config_subentry_id=subentry_id)
+            async_add_entities(
+                [
+                    MaxNotifyLegacyRecipientLastIncomingMessageIdSensor(
+                        hass, entry, recipient_id=recipient_id, subentry=subentry
+                    )
+                ],
+                config_subentry_id=subentry_id,
+            )
     # Legacy sensors (entry-level scope) must stay available after v2 migration.
     # Keep old unique_id values so recorder/entity registry continue to resolve them.
     async_add_entities([MaxNotifyLegacyLastOutgoingMessageIdSensor(hass, entry)])
@@ -170,6 +188,102 @@ class MaxNotifyLastIncomingMessageIdSensor(_BaseMessageIdSensor):
         )
         self._attr_name = (
             f"Идентификатор последнего входящего сообщения ({subentry.title})"
+        )
+
+    def _merge_from_recorder_if_empty(self, mid: str) -> None:
+        if not get_last_incoming_message_id(
+            self.hass, self._entry_id, recipient_id=self._recipient_id
+        ):
+            set_last_incoming_message_id(
+                self.hass, self._entry_id, mid, recipient_id=self._recipient_id
+            )
+
+    @property
+    def native_value(self) -> str | None:
+        return get_last_incoming_message_id(
+            self.hass, self._entry_id, recipient_id=self._recipient_id
+        )
+
+
+class _BaseLegacyRecipientMessageIdSensor(_BaseMessageIdSensor):
+    """Legacy per-recipient sensors with old unique_id format."""
+
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        entry: ConfigEntry,
+        *,
+        recipient_id: int,
+        subentry: ConfigSubentry,
+    ) -> None:
+        super().__init__(hass, entry, recipient_id=recipient_id, subentry=subentry)
+        self._attr_extra_state_attributes = {
+            "deprecated": True,
+            "deprecation_note": "Устаревший сенсор, используйте сенсоры по чатам.",
+        }
+
+
+class MaxNotifyLegacyRecipientLastOutgoingMessageIdSensor(
+    _BaseLegacyRecipientMessageIdSensor
+):
+    """Legacy sensor: last outgoing message ID with recipient-based unique_id."""
+
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        entry: ConfigEntry,
+        *,
+        recipient_id: int,
+        subentry: ConfigSubentry,
+    ) -> None:
+        super().__init__(
+            hass, entry, recipient_id=recipient_id, subentry=subentry
+        )
+        self._attr_unique_id = (
+            f"{entry.entry_id}_{recipient_id}_last_outgoing_message_id"
+        )
+        self._attr_name = (
+            f"Идентификатор последнего исходящего сообщения ({subentry.title}) (Устаревший)"
+        )
+
+    def _merge_from_recorder_if_empty(self, mid: str) -> None:
+        if not get_last_outgoing_message_id(
+            self.hass, self._entry_id, recipient_id=self._recipient_id
+        ):
+            set_last_outgoing_message_id(
+                self.hass, self._entry_id, mid, recipient_id=self._recipient_id
+            )
+
+    @property
+    def native_value(self) -> str | None:
+        return get_last_outgoing_message_id(
+            self.hass, self._entry_id, recipient_id=self._recipient_id
+        )
+
+
+class MaxNotifyLegacyRecipientLastIncomingMessageIdSensor(
+    _BaseLegacyRecipientMessageIdSensor
+):
+    """Legacy sensor: last incoming message ID with recipient-based unique_id."""
+
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        entry: ConfigEntry,
+        *,
+        recipient_id: int,
+        subentry: ConfigSubentry,
+    ) -> None:
+        super().__init__(
+            hass, entry, recipient_id=recipient_id, subentry=subentry
+        )
+        self._attr_unique_id = (
+            f"{entry.entry_id}_{recipient_id}_last_incoming_message_id"
+        )
+        self._attr_name = (
+            f"Идентификатор последнего входящего сообщения ({subentry.title}) (Устаревший)"
         )
 
     def _merge_from_recorder_if_empty(self, mid: str) -> None:

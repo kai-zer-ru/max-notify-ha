@@ -53,10 +53,17 @@ from ..const import (
     VIDEO_READY_RETRY_DELAYS,
     VIDEO_URL_DOWNLOAD_RETRY_DELAYS,
 )
-from ..message_state import set_last_outgoing_message_id
+from ..message_state import (
+    get_stored_recipient_id,
+    recipient_storage_scope_key,
+    set_last_outgoing_message_id,
+    set_stored_recipient_id,
+)
 from ..outbound_rate import async_acquire_outbound_api_slot
 from .registry import get_capabilities, get_provider
 _LOGGER = logging.getLogger(__name__)
+_CHAT_ID_KEY = "chat_id"
+_USER_ID_KEY = "user_id"
 
 _EXT_TO_CONTENT_TYPE = {
     ".png": "image/png",
@@ -613,6 +620,18 @@ def _attachment_payload_from_upload_response(resp: dict[str, Any]) -> dict[str, 
 
 def _recipient_to_user_chat(recipient: dict[str, Any]) -> tuple[int | None, int | None]:
     """Словарь получателя → (user_id, chat_id) по знаку recipient_id."""
+    uid_raw = recipient.get(_USER_ID_KEY)
+    cid_raw = recipient.get(_CHAT_ID_KEY)
+    try:
+        if uid_raw is not None and int(uid_raw) != 0:
+            return int(uid_raw), None
+    except (TypeError, ValueError):
+        pass
+    try:
+        if cid_raw is not None and int(cid_raw) != 0:
+            return None, int(cid_raw)
+    except (TypeError, ValueError):
+        pass
     rid_raw = recipient.get(CONF_RECIPIENT_ID)
     uid: int | None = None
     cid: int | None = None
@@ -644,30 +663,130 @@ def _recipient_id_from_subentry_unique_id(unique_id: str | None) -> int | None:
     """Восстановить recipient_id из unique_id субпункта (user_<id>, chat_<id>)."""
     if not unique_id:
         return None
-    if m := re.fullmatch(r"user_(\d+)", unique_id.strip()):
+    normalized = unique_id.strip()
+    if m := re.fullmatch(r"user_(\d+)", normalized):
         return int(m.group(1))
-    if m := re.fullmatch(r"chat_(-?\d+)", unique_id.strip()):
+    if m := re.fullmatch(r"chat_(-?\d+)", normalized):
+        raw = int(m.group(1))
+        return raw if raw < 0 else -raw
+    # Legacy formats may contain provider prefixes, e.g. notify_a161_ru_user_12345.
+    if m := re.search(r"(?:^|[_-])(user|chat)_(-?\d+)$", normalized):
+        kind, raw_id = m.group(1), int(m.group(2))
+        if kind == "user":
+            return abs(raw_id)
+        return raw_id if raw_id < 0 else -raw_id
+    return None
+
+
+def _recipient_id_from_subentry_title(title: str | None) -> int | None:
+    """Fallback for legacy setups: parse recipient_id from subentry title."""
+    if not isinstance(title, str) or not title:
+        return None
+    normalized = title.strip()
+    # Typical titles look like "Chat -7371606622" or "User 72936537541960".
+    if m := re.search(r"(-\d+)$", normalized):
+        return int(m.group(1))
+    if m := re.search(r"(\d+)$", normalized):
         return int(m.group(1))
     return None
 
 
-def recipient_dict_from_subentry(subentry: Any) -> dict[str, Any]:
-    """Данные получателя для API: data субпункта, при отсутствии id — из unique_id."""
+def _recipient_with_normalized_keys(recipient_id: int, base: dict[str, Any]) -> dict[str, Any]:
+    merged = dict(base)
+    merged[CONF_RECIPIENT_ID] = recipient_id
+    if recipient_id < 0:
+        merged.setdefault(_CHAT_ID_KEY, recipient_id)
+        merged.pop(_USER_ID_KEY, None)
+    else:
+        merged.setdefault(_USER_ID_KEY, recipient_id)
+        merged.pop(_CHAT_ID_KEY, None)
+    return merged
+
+
+def recipient_resolution_from_subentry(
+    subentry: Any,
+    *,
+    hass: HomeAssistant | None = None,
+    entry_id: str | None = None,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Resolve recipient payload + diagnostics metadata from subentry."""
     data = getattr(subentry, "data", None)
     out: dict[str, Any] = dict(data) if data else {}
+    subentry_id = getattr(subentry, "subentry_id", None)
+    unique_id = getattr(subentry, "unique_id", None)
+    title = getattr(subentry, "title", None)
+    details: dict[str, Any] = {
+        "source": "unresolved",
+        "subentry_id": subentry_id,
+        "subentry_unique_id": unique_id,
+        "subentry_title": title,
+        "subentry_data": dict(out),
+        "storage_key": None,
+        "stored_recipient_id": None,
+        "resolved_recipient_id": None,
+    }
+    if entry_id and isinstance(subentry_id, str) and subentry_id.strip():
+        details["storage_key"] = recipient_storage_scope_key(entry_id, subentry_id)
+    if (
+        hass is not None
+        and entry_id
+        and isinstance(subentry_id, str)
+        and subentry_id.strip()
+    ):
+        stored = get_stored_recipient_id(hass, entry_id, subentry_id)
+        details["stored_recipient_id"] = stored
+        if stored is not None:
+            details["source"] = "storage"
+            details["resolved_recipient_id"] = stored
+            return _recipient_with_normalized_keys(stored, out), details
     rid_raw = out.get(CONF_RECIPIENT_ID)
     if rid_raw is not None and str(rid_raw).strip() != "":
         try:
-            if int(rid_raw) != 0:
-                return out
+            rid_i = int(rid_raw)
+            if rid_i != 0:
+                if (
+                    hass is not None
+                    and entry_id
+                    and isinstance(subentry_id, str)
+                    and subentry_id.strip()
+                ):
+                    set_stored_recipient_id(hass, entry_id, subentry_id, rid_i)
+                details["source"] = "subentry_data"
+                details["resolved_recipient_id"] = rid_i
+                return _recipient_with_normalized_keys(rid_i, out), details
         except (TypeError, ValueError):
             pass
-    fallback = _recipient_id_from_subentry_unique_id(getattr(subentry, "unique_id", None))
+    fallback = _recipient_id_from_subentry_unique_id(unique_id)
+    if fallback is None:
+        fallback = _recipient_id_from_subentry_title(title)
+        if fallback is not None:
+            details["source"] = "subentry_title"
+    else:
+        details["source"] = "subentry_unique_id"
     if fallback is not None:
-        merged = dict(out)
-        merged[CONF_RECIPIENT_ID] = fallback
-        return merged
-    return out
+        if (
+            hass is not None
+            and entry_id
+            and isinstance(subentry_id, str)
+            and subentry_id.strip()
+        ):
+            set_stored_recipient_id(hass, entry_id, subentry_id, fallback)
+        details["resolved_recipient_id"] = fallback
+        return _recipient_with_normalized_keys(fallback, out), details
+    return out, details
+
+
+def recipient_dict_from_subentry(
+    subentry: Any,
+    *,
+    hass: HomeAssistant | None = None,
+    entry_id: str | None = None,
+) -> dict[str, Any]:
+    """Данные получателя для API: data субпункта, при отсутствии id — из unique_id."""
+    resolved, _ = recipient_resolution_from_subentry(
+        subentry, hass=hass, entry_id=entry_id
+    )
+    return resolved
 
 
 async def _request_upload_url_json_with_retry(

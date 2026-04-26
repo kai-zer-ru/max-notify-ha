@@ -15,6 +15,7 @@ from custom_components.max_notify.const import (
 )
 from custom_components.max_notify.notify import (
     MaxNotifyEntity,
+    _recipient_preview,
     delete_last_outgoing_message,
     delete_message,
     delete_messages,
@@ -26,6 +27,7 @@ from custom_components.max_notify.notify import (
     upload_document_and_send,
     upload_image_and_send,
 )
+from custom_components.max_notify.message_state import set_stored_recipient_id
 from custom_components.max_notify.providers.notify_outbound import (
     _extract_message_id_from_messages_item,
     _extract_message_id_from_response,
@@ -34,6 +36,30 @@ from custom_components.max_notify.providers.notify_outbound import (
     _normalize_buttons_for_api,
     entity_send_plain_message,
 )
+
+
+class TestRecipientPreview:
+    """Краткая подпись получателя для атрибута recipient_preview."""
+
+    def test_user_from_recipient_id(self) -> None:
+        assert _recipient_preview({"recipient_id": 123}, "ignored") == "User 123"
+
+    def test_chat_from_recipient_id(self) -> None:
+        assert _recipient_preview({"recipient_id": -456}, "ignored") == "Chat -456"
+
+    def test_fallback_user_id(self) -> None:
+        assert _recipient_preview({"user_id": 99}, "t") == "User 99"
+
+    def test_fallback_chat_id(self) -> None:
+        assert _recipient_preview({"chat_id": -1}, "t") == "Chat -1"
+
+    def test_fallback_subentry_title(self) -> None:
+        assert _recipient_preview({}, "  My title  ") == "My title"
+
+    def test_unresolved(self) -> None:
+        assert _recipient_preview({}, None) == "Unresolved"
+        assert _recipient_preview({}, "") == "Unresolved"
+        assert _recipient_preview({}, "   ") == "Unresolved"
 
 
 class TestNormalizeButtonsForApi:
@@ -145,25 +171,87 @@ class TestRecipientDictFromSubentry:
         sub = MagicMock()
         sub.data = {CONF_RECIPIENT_ID: 3391555}
         sub.unique_id = "user_3391555"
-        assert recipient_dict_from_subentry(sub) == {CONF_RECIPIENT_ID: 3391555}
+        assert recipient_dict_from_subentry(sub) == {
+            CONF_RECIPIENT_ID: 3391555,
+            "user_id": 3391555,
+        }
 
     def test_fills_from_user_unique_id(self) -> None:
         sub = MagicMock()
         sub.data = {}
         sub.unique_id = "user_3391555"
-        assert recipient_dict_from_subentry(sub) == {CONF_RECIPIENT_ID: 3391555}
+        assert recipient_dict_from_subentry(sub) == {
+            CONF_RECIPIENT_ID: 3391555,
+            "user_id": 3391555,
+        }
 
     def test_fills_from_chat_unique_id(self) -> None:
         sub = MagicMock()
         sub.data = {}
         sub.unique_id = "chat_-73199518591043"
-        assert recipient_dict_from_subentry(sub) == {CONF_RECIPIENT_ID: -73199518591043}
+        assert recipient_dict_from_subentry(sub) == {
+            CONF_RECIPIENT_ID: -73199518591043,
+            "chat_id": -73199518591043,
+        }
+
+    def test_fills_from_legacy_prefixed_user_unique_id(self) -> None:
+        sub = MagicMock()
+        sub.data = {}
+        sub.unique_id = "notify_a161_ru_user_72936537541960"
+        assert recipient_dict_from_subentry(sub) == {
+            CONF_RECIPIENT_ID: 72936537541960,
+            "user_id": 72936537541960,
+        }
+
+    def test_fills_from_legacy_prefixed_chat_unique_id_without_minus(self) -> None:
+        sub = MagicMock()
+        sub.data = {}
+        sub.unique_id = "polling_2_chat_7371606622"
+        assert recipient_dict_from_subentry(sub) == {
+            CONF_RECIPIENT_ID: -7371606622,
+            "chat_id": -7371606622,
+        }
+
+    def test_fills_from_subentry_title_when_unique_id_is_unknown(self) -> None:
+        sub = MagicMock()
+        sub.data = {}
+        sub.unique_id = "legacy_unknown_pattern"
+        sub.title = "Chat -7371606622"
+        assert recipient_dict_from_subentry(sub) == {
+            CONF_RECIPIENT_ID: -7371606622,
+            "chat_id": -7371606622,
+        }
 
     def test_empty_without_unique_id(self) -> None:
         sub = MagicMock()
         sub.data = {}
         sub.unique_id = None
         assert recipient_dict_from_subentry(sub) == {}
+
+    def test_uses_stored_recipient_id_when_data_and_unique_are_invalid(self, hass) -> None:
+        sub = MagicMock()
+        sub.data = {}
+        sub.unique_id = "legacy_unknown_pattern"
+        sub.title = "Unknown"
+        sub.subentry_id = "sub-legacy-1"
+        set_stored_recipient_id(hass, "entry-1", "sub-legacy-1", -7371606622)
+        assert recipient_dict_from_subentry(
+            sub, hass=hass, entry_id="entry-1"
+        ) == {
+            CONF_RECIPIENT_ID: -7371606622,
+            "chat_id": -7371606622,
+        }
+
+    def test_stores_recipient_id_when_resolved_from_unique_id(self, hass) -> None:
+        sub = MagicMock()
+        sub.data = {}
+        sub.unique_id = "notify_a161_ru_user_72936537541960"
+        sub.subentry_id = "sub-legacy-2"
+        resolved = recipient_dict_from_subentry(sub, hass=hass, entry_id="entry-2")
+        assert resolved[CONF_RECIPIENT_ID] == 72936537541960
+        assert recipient_dict_from_subentry(
+            sub, hass=hass, entry_id="entry-2"
+        )[CONF_RECIPIENT_ID] == 72936537541960
 
 
 @pytest.mark.asyncio

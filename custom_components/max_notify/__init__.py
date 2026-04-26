@@ -25,6 +25,7 @@ from .const import (
     RECEIVE_MODE_WEBHOOK,
 )
 from .message_state import async_load_integration_store
+from .providers.notify_outbound import recipient_dict_from_subentry
 from .providers.registry import get_provider
 from .services import register_send_message_service
 from .updates import start_polling, stop_polling
@@ -146,6 +147,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if DOMAIN not in hass.data:
         hass.data[DOMAIN] = {}
     await async_load_integration_store(hass)
+    _hydrate_recipient_ids_from_subentries(hass, entry)
     debouncers = hass.data[DOMAIN]
     entry_id = entry.entry_id
     if entry_id not in debouncers:
@@ -190,6 +192,33 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         _LOGGER.warning("Failed to set up sensor platform for entry_id=%s: %s", entry.entry_id, e)
     _LOGGER.debug("async_setup_entry: forward done for entry_id=%s", entry.entry_id)
     return True
+
+
+def _hydrate_recipient_ids_from_subentries(
+    hass: HomeAssistant, entry: ConfigEntry
+) -> None:
+    """Resolve and persist recipient_id for each subentry on startup."""
+    subentries = getattr(entry, "subentries", None) or {}
+    migrated = 0
+    for subentry in subentries.values():
+        try:
+            recipient = recipient_dict_from_subentry(
+                subentry, hass=hass, entry_id=entry.entry_id
+            )
+            rid_raw = recipient.get("recipient_id")
+            if rid_raw is None:
+                continue
+            rid = int(rid_raw)
+            if rid != 0:
+                migrated += 1
+        except (TypeError, ValueError):
+            continue
+    if migrated:
+        _LOGGER.debug(
+            "Recipient storage hydration completed: entry_id=%s migrated=%s",
+            entry.entry_id,
+            migrated,
+        )
 
 
 async def _reload_entry(hass: HomeAssistant, entry_id: str) -> None:

@@ -25,8 +25,35 @@ from .providers.registry import (
 
 _LOGGER = logging.getLogger(__name__)
 
+
+def _recipient_preview(
+    recipient: dict[str, Any], subentry_title: str | None
+) -> str:
+    """Краткая строка для UI: кто получатель (user/chat/id или заголовок подзаписи)."""
+    rid_raw = recipient.get("recipient_id")
+    rid: int | None = None
+    try:
+        rid = int(rid_raw) if rid_raw is not None else None
+    except (TypeError, ValueError):
+        rid = None
+    if rid is not None:
+        return f"{'Chat' if rid < 0 else 'User'} {rid}"
+    uid = recipient.get("user_id")
+    if uid is not None:
+        return f"User {uid}"
+    cid = recipient.get("chat_id")
+    if cid is not None:
+        return f"Chat {cid}"
+    if isinstance(subentry_title, str) and subentry_title.strip():
+        return subentry_title.strip()
+    return "Unresolved"
+
+
 # Вспомогательные функции для тестов и внутренних вызовов (реализация в providers/notify_outbound).
-from .providers.notify_outbound import recipient_dict_from_subentry
+from .providers.notify_outbound import (
+    recipient_dict_from_subentry,
+    recipient_resolution_from_subentry,
+)
 
 
 async def delete_message(
@@ -298,8 +325,15 @@ async def async_setup_entry(
     for subentry_id, subentry in subentries.items():
         if not isinstance(subentry, ConfigSubentry):
             continue
-        recipient = recipient_dict_from_subentry(subentry)
-        entity = MaxNotifyEntity(entry, recipient=recipient, subentry=subentry)
+        recipient, recipient_meta = recipient_resolution_from_subentry(
+            subentry, hass=hass, entry_id=entry.entry_id
+        )
+        entity = MaxNotifyEntity(
+            entry,
+            recipient=recipient,
+            subentry=subentry,
+            recipient_meta=recipient_meta,
+        )
         _LOGGER.debug(
             "Adding notify entity from subentry %s: %s", subentry_id, entity.name
         )
@@ -321,18 +355,39 @@ class MaxNotifyEntity(NotifyEntity):
         entry: ConfigEntry,
         recipient: dict[str, Any],
         subentry: ConfigSubentry,
+        recipient_meta: dict[str, Any] | None = None,
     ) -> None:
         self._entry = entry
         self._recipient = recipient
         self.subentry = subentry
+        self._recipient_meta = dict(recipient_meta or {})
         self._attr_unique_id = f"{entry.entry_id}_{subentry.subentry_id}"
         self._attr_name = subentry.title
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, entry.entry_id)},
             name=entry.title,
         )
+        rid_raw = recipient.get("recipient_id")
+        rid: int | None = None
+        try:
+            rid = int(rid_raw) if rid_raw is not None else None
+        except (TypeError, ValueError):
+            rid = None
+        rtype = "chat" if rid is not None and rid < 0 else "user" if rid else "unknown"
         self._attr_extra_state_attributes = {
             "integration_config_path": f"/config/integrations/integration/{entry.entry_id}",
+            "recipient_preview": _recipient_preview(recipient, subentry.title),
+            "recipient_id": rid,
+            "recipient_type": rtype,
+            "resolved_user_id": recipient.get("user_id"),
+            "resolved_chat_id": recipient.get("chat_id"),
+            "recipient_resolution_source": self._recipient_meta.get("source"),
+            "recipient_storage_key": self._recipient_meta.get("storage_key"),
+            "stored_recipient_id": self._recipient_meta.get("stored_recipient_id"),
+            "subentry_id": self._recipient_meta.get("subentry_id"),
+            "subentry_unique_id": self._recipient_meta.get("subentry_unique_id"),
+            "subentry_title": self._recipient_meta.get("subentry_title"),
+            "subentry_data_raw": self._recipient_meta.get("subentry_data"),
         }
 
     async def async_send_message(self, message: str, title: str | None = None) -> None:

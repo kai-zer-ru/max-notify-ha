@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import asyncio
 from copy import deepcopy
 from typing import Any
 
@@ -23,6 +24,7 @@ SIGNAL_MESSAGE_STATE_UPDATED = f"{DOMAIN}_message_state_updated"
 # Ключи внутри JSON в Store (обратная совместимость: раньше в корне лежали только messages).
 _PERSIST_MESSAGES = "messages"
 _PERSIST_POLLING_MARKERS = "polling_markers"
+_PERSIST_RECIPIENT_IDS = "recipient_ids"
 
 
 def message_state_scope_key(entry_id: str, recipient_id: int | None) -> str:
@@ -75,21 +77,49 @@ def _build_persist_payload(hass: HomeAssistant) -> dict[str, Any]:
     domain = hass.data.get(DOMAIN) or {}
     messages = deepcopy(domain.get(STATE_KEY) or {})
     raw_markers = domain.get("_polling_markers") or {}
+    raw_recipients = domain.get("_recipient_ids") or {}
     markers: dict[str, Any] = {}
+    recipients: dict[str, int] = {}
     for eid, marker in raw_markers.items():
         if marker is None:
             continue
         markers[str(eid)] = _json_safe_value(marker)
-    return {_PERSIST_MESSAGES: messages, _PERSIST_POLLING_MARKERS: markers}
+    for key, rid in raw_recipients.items():
+        try:
+            rid_i = int(rid)
+        except (TypeError, ValueError):
+            continue
+        if rid_i == 0:
+            continue
+        recipients[str(key)] = rid_i
+    return {
+        _PERSIST_MESSAGES: messages,
+        _PERSIST_POLLING_MARKERS: markers,
+        _PERSIST_RECIPIENT_IDS: recipients,
+    }
 
 
-def _split_loaded_blob(loaded: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
+def _split_loaded_blob(
+    loaded: dict[str, Any],
+) -> tuple[dict[str, Any], dict[str, Any], dict[str, int]]:
     if _PERSIST_MESSAGES in loaded and isinstance(loaded[_PERSIST_MESSAGES], dict):
         msgs = loaded[_PERSIST_MESSAGES]
         mk = loaded.get(_PERSIST_POLLING_MARKERS)
         markers = mk if isinstance(mk, dict) else {}
-        return msgs, markers
-    return loaded, {}
+        rr = loaded.get(_PERSIST_RECIPIENT_IDS)
+        raw_recipients = rr if isinstance(rr, dict) else {}
+        recipients: dict[str, int] = {}
+        for key, value in raw_recipients.items():
+            if not isinstance(key, str):
+                continue
+            try:
+                rid = int(value)
+            except (TypeError, ValueError):
+                continue
+            if rid != 0:
+                recipients[key] = rid
+        return msgs, markers, recipients
+    return loaded, {}, {}
 
 
 def schedule_integration_persist(hass: HomeAssistant) -> None:
@@ -97,7 +127,11 @@ def schedule_integration_persist(hass: HomeAssistant) -> None:
     fn = getattr(hass, "async_create_task", None)
     if not callable(fn):
         return
-    fn(_async_persist_integration_state(hass))
+    coro = _async_persist_integration_state(hass)
+    task = fn(coro)
+    # Tests may provide mocked async_create_task objects that do not schedule coroutine.
+    if task is coro or not isinstance(task, asyncio.Task):
+        coro.close()
 
 
 async def _async_persist_integration_state(hass: HomeAssistant) -> None:
@@ -130,7 +164,7 @@ async def async_load_integration_store(hass: HomeAssistant) -> None:
         loaded = None
     if not isinstance(loaded, dict):
         return
-    messages, markers = _split_loaded_blob(loaded)
+    messages, markers, recipients = _split_loaded_blob(loaded)
     for scope_key, payload in messages.items():
         if not isinstance(scope_key, str) or not isinstance(payload, dict):
             continue
@@ -151,6 +185,8 @@ async def async_load_integration_store(hass: HomeAssistant) -> None:
             continue
         if marker is not None:
             pm[eid] = marker
+    recipient_store = _recipient_ids_dict(hass)
+    recipient_store.update(recipients)
 
 
 # Обратная совместимость имён для вызовов из __init__.
@@ -187,4 +223,49 @@ def set_last_incoming_message_id(
     scope = message_state_scope_key(entry_id, recipient_id)
     _entry_state(hass, scope)["last_incoming_message_id"] = str(message_id)
     async_dispatcher_send(hass, f"{SIGNAL_MESSAGE_STATE_UPDATED}_{scope}")
+    schedule_integration_persist(hass)
+
+
+def recipient_storage_scope_key(entry_id: str, subentry_id: str) -> str:
+    """Persistent mapping key for recipient_id per subentry."""
+    return f"{entry_id}|{subentry_id}"
+
+
+def _recipient_ids_dict(hass: HomeAssistant) -> dict[str, int]:
+    if DOMAIN not in hass.data:
+        hass.data[DOMAIN] = {}
+    store = hass.data[DOMAIN].setdefault("_recipient_ids", {})
+    return store
+
+
+def get_stored_recipient_id(
+    hass: HomeAssistant, entry_id: str, subentry_id: str
+) -> int | None:
+    """Read recipient_id persisted for config subentry."""
+    key = recipient_storage_scope_key(entry_id, subentry_id)
+    raw = _recipient_ids_dict(hass).get(key)
+    try:
+        rid = int(raw)
+    except (TypeError, ValueError):
+        return None
+    return rid if rid != 0 else None
+
+
+def set_stored_recipient_id(
+    hass: HomeAssistant, entry_id: str, subentry_id: str, recipient_id: int | None
+) -> None:
+    """Persist recipient_id for config subentry if it changed."""
+    if recipient_id is None:
+        return
+    try:
+        rid = int(recipient_id)
+    except (TypeError, ValueError):
+        return
+    if rid == 0:
+        return
+    key = recipient_storage_scope_key(entry_id, subentry_id)
+    store = _recipient_ids_dict(hass)
+    if store.get(key) == rid:
+        return
+    store[key] = rid
     schedule_integration_persist(hass)
