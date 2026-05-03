@@ -61,8 +61,8 @@ async def async_step_user_official(
 ) -> FlowResult:
     """Официальный API Max: токен, формат сообщения и режим приёма в одном шаге."""
     _LOGGER.debug(
-        "async_step_user_official: user_input=%s",
-        "present" if user_input is not None else "None",
+        "async_step_user_official: ввод=%s",
+        "есть" if user_input is not None else "нет",
     )
     if user_input is None:
         try:
@@ -116,7 +116,7 @@ async def async_step_user_official(
             or RECEIVE_MODE_SEND_ONLY
         )
         _LOGGER.debug(
-            "Token submitted: len=%s receive_mode=%s",
+            "Токен отправлен: длина=%s режим_приёма=%s",
             len(flow._token) if flow._token else 0,
             flow._receive_mode,
         )

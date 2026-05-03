@@ -14,7 +14,9 @@ from custom_components.max_notify.providers.updates_service import (
     _extract_message_id,
     _get_callback_payload,
     _parse_json_response_text,
+    _should_fire_command_event,
     _update_dedup_key,
+    normalize_command_token,
 )
 
 
@@ -91,6 +93,55 @@ class TestExtractEventData:
         assert data["update_type"] == "message_callback"
         assert data["callback_data"] == "light_on"
         assert data["command"] == "light_on"
+
+    def test_message_created_body_command_field(self, mock_entry) -> None:
+        update = {
+            "update_type": "message_created",
+            "message": {
+                "body": {"text": "", "command": "/report"},
+                "recipient": {"chat_id": -5},
+                "message_id": "msg-cmd",
+                "sender": {"user_id": 9},
+            },
+        }
+        data = _extract_event_data(mock_entry, update)
+        assert data["update_type"] == "slash_command"
+        assert data["command"] == "report"
+
+
+class TestNormalizeCommandToken:
+    """Тесты normalize_command_token."""
+
+    def test_strips_slash_and_lower(self) -> None:
+        assert normalize_command_token("/Report") == "report"
+        assert normalize_command_token("report") == "report"
+
+    def test_none_empty(self) -> None:
+        assert normalize_command_token(None) is None
+        assert normalize_command_token("") is None
+        assert normalize_command_token("   ") is None
+
+
+class TestShouldFireCommandEvent:
+    """Тесты allowlist и slash_command."""
+
+    def test_callbacks_ignore_allowlist(self) -> None:
+        entry = MagicMock()
+        entry.options = {"commands": [{"name": "only_this"}]}
+        assert (
+            _should_fire_command_event(entry, "other", "message_callback") is True
+        )
+
+    def test_allowlist_filters_slash_command(self) -> None:
+        entry = MagicMock()
+        entry.options = {"commands": [{"name": "/report"}, {"name": "ping"}]}
+        assert _should_fire_command_event(entry, "report", "slash_command") is True
+        assert _should_fire_command_event(entry, "help", "slash_command") is False
+
+    def test_no_allowlist_allows_slash(self) -> None:
+        entry = MagicMock()
+        entry.options = {}
+        assert _should_fire_command_event(entry, "anything", "slash_command") is True
 
 
 class TestExtractSlashCommandFromText:

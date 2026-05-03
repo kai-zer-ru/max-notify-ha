@@ -36,3 +36,9 @@ class TestNotifyA161Updates:
         updates = extract_updates_from_payload(payload)
         assert len(updates) == 1
         assert updates[0]["message"]["body"]["text"] == "wrapped"
+
+    def test_normalize_reply_command_when_no_text(self) -> None:
+        raw = {"reply": {"command": "/report", "user_id": 7}}
+        normalized = normalize_reply_update(raw)
+        assert normalized is not None
+        assert normalized["message"]["body"]["text"] == "/report"

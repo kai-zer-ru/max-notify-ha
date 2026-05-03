@@ -54,8 +54,8 @@ class MaxNotifyRecipientSubentryFlow(ConfigSubentryFlow):
         prov = get_provider(entry)
         if not prov.is_add_chat_available:
             _LOGGER.warning(
-                "recipient_subentry: blocked entry_id=%s provider=%s label=%r "
-                "is_add_chat_available=%s stored_integration_type=%r title=%r",
+                "recipient_subentry: заблокировано запись=%s провайдер=%s метка=%r "
+                "добавление_чата=%s stored_integration_type=%r заголовок=%r",
                 entry.entry_id,
                 prov.integration_type,
                 prov.label,
@@ -85,7 +85,7 @@ class MaxNotifyRecipientSubentryFlow(ConfigSubentryFlow):
                         register_send_message_service(self.hass)
                         title = f"User {n}" if n > 0 else f"Chat {n}"
                         _LOGGER.debug(
-                            "Creating recipient subentry for entry_id=%s title=%s",
+                            "Создание чата (subentry): запись=%s заголовок=%s",
                             entry.entry_id,
                             title,
                         )

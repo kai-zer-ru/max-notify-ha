@@ -68,7 +68,11 @@ from .const import (
     URL_AUTH_TYPE_BEARER,
     URL_AUTH_TYPE_DIGEST,
 )
-from .providers.registry import get_capabilities, raise_provider_feature_not_supported
+from .providers.registry import (
+    get_capabilities,
+    get_provider,
+    raise_provider_feature_not_supported,
+)
 from .schemas import (
     SERVICE_DELETE_MESSAGE_SCHEMA,
     SERVICE_DELETE_LAST_OUTGOING_MESSAGE_SCHEMA,
@@ -105,7 +109,9 @@ def _parse_date_token(date_token: str, field_name: str) -> date:
             return date(y, mo, d)
         except ValueError as exc:
             raise ServiceValidationError(
-                f"Invalid calendar date in '{field_name}'"
+                translation_domain=DOMAIN,
+                translation_key="service_invalid_calendar_date",
+                translation_placeholders={"field_name": field_name},
             ) from exc
     m = _DMY_RE.match(token)
     if m:
@@ -114,11 +120,14 @@ def _parse_date_token(date_token: str, field_name: str) -> date:
             return date(y, mo, d)
         except ValueError as exc:
             raise ServiceValidationError(
-                f"Invalid calendar date in '{field_name}'"
+                translation_domain=DOMAIN,
+                translation_key="service_invalid_calendar_date",
+                translation_placeholders={"field_name": field_name},
             ) from exc
     raise ServiceValidationError(
-        f"Invalid '{field_name}' date format. Use e.g. 2026-10-23, 2026.10.23, "
-        f"2026/10/23, 23.10.2026, 23-10-2026, 23/10/2026 or Unix timestamp."
+        translation_domain=DOMAIN,
+        translation_key="service_invalid_date_format_expected",
+        translation_placeholders={"field_name": field_name},
     )
 
 
@@ -126,7 +135,10 @@ def _split_date_time_portion(raw: str) -> tuple[str, str | None]:
     """Дата и опционально время (после T или первого пробела)."""
     raw = raw.strip()
     if not raw:
-        raise ServiceValidationError("Date/time value cannot be empty")
+        raise ServiceValidationError(
+            translation_domain=DOMAIN,
+            translation_key="service_datetime_empty",
+        )
     if "T" in raw:
         dpart, tpart = raw.split("T", 1)
         tpart = tpart.strip()
@@ -151,10 +163,16 @@ def _split_time_core_and_tz(time_rest: str) -> tuple[str, str | None]:
 def _hms_core_to_iso_fragment(core: str) -> str:
     m = _HMS_CORE_RE.match(core.strip())
     if not m:
-        raise ServiceValidationError("Invalid time format (use HH:MM:SS or HH-MM-SS)")
+        raise ServiceValidationError(
+            translation_domain=DOMAIN,
+            translation_key="service_invalid_time_format",
+        )
     h, mi, sec = int(m.group(1)), int(m.group(2)), int(m.group(3))
     if h > 23 or mi > 59 or sec > 59:
-        raise ServiceValidationError("Invalid time (hour/minute/second out of range)")
+        raise ServiceValidationError(
+            translation_domain=DOMAIN,
+            translation_key="service_invalid_clock_values",
+        )
     return f"{h:02d}:{mi:02d}:{sec:02d}"
 
 
@@ -176,7 +194,9 @@ def _service_datetime_string_to_ms(
     if date_only:
         if trest is not None and trest.strip():
             raise ServiceValidationError(
-                f"'{field_name}' must be a calendar date only, without time"
+                translation_domain=DOMAIN,
+                translation_key="service_date_without_time_only",
+                translation_placeholders={"field_name": field_name},
             )
         if is_to_bound:
             dt = datetime(d.year, d.month, d.day, 23, 59, 59, tzinfo=local_tz)
@@ -193,7 +213,9 @@ def _service_datetime_string_to_ms(
             dt = datetime.fromisoformat(iso)
         except ValueError as exc:
             raise ServiceValidationError(
-                f"Invalid '{field_name}' date/time value"
+                translation_domain=DOMAIN,
+                translation_key="service_invalid_datetime_value",
+                translation_placeholders={"field_name": field_name},
             ) from exc
         if dt.tzinfo is None:
             dt = dt.replace(tzinfo=local_tz)
@@ -230,7 +252,7 @@ def _sanitize_service_data_for_log(data: Mapping[str, Any]) -> dict[str, Any]:
 
 def _log_service_started(service_name: str, data: Mapping[str, Any]) -> None:
     _LOGGER.info(
-        "%s.%s called with data=%s",
+        "%s.%s вызван, данные=%s",
         DOMAIN,
         service_name,
         _sanitize_service_data_for_log(data),
@@ -273,8 +295,8 @@ def _normalize_url_auth_data(
 
     if any_auth_input and not auth_type:
         raise ServiceValidationError(
-            "url_auth_type is required when URL credentials or auth parameters are provided. "
-            "Set url_auth_type to one of: basic, digest, bearer."
+            translation_domain=DOMAIN,
+            translation_key="service_url_auth_need_type",
         )
 
     if auth_type is None:
@@ -283,24 +305,27 @@ def _normalize_url_auth_data(
     if auth_type == URL_AUTH_TYPE_BEARER:
         if not auth_token:
             raise ServiceValidationError(
-                "url_auth_token is required when url_auth_type is bearer"
+                translation_domain=DOMAIN,
+                translation_key="service_url_auth_bearer_need_token",
             )
     else:
         if auth_token:
             raise ServiceValidationError(
-                "url_auth_token can only be used with url_auth_type=bearer"
+                translation_domain=DOMAIN,
+                translation_key="service_url_auth_token_bearer_only",
             )
 
     if auth_type in (URL_AUTH_TYPE_BASIC, URL_AUTH_TYPE_DIGEST):
         if bool(auth_login) ^ bool(auth_password):
             raise ServiceValidationError(
-                "Both url_auth_login and url_auth_password must be set together"
+                translation_domain=DOMAIN,
+                translation_key="service_url_auth_login_password_pairs",
             )
     else:
         if auth_login or auth_password:
             raise ServiceValidationError(
-                "url_auth_login and url_auth_password can only be used with "
-                "url_auth_type=basic or url_auth_type=digest"
+                translation_domain=DOMAIN,
+                translation_key="service_url_auth_basic_digest_only_login_password",
             )
 
     return auth_type, auth_login, auth_password, auth_token
@@ -311,11 +336,17 @@ def _extract_service_files(data: dict[str, Any]) -> list[str]:
     if CONF_FILES in data:
         files_raw = data.get(CONF_FILES)
         if not isinstance(files_raw, list):
-            raise ServiceValidationError("files must be a list")
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="service_files_not_list",
+            )
         files: list[str] = []
         for item in files_raw:
             if not isinstance(item, str):
-                raise ServiceValidationError("files must contain only strings")
+                raise ServiceValidationError(
+                    translation_domain=DOMAIN,
+                    translation_key="service_files_items_not_strings",
+                )
             val = item.strip()
             if val:
                 files.append(val)
@@ -323,7 +354,10 @@ def _extract_service_files(data: dict[str, Any]) -> list[str]:
         file_one = str(data["file"]).strip()
         files = [file_one] if file_one else []
     if not files:
-        raise ServiceValidationError("At least one file is required")
+        raise ServiceValidationError(
+            translation_domain=DOMAIN,
+            translation_key="service_files_none_given",
+        )
     return files
 
 
@@ -334,7 +368,7 @@ def _ensure_capability(entry: ConfigEntry, ok: bool, *, feature: str) -> None:
 
 def register_send_message_service(hass: HomeAssistant) -> None:
     """Зарегистрировать службы max_notify (сообщение, всем, фото, документ, видео, удаление, правка)."""
-    _LOGGER.debug("Registering MaxNotify services")
+    _LOGGER.debug("Регистрация служб MaxNotify")
     hass.services.async_register(
         DOMAIN,
         SERVICE_SEND_MESSAGE,
@@ -385,7 +419,7 @@ def register_send_message_service(hass: HomeAssistant) -> None:
         schema=SERVICE_EDIT_MESSAGE_SCHEMA,
     )
     _LOGGER.info(
-        "Registered services %s.%s, %s.%s, %s.%s, %s.%s, %s.%s, %s.%s, %s.%s, %s.%s",
+        "Зарегистрированы службы %s.%s, %s.%s, %s.%s, %s.%s, %s.%s, %s.%s, %s.%s, %s.%s",
         DOMAIN,
         SERVICE_SEND_MESSAGE,
         DOMAIN,
@@ -468,11 +502,11 @@ def _resolve_legacy_notify_entity_id(
         if rid in legacy_candidates:
             matches.append(ent.entity_id)
     if len(matches) == 1:
-        _LOGGER.info("Resolved legacy notify entity_id %s -> %s", entity_id, matches[0])
+        _LOGGER.info("Устаревшая сущность notify сопоставлена: %s → %s", entity_id, matches[0])
         return matches[0]
     if len(matches) > 1:
         _LOGGER.warning(
-            "Legacy notify entity_id %s is ambiguous (matches=%s)", entity_id, matches
+            "Устаревшая сущность notify неоднозначна: %s (совпадения=%s)", entity_id, matches
         )
     return None
 
@@ -485,7 +519,7 @@ def _resolve_entity_ids(
 ) -> list[str]:
     """Сущности notify MaxNotify: явный список или все сущности записи по config_entry_id."""
     _LOGGER.debug(
-        "_resolve_entity_ids: entity_ids=%s, config_entry_id=%s",
+        "_resolve_entity_ids: сущности=%s, запись_конфигурации=%s",
         entity_ids,
         config_entry_id,
     )
@@ -544,7 +578,7 @@ def _resolve_entity_ids(
             translation_placeholders={"config_entry_id": resolved_entry_id},
         )
 
-    _LOGGER.debug("_resolve_entity_ids: resolved entity_ids=%s", entity_ids_out)
+    _LOGGER.debug("_resolve_entity_ids: итог=%s", entity_ids_out)
     return entity_ids_out
 
 
@@ -591,6 +625,8 @@ async def async_delete_message_handler(service: ServiceCall) -> ServiceResponse:
     )
     caps = get_capabilities(entry)
     _ensure_capability(entry, caps.supports_delete_message, feature="delete_message")
+    if use_period:
+        get_provider(entry).ensure_can_delete_message_by_period(entry)
 
     async def _delete_batch(entry_obj: ConfigEntry, ids: list[str]) -> int:
         if not ids:
@@ -598,7 +634,7 @@ async def async_delete_message_handler(service: ServiceCall) -> ServiceResponse:
         deleted_list = await delete_messages(hass, entry_obj, ids)
         for message_id in deleted_list:
             _LOGGER.info(
-                "%s.%s delete result: entry_id=%s message_id=%s deleted=True",
+                "%s.%s удаление: запись=%s message_id=%s удалено=True",
                 DOMAIN,
                 SERVICE_DELETE_MESSAGE,
                 entry_obj.entry_id,
@@ -622,7 +658,7 @@ async def async_delete_message_handler(service: ServiceCall) -> ServiceResponse:
     if not use_period:
         if not message_ids:
             _LOGGER.info(
-                "%s.%s no messages found for deletion",
+                "%s.%s сообщений для удаления не найдено",
                 DOMAIN,
                 SERVICE_DELETE_MESSAGE,
             )
@@ -668,8 +704,8 @@ async def async_delete_message_handler(service: ServiceCall) -> ServiceResponse:
             # Protect from endless loop if API keeps returning same messages.
             if deleted_ok == 0:
                 _LOGGER.warning(
-                    "%s.%s period delete made no progress; stopping loop "
-                    "(entry_id=%s recipient=%s batch_size=%s)",
+                    "%s.%s удаление по периоду не продвигается; остановка цикла "
+                    "(запись=%s получатель=%s размер_пакета=%s)",
                     DOMAIN,
                     SERVICE_DELETE_MESSAGE,
                     entry_for_entity.entry_id,
@@ -732,12 +768,20 @@ def _coerce_service_datetime_to_unix(
     value: Any, *, field_name: str, is_to_bound: bool
 ) -> int:
     if value is None:
-        raise ServiceValidationError(f"'{field_name}' cannot be null")
+        raise ServiceValidationError(
+            translation_domain=DOMAIN,
+            translation_key="service_field_cannot_be_null",
+            translation_placeholders={"field_name": field_name},
+        )
     if isinstance(value, (int, float)):
         return _ms_normalize(int(value))
     raw = str(value).strip()
     if not raw:
-        raise ServiceValidationError(f"'{field_name}' cannot be empty")
+        raise ServiceValidationError(
+            translation_domain=DOMAIN,
+            translation_key="service_field_cannot_be_empty",
+            translation_placeholders={"field_name": field_name},
+        )
     if raw.lstrip("-").isdigit():
         return _ms_normalize(int(raw))
     return _service_datetime_string_to_ms(
@@ -755,7 +799,11 @@ def _day_bounds_ms_from_delete_date(value: Any, *, field_name: str) -> tuple[int
     elif isinstance(value, str):
         raw = str(value).strip()
         if not raw:
-            raise ServiceValidationError(f"'{field_name}' cannot be empty")
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="service_field_cannot_be_empty",
+                translation_placeholders={"field_name": field_name},
+            )
         if raw.lstrip("-").isdigit():
             ts = _ms_normalize(int(raw))
             day_ref = datetime.fromtimestamp(ts / 1000, tz=timezone.utc).astimezone(
@@ -766,12 +814,16 @@ def _day_bounds_ms_from_delete_date(value: Any, *, field_name: str) -> tuple[int
             dstr, trest = _split_date_time_portion(raw)
             if trest is not None and trest.strip():
                 raise ServiceValidationError(
-                    f"'{field_name}' must be a calendar date only, without time"
+                    translation_domain=DOMAIN,
+                    translation_key="service_date_without_time_only",
+                    translation_placeholders={"field_name": field_name},
                 )
             d = _parse_date_token(dstr, field_name)
     else:
         raise ServiceValidationError(
-            f"Invalid '{field_name}' type. Use a date string or Unix timestamp."
+            translation_domain=DOMAIN,
+            translation_key="service_delete_date_bad_type",
+            translation_placeholders={"field_name": field_name},
         )
     start = datetime(d.year, d.month, d.day, 0, 0, 0, tzinfo=local_tz)
     end = datetime(d.year, d.month, d.day, 23, 59, 59, tzinfo=local_tz)
@@ -837,7 +889,7 @@ async def async_delete_last_outgoing_message_handler(service: ServiceCall) -> No
         scan_count=scan_count,
     )
     _LOGGER.info(
-        "%s.%s result: entry_id=%s recipient=%s scan_count=%s deleted=%s",
+        "%s.%s результат: запись=%s получатель=%s глубина_поиска=%s удалено=%s",
         DOMAIN,
         SERVICE_DELETE_LAST_OUTGOING_MESSAGE,
         entry.entry_id,
@@ -896,7 +948,7 @@ async def async_edit_message_handler(service: ServiceCall) -> None:
         format=data.get("format"),
     )
     _LOGGER.info(
-        "%s.%s result: entry_id=%s message_id=%s edited=%s",
+        "%s.%s результат: запись=%s message_id=%s изменено=%s",
         DOMAIN,
         SERVICE_EDIT_MESSAGE,
         entry.entry_id,
@@ -942,7 +994,48 @@ def _get_entry_for_delete_edit(
     config_entry_id: str | None,
     entity_ids: list[str] | None = None,
 ) -> ConfigEntry:
-    """Запись конфигурации для delete/edit (нужен только токен). Бросает ServiceValidationError."""
+    """Запись конфигурации для delete/edit (нужен только токен). Бросает ServiceValidationError.
+
+    Если переданы entity_id, запись выводится из сущностей; при дополнительном
+    config_entry_id он должен совпадать (иначе DELETE уйдёт с чужим токеном).
+    """
+    reg = er.async_get(hass)
+
+    if entity_ids:
+        resolved = _resolve_entity_ids(
+            hass,
+            entity_ids=entity_ids,
+            config_entry_id=config_entry_id,
+        )
+        entry_ids: set[str] = set()
+        for eid in resolved:
+            entity_entry = reg.async_get(eid)
+            if entity_entry and entity_entry.config_entry_id:
+                entry_ids.add(entity_entry.config_entry_id)
+        if len(entry_ids) != 1:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="missing_config_entry_id",
+            )
+        derived_id = next(iter(entry_ids))
+        if config_entry_id and config_entry_id != derived_id:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="config_entry_entity_mismatch",
+                translation_placeholders={
+                    "config_entry_id": config_entry_id,
+                    "resolved_entry_id": derived_id,
+                },
+            )
+        entry = hass.config_entries.async_get_entry(derived_id)
+        if not entry or entry.domain != DOMAIN:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="invalid_config_entry",
+                translation_placeholders={"config_entry_id": derived_id},
+            )
+        return entry
+
     if config_entry_id:
         entry = hass.config_entries.async_get_entry(config_entry_id)
         if not entry or entry.domain != DOMAIN:
@@ -952,26 +1045,6 @@ def _get_entry_for_delete_edit(
                 translation_placeholders={"config_entry_id": config_entry_id},
             )
         return entry
-    if entity_ids:
-        resolved = _resolve_entity_ids(
-            hass,
-            entity_ids=entity_ids,
-            config_entry_id=None,
-        )
-        reg = er.async_get(hass)
-        entry_ids: set[str] = set()
-        for eid in resolved:
-            entity_entry = reg.async_get(eid)
-            if entity_entry and entity_entry.config_entry_id:
-                entry_ids.add(entity_entry.config_entry_id)
-        if len(entry_ids) == 1:
-            entry = hass.config_entries.async_get_entry(next(iter(entry_ids)))
-            if entry and entry.domain == DOMAIN:
-                return entry
-        raise ServiceValidationError(
-            translation_domain=DOMAIN,
-            translation_key="missing_config_entry_id",
-        )
     entries = hass.config_entries.async_entries(DOMAIN)
     if len(entries) == 1:
         return entries[0]
@@ -996,8 +1069,8 @@ async def async_send_message_handler(service: ServiceCall) -> None:
     config_entry_id = data.get(CONF_CONFIG_ENTRY_ID)
 
     _LOGGER.debug(
-        "async_send_message_handler: message_len=%s, title=%s, entity_ids=%s, "
-        "config_entry_id=%s, buttons_present=%s",
+        "async_send_message_handler: длина_текста=%s есть_заголовок=%s сущности=%s "
+        "запись=%s есть_кнопки=%s",
         len(message) if isinstance(message, str) else None,
         bool(title),
         entity_ids,
@@ -1098,7 +1171,7 @@ async def async_send_message_handler(service: ServiceCall) -> None:
             notify=notify_flag,
         )
     _LOGGER.info(
-        "%s.%s finished: targets=%s with_keyboard=%s without_keyboard=%s",
+        "%s.%s завершено: целей=%s с_клавиатурой=%s без_клавиатуры=%s",
         DOMAIN,
         SERVICE_SEND_MESSAGE,
         len(resolved),
@@ -1121,7 +1194,8 @@ async def async_send_text_to_all_handler(service: ServiceCall) -> None:
 
     entries = hass.config_entries.async_entries(DOMAIN)
     _LOGGER.debug(
-        "async_send_text_to_all_handler: message_len=%s title=%s format=%s send_keyboard=%s buttons_present=%s entries=%s",
+        "async_send_text_to_all_handler: длина_текста=%s заголовок=%s формат=%s "
+        "клавиатура=%s кнопки=%s записей=%s",
         len(message) if isinstance(message, str) else None,
         bool(title),
         message_format,
@@ -1130,7 +1204,7 @@ async def async_send_text_to_all_handler(service: ServiceCall) -> None:
         len(entries),
     )
     if not entries:
-        _LOGGER.warning("send_text_to_all: no %s config entries configured", DOMAIN)
+        _LOGGER.warning("send_text_to_all: нет записей конфигурации %s", DOMAIN)
         return
 
     total_recipients = 0
@@ -1140,7 +1214,7 @@ async def async_send_text_to_all_handler(service: ServiceCall) -> None:
         subentries = getattr(entry, "subentries", None) or {}
         if not subentries:
             _LOGGER.debug(
-                "send_text_to_all: skip entry_id=%s (no subentries)", entry.entry_id
+                "send_text_to_all: пропуск записи=%s (нет чатов)", entry.entry_id
             )
             continue
         all_buttons = resolve_service_inline_keyboard(
@@ -1150,7 +1224,7 @@ async def async_send_text_to_all_handler(service: ServiceCall) -> None:
             buttons_raw=data.get("buttons"),
         )
         _LOGGER.debug(
-            "send_text_to_all: entry_id=%s title=%s recipients=%s with_buttons=%s",
+            "send_text_to_all: запись=%s заголовок=%s получателей=%s кнопки=%s",
             entry.entry_id,
             entry.title,
             len(subentries),
@@ -1197,7 +1271,7 @@ async def async_send_text_to_all_handler(service: ServiceCall) -> None:
             except Exception as e:
                 failed_sends += 1
                 _LOGGER.error(
-                    "send_text_to_all: failed for entry_id=%s recipient=%s: %s",
+                    "send_text_to_all: ошибка записи=%s получатель=%s: %s",
                     entry.entry_id,
                     dict(rec),
                     e,
@@ -1205,7 +1279,7 @@ async def async_send_text_to_all_handler(service: ServiceCall) -> None:
                 )
 
     _LOGGER.info(
-        "send_text_to_all: done (recipients=%s ok=%s failed=%s)",
+        "send_text_to_all: готово (получателей=%s успешно=%s ошибок=%s)",
         total_recipients,
         ok_sends,
         failed_sends,
@@ -1232,9 +1306,9 @@ async def _send_photo(
     config_entry_id = data.get(CONF_CONFIG_ENTRY_ID)
 
     _LOGGER.debug(
-        "_send_photo: file=%s, files_count=%s, caption_present=%s, "
-        "entity_ids=%s, config_entry_id=%s, count_requests=%s, "
-        "disable_ssl=%s, auth_type=%s, buttons_present=%s",
+        "_send_photo: файл=%s, число_файлов=%s есть_подпись=%s "
+        "сущности=%s запись=%s попыток=%s "
+        "ssl_отключен=%s тип_авторизации=%s кнопки=%s",
         file_paths_or_urls[0],
         len(file_paths_or_urls),
         bool(caption),
@@ -1260,7 +1334,7 @@ async def _send_photo(
     for eid in resolved:
         entity_entry = reg.async_get(eid)
         if not entity_entry or not entity_entry.config_entry_id or not entity_entry.config_subentry_id:
-            _LOGGER.warning("Skip entity %s: no config entry/subentry", eid)
+            _LOGGER.warning("Пропуск сущности %s: нет записи или чата", eid)
             continue
         entry = hass.config_entries.async_get_entry(entity_entry.config_entry_id)
         if not entry or entry.domain != DOMAIN:
@@ -1307,11 +1381,15 @@ async def _send_document(
     _log_service_started(SERVICE_SEND_DOCUMENT, data)
     if CONF_FILES in data:
         raise ServiceValidationError(
-            "send_document supports only one file; use 'file' field"
+            translation_domain=DOMAIN,
+            translation_key="service_send_document_use_file_not_files",
         )
     file_paths_or_urls = _extract_service_files(data)
     if len(file_paths_or_urls) != 1:
-        raise ServiceValidationError("send_document supports only one file")
+        raise ServiceValidationError(
+            translation_domain=DOMAIN,
+            translation_key="service_send_document_one_file_only",
+        )
     caption = data.get("caption")
     message_format = data.get("format")
     disable_ssl = data.get(CONF_DISABLE_SSL, False)
@@ -1326,9 +1404,9 @@ async def _send_document(
     config_entry_id = data.get(CONF_CONFIG_ENTRY_ID)
 
     _LOGGER.debug(
-        "_send_document: file=%s, files_count=%s, caption_present=%s, "
-        "entity_ids=%s, config_entry_id=%s, count_requests=%s, "
-        "disable_ssl=%s, auth_type=%s, buttons_present=%s",
+        "_send_document: файл=%s, число_файлов=%s есть_подпись=%s "
+        "сущности=%s запись=%s попыток=%s "
+        "ssl_отключен=%s тип_авторизации=%s кнопки=%s",
         file_paths_or_urls[0],
         len(file_paths_or_urls),
         bool(caption),
@@ -1352,7 +1430,7 @@ async def _send_document(
     for eid in resolved:
         entity_entry = reg.async_get(eid)
         if not entity_entry or not entity_entry.config_entry_id or not entity_entry.config_subentry_id:
-            _LOGGER.warning("Skip entity %s: no config entry/subentry", eid)
+            _LOGGER.warning("Пропуск сущности %s: нет записи или чата", eid)
             continue
         entry = hass.config_entries.async_get_entry(entity_entry.config_entry_id)
         if not entry or entry.domain != DOMAIN:
@@ -1395,13 +1473,13 @@ async def _send_document(
 async def async_send_photo_handler(service: ServiceCall) -> None:
     """Обработка max_notify.send_photo: изображение каждой цели."""
     await _send_photo(service.hass, service.data)
-    _LOGGER.info("%s.%s finished", DOMAIN, SERVICE_SEND_PHOTO)
+    _LOGGER.info("%s.%s завершено", DOMAIN, SERVICE_SEND_PHOTO)
 
 
 async def async_send_document_handler(service: ServiceCall) -> None:
     """Обработка max_notify.send_document: файл как документ каждой цели."""
     await _send_document(service.hass, service.data)
-    _LOGGER.info("%s.%s finished", DOMAIN, SERVICE_SEND_DOCUMENT)
+    _LOGGER.info("%s.%s завершено", DOMAIN, SERVICE_SEND_DOCUMENT)
 
 
 async def _send_video(
@@ -1424,8 +1502,8 @@ async def _send_video(
     )
 
     _LOGGER.debug(
-        "_send_video: file=%s, files_count=%s, caption_present=%s, entity_ids=%s, "
-        "config_entry_id=%s, count_requests=%s, disable_ssl=%s, auth_type=%s, buttons_present=%s",
+        "_send_video: файл=%s, число_файлов=%s есть_подпись=%s, сущности=%s, "
+        "запись=%s, попыток=%s, ssl_отключен=%s, тип_авторизации=%s, кнопки=%s",
         file_paths_or_urls[0],
         len(file_paths_or_urls),
         bool(caption),
@@ -1451,7 +1529,7 @@ async def _send_video(
     for eid in resolved:
         entity_entry = reg.async_get(eid)
         if not entity_entry or not entity_entry.config_entry_id or not entity_entry.config_subentry_id:
-            _LOGGER.warning("Skip entity %s: no config entry/subentry", eid)
+            _LOGGER.warning("Пропуск сущности %s: нет записи или чата", eid)
             continue
         entry = hass.config_entries.async_get_entry(entity_entry.config_entry_id)
         if not entry or entry.domain != DOMAIN:
@@ -1494,4 +1572,4 @@ async def _send_video(
 async def async_send_video_handler(service: ServiceCall) -> None:
     """Обработка max_notify.send_video: видео каждой цели."""
     await _send_video(service.hass, service.data)
-    _LOGGER.info("%s.%s finished", DOMAIN, SERVICE_SEND_VIDEO)
+    _LOGGER.info("%s.%s завершено", DOMAIN, SERVICE_SEND_VIDEO)

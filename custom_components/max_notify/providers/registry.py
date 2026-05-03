@@ -76,7 +76,8 @@ NOTIFY_A161_PROVIDER = NotifyA161IntegrationProvider(
     supports_receive_polling=NOTIFY_A161_CAPABILITIES.supports_receive_polling,
     supports_receive_long_polling=NOTIFY_A161_CAPABILITIES.supports_receive_long_polling,
     supports_group_chats=NOTIFY_A161_CAPABILITIES.supports_group_chats,
-    supports_bot_commands=NOTIFY_A161_CAPABILITIES.supports_bot_commands,
+    supports_bot_command_registration=NOTIFY_A161_CAPABILITIES.supports_bot_command_registration,
+    supports_slash_command_allowlist_ui=NOTIFY_A161_CAPABILITIES.supports_slash_command_allowlist_ui,
     allow_multiple_config_entries_same_token=False,
     max_attachments_per_message_limit=None,
 )
@@ -95,7 +96,8 @@ OFFICIAL_PROVIDER = OfficialIntegrationProvider(
     supports_receive_polling=OFFICIAL_CAPABILITIES.supports_receive_polling,
     supports_receive_long_polling=OFFICIAL_CAPABILITIES.supports_receive_long_polling,
     supports_group_chats=OFFICIAL_CAPABILITIES.supports_group_chats,
-    supports_bot_commands=OFFICIAL_CAPABILITIES.supports_bot_commands,
+    supports_bot_command_registration=OFFICIAL_CAPABILITIES.supports_bot_command_registration,
+    supports_slash_command_allowlist_ui=OFFICIAL_CAPABILITIES.supports_slash_command_allowlist_ui,
     max_attachments_per_message_limit=None,
 )
 
@@ -148,8 +150,8 @@ def get_provider(entry: ConfigEntry) -> MaxNotifyIntegrationProvider:
     if a161_by_stored_type or a161_by_legacy_title:
         if _LOGGER.isEnabledFor(logging.DEBUG):
             _LOGGER.debug(
-                "get_provider: entry_id=%s resolved=%s by_stored_type=%s by_legacy_title=%s "
-                "stored_integration_type=%r title=%r",
+                "get_provider: запись=%s провайдер=%s по_stored_type=%s по_legacy_title=%s "
+                "stored_integration_type=%r заголовок=%r",
                 entry.entry_id,
                 NOTIFY_A161_PROVIDER.integration_type,
                 a161_by_stored_type,
@@ -165,7 +167,7 @@ def get_provider(entry: ConfigEntry) -> MaxNotifyIntegrationProvider:
     provider = _resolve_known_provider_by_type(key)
     if _LOGGER.isEnabledFor(logging.DEBUG):
         _LOGGER.debug(
-            "get_provider: entry_id=%s resolved=%s stored_integration_type=%r title=%r",
+            "get_provider: запись=%s провайдер=%s stored_integration_type=%r заголовок=%r",
             entry.entry_id,
             provider.integration_type,
             entry.data.get(CONF_INTEGRATION_TYPE),

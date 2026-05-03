@@ -318,7 +318,7 @@ async def async_setup_entry(
     entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    _LOGGER.debug("async_setup_entry: entry_id=%s", entry.entry_id)
+    _LOGGER.debug("async_setup_entry: запись=%s", entry.entry_id)
 
     subentries = getattr(entry, "subentries", None) or {}
     entities: list[MaxNotifyEntity] = []
@@ -335,7 +335,7 @@ async def async_setup_entry(
             recipient_meta=recipient_meta,
         )
         _LOGGER.debug(
-            "Adding notify entity from subentry %s: %s", subentry_id, entity.name
+            "Добавление сущности notify из чата %s: %s", subentry_id, entity.name
         )
         entities.append((entity, subentry_id))
     if not entities:

@@ -39,7 +39,7 @@ async def resolve_dialog_chat_id(
                     return None
                 data = await resp.json()
         except (aiohttp.ClientError, ValueError) as e:
-            _LOGGER.debug("GET /chats error: %s", e)
+            _LOGGER.debug("Ошибка GET /chats: %s", e)
             return None
         chats = data.get("chats") or []
         for chat in chats:
@@ -151,7 +151,7 @@ async def _get_bot_user_id(
         ) as resp:
             body_text = await resp.text()
             _LOGGER.info(
-                "Official API GET /me response: status=%s body=%s",
+                "Официальный API GET /me: код=%s тело=%s",
                 resp.status,
                 body_text[:500],
             )
@@ -230,7 +230,7 @@ async def find_last_outgoing_message_id(
         if resolved_chat_id is not None:
             chat_ids.append(resolved_chat_id)
         _LOGGER.info(
-            "Official API message scan target resolved: recipient_id=%s user_id=%s chat_ids=%s resolved_chat_id=%s",
+            "Официальный API поиск сообщений: recipient_id=%s user_id=%s chat_ids=%s chat_id=%s",
             recipient_id,
             user_id,
             chat_ids,
@@ -238,8 +238,8 @@ async def find_last_outgoing_message_id(
         )
         if not chat_ids:
             _LOGGER.info(
-                "Official API message scan skipped: dialog chat_id is not resolvable for user_id=%s. "
-                "MAX API /chats returns group chats only, so /messages history cannot be read for this dialog.",
+                "Официальный API поиск сообщений пропущен: для user_id=%s не удалось определить chat_id диалога. "
+                "В GET /chats Max возвращаются в основном группы — историю ЛС через /messages прочитать нельзя.",
                 user_id,
             )
             return None
@@ -269,7 +269,7 @@ async def find_last_outgoing_message_id(
             ) as resp:
                 body_text = await resp.text()
                 _LOGGER.info(
-                    "Official API GET /messages response: status=%s params=%s body=%s",
+                    "Официальный API GET /messages: код=%s параметры=%s тело=%s",
                     resp.status,
                     params,
                     body_text[:500],
@@ -296,62 +296,3 @@ async def find_last_outgoing_message_id(
             if message_id:
                 return message_id
     return None
-
-
-def build_media_payload(
-    *,
-    attachment_payloads: list[dict[str, Any]],
-    caption: str | None,
-    max_message_length: int,
-    message_format: str,
-    buttons_api: list[list[dict[str, Any]]] | None,
-    attachment_type: str,
-) -> dict[str, Any]:
-    """Тело сообщения для официального API после загрузки изображения/документа."""
-    if attachment_type not in ("image", "file"):
-        attachment_type = "image"
-    attachments: list[dict[str, Any]] = []
-    for attachment_payload in attachment_payloads:
-        attachments.append({"type": attachment_type, "payload": attachment_payload})
-    if buttons_api:
-        attachments.append(
-            {
-                "type": "inline_keyboard",
-                "payload": {"buttons": buttons_api},
-            }
-        )
-    payload: dict[str, Any] = {
-        "text": (caption or "")[:max_message_length],
-        "attachments": attachments,
-    }
-    if message_format != "text":
-        payload["format"] = message_format
-    return payload
-
-
-def build_video_payload(
-    *,
-    video_tokens: list[str],
-    caption: str | None,
-    max_message_length: int,
-    message_format: str,
-    buttons_api: list[list[dict[str, Any]]] | None,
-) -> dict[str, Any]:
-    """Тело сообщения для официального API после загрузки видео."""
-    attachments: list[dict[str, Any]] = []
-    for video_token in video_tokens:
-        attachments.append({"type": "video", "payload": {"token": video_token}})
-    if buttons_api:
-        attachments.append(
-            {
-                "type": "inline_keyboard",
-                "payload": {"buttons": buttons_api},
-            }
-        )
-    payload: dict[str, Any] = {
-        "text": (caption or "")[:max_message_length],
-        "attachments": attachments,
-    }
-    if message_format != "text":
-        payload["format"] = message_format
-    return payload

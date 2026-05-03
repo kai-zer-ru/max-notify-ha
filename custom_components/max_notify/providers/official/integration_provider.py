@@ -8,7 +8,13 @@ from typing import TYPE_CHECKING, Any
 from homeassistant.exceptions import ServiceValidationError
 
 from ...const import normalize_access_token
-from ...const import API_PATH_MESSAGES, CONF_ACCESS_TOKEN, CONF_RECIPIENT_ID, DOMAIN
+from ...const import (
+    API_PATH_MESSAGES,
+    CONF_ACCESS_TOKEN,
+    CONF_RECIPIENT_ID,
+    CONF_UPDATES_INTERVAL,
+    DOMAIN,
+)
 from ..base import MaxNotifyIntegrationProvider
 from ..entry_kind import entry_matches_notify_a161
 from ..setup_common import (
@@ -40,6 +46,24 @@ def _entry_has_subentry_recipient(entry: ConfigEntry, recipient_id: int) -> bool
 class OfficialIntegrationProvider(MaxNotifyIntegrationProvider):
     def max_attachment_upload_bytes(self) -> int | None:
         return OFFICIAL_MAX_UPLOAD_BYTES
+
+    def updates_poll_uses_request_pacing(self) -> bool:
+        """Long poll Max: не чаще 2 RPS (интервал не меньше 0,5 с между запросами)."""
+        return True
+
+    def updates_poll_interval_seconds(self, entry: ConfigEntry) -> float:
+        raw = (entry.options or {}).get(
+            CONF_UPDATES_INTERVAL, self.updates_interval_default
+        )
+        try:
+            iv = float(raw)
+        except (TypeError, ValueError):
+            iv = float(self.updates_interval_default)
+        iv = max(
+            float(self.updates_interval_min),
+            min(float(self.updates_interval_max), iv),
+        )
+        return max(0.5, iv)
 
     async def async_resolve_message_post_url(
         self,
@@ -266,13 +290,13 @@ class OfficialIntegrationProvider(MaxNotifyIntegrationProvider):
             recipient_id = int(rid_raw)
         except (TypeError, ValueError):
             _LOGGER.info(
-                "delete_last_outgoing_message: invalid recipient_id=%r for entry_id=%s",
+                "delete_last_outgoing_message: недопустимый recipient_id=%r для записи %s",
                 rid_raw,
                 entry.entry_id,
             )
             return False
         _LOGGER.info(
-            "delete_last_outgoing_message started: entry_id=%s recipient_id=%s scan_count=%s",
+            "delete_last_outgoing_message: начато запись=%s recipient_id=%s глубина_поиска=%s",
             entry.entry_id,
             recipient_id,
             scan_count,
@@ -288,14 +312,14 @@ class OfficialIntegrationProvider(MaxNotifyIntegrationProvider):
                 scan_count=scan_count,
             )
             _LOGGER.info(
-                "delete_last_outgoing_message group path: recipient_id=%s scan_count=%s message_id=%s",
+                "delete_last_outgoing_message групповой чат: recipient_id=%s глубина=%s message_id=%s",
                 recipient_id,
                 scan_count,
                 message_id,
             )
         else:
             _LOGGER.info(
-                "delete_last_outgoing_message personal path rejected: recipient_id=%s",
+                "delete_last_outgoing_message личный чат отклонён: recipient_id=%s",
                 recipient_id,
             )
             raise ServiceValidationError(
@@ -304,21 +328,21 @@ class OfficialIntegrationProvider(MaxNotifyIntegrationProvider):
             )
         if not message_id:
             _LOGGER.info(
-                "delete_last_outgoing_message: no outgoing bot message found "
-                "(entry_id=%s recipient_id=%s scan_count=%s)",
+                "delete_last_outgoing_message: исходящее сообщение бота не найдено "
+                "(запись=%s recipient_id=%s глубина=%s)",
                 entry.entry_id,
                 recipient_id,
                 scan_count,
             )
             return False
         _LOGGER.info(
-            "delete_last_outgoing_message: resolved message_id=%s for entry_id=%s",
+            "delete_last_outgoing_message: найден message_id=%s запись=%s",
             message_id,
             entry.entry_id,
         )
         result = await notify_outbound.delete_message(hass, entry, message_id)
         _LOGGER.info(
-            "delete_last_outgoing_message finished: entry_id=%s message_id=%s deleted=%s",
+            "delete_last_outgoing_message завершено: запись=%s message_id=%s удалено=%s",
             entry.entry_id,
             message_id,
             result,

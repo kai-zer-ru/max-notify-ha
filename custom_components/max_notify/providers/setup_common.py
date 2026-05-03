@@ -68,7 +68,7 @@ async def async_step_webhook_secret_setup(
     if user_input is not None:
         flow._webhook_secret = (user_input.get(CONF_WEBHOOK_SECRET) or "").strip()
         _LOGGER.debug(
-            "async_step_webhook_secret: webhook_secret_len=%s",
+            "async_step_webhook_secret: длина_секрета=%s",
             len(flow._webhook_secret),
         )
         return await flow.async_step_receive_options_menu(None)
@@ -110,12 +110,12 @@ async def async_step_receive_options_menu_setup(
     if user_input is not None:
         chosen_label = user_input.get(CONF_ACTION) or choice_labels[0]
         key = label_to_key.get(chosen_label, "next")
-        _LOGGER.debug("async_step_receive_options_menu: action=%s", key)
+        _LOGGER.debug("async_step_receive_options_menu: действие=%s", key)
         if key == "add_button":
             return await flow.async_step_add_button(None)
         if key == "remove_button":
             return await flow.async_step_remove_button(None)
-        if flow._wizard_provider().supports_bot_commands:
+        if flow._wizard_provider().supports_slash_command_allowlist_ui:
             return await flow.async_step_commands_menu(None)
         return await flow.async_step_recipient(None)
 

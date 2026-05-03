@@ -396,14 +396,15 @@
   },
   "invalid_notify_entity": "Invalid MaxNotify entity: {entity_id}",
   "invalid_message_id": "Message ID cannot be empty.",
-  "delete_from_to_both_required": "Set both period start and period end together, or leave both empty when using message ID, message IDs, or date.",
-  "delete_requires_id_date_or_period": "Specify message ID, message IDs, date, or a full period (start and end). Choosing only a notify entity is not enough.",
+  "delete_from_to_both_required": "Fill both «Period start» and «Period end», or clear both if you use message_id, message_ids, or «Date» instead.",
+  "delete_requires_id_date_or_period": "To delete by chat you must also set how to find messages: message_id, message_ids, field «Date», or both «Period start» and «Period end». Only selecting a notify entity is not enough.",
   "provider_delete_by_period_not_supported": "{provider} does not support deleting messages by date or time range. Use message_id or message_ids.",
   "provider_delete_last_outgoing_not_supported": "{provider} does not support deleting the last outgoing message.",
-  "missing_target": "Specify a MaxNotify notify entity_id or config_entry_id when multiple integrations exist.",
-  "invalid_config_entry": "Invalid config entry: {config_entry_id}",
-  "missing_config_entry_id": "Multiple MaxNotify integrations found; specify config_entry_id.",
-  "no_matching_entities": "No matching notify entities for integration {config_entry_id}.",
+  "missing_target": "Choose where to send: set Target to your MaxNotify notify entity (e.g. notify.maxnotify_…), or if you have several MaxNotify integrations pick the correct one under Integration (config_entry_id).",
+  "invalid_config_entry": "Wrong integration id in «Integration» (config_entry_id): {config_entry_id}. Open Settings → Devices & services → MaxNotify and copy the id from the integration card.",
+  "missing_config_entry_id": "You have several MaxNotify integrations — pick which one to use: set «Integration» (config_entry_id) in the action, or select a notify entity so Home Assistant knows the chat.",
+  "config_entry_entity_mismatch": "The integration id ({config_entry_id}) does not belong to the selected notify entity. Either remove «Integration» and keep only the entity, or set Integration to {resolved_entry_id}.",
+  "no_matching_entities": "No notify entities found for this integration id ({config_entry_id}). Add a chat in MaxNotify or check that the id matches Settings → Devices & services.",
   "plain_recipient_not_resolved": "Could not resolve recipient. Check the notify entity and integration settings.",
   "unsupported_for_notify_a161": "Operation {operation} is not supported for {provider_label}.",
   "delete_last_outgoing_group_only": "This action works only for group chats (recipient_id < 0). For personal chats, delete by explicit message_id (for example, save it right after sending).",
@@ -421,6 +422,26 @@
   "attachments_count_limit_exceeded": "{provider} allows up to {max_count} attachments per message (files + inline keyboard); requested: {actual_count}.",
   "send_message_failed_after_retries": "Could not send the message after {attempts} attempts. Error: {error}.",
   "link_button_url_http_https_only": "Link button URL must use http or https (received: {url}).",
+  "service_datetime_empty": "Date or time is empty. Enter a value or fix the template.",
+  "service_invalid_calendar_date": "Invalid calendar date in «{field_name}». Check day/month/year (e.g. 31 February is invalid).",
+  "service_invalid_date_format_expected": "Wrong date format in «{field_name}». Use YYYY-MM-DD, DD-MM-YYYY, or Unix time in milliseconds; examples: 2026-10-23, 23.10.2026.",
+  "service_date_without_time_only": "Field «{field_name}» must be a date without time (delete by single day). Remove the time part.",
+  "service_invalid_time_format": "Invalid time: use HH:MM:SS or HH-MM-SS (24-hour).",
+  "service_invalid_clock_values": "Invalid time: hour must be 0–23, minutes and seconds 0–59.",
+  "service_invalid_datetime_value": "Invalid date and time in «{field_name}». Check date, time and timezone.",
+  "service_field_cannot_be_null": "Field «{field_name}» is missing. Provide a value or fix the automation.",
+  "service_field_cannot_be_empty": "Field «{field_name}» is empty. Fill it in or fix the template.",
+  "service_delete_date_bad_type": "Field «{field_name}»: use a text date or Unix timestamp (number). Other types are not supported.",
+  "service_url_auth_need_type": "You set URL login/password or token — also set «URL auth type» (url_auth_type): basic, digest, or bearer.",
+  "service_url_auth_bearer_need_token": "For url_auth_type «bearer» you must set url_auth_token.",
+  "service_url_auth_token_bearer_only": "url_auth_token is only used with url_auth_type «bearer». For basic/digest use login and password.",
+  "service_url_auth_login_password_pairs": "For basic or digest auth set both url_auth_login and url_auth_password together.",
+  "service_url_auth_basic_digest_only_login_password": "Login and password are only used with url_auth_type «basic» or «digest».",
+  "service_files_not_list": "Parameter «files» must be a YAML list of paths or URLs, e.g. files: [\"/config/file.jpg\"].",
+  "service_files_items_not_strings": "Each item in «files» must be a text path or URL.",
+  "service_files_none_given": "No file paths: set «file» or non-empty «files».",
+  "service_send_document_use_file_not_files": "send_document accepts one file only — use the «file» field, not «files».",
+  "service_send_document_one_file_only": "send_document: attach exactly one file (path or URL).",
   "exceptions": {
     "invalid_notify_entity": {
       "message": "Invalid MaxNotify entity: {entity_id}"
@@ -429,10 +450,10 @@
       "message": "Message ID cannot be empty."
     },
     "delete_from_to_both_required": {
-      "message": "Set both period start and period end together, or leave both empty when using message ID, message IDs, or date."
+      "message": "Fill both «Period start» and «Period end», or clear both if you use message_id, message_ids, or «Date» instead."
     },
     "delete_requires_id_date_or_period": {
-      "message": "Specify message ID, message IDs, date, or a full period (start and end). Choosing only a notify entity is not enough."
+      "message": "To delete by chat you must also set how to find messages: message_id, message_ids, field «Date», or both «Period start» and «Period end». Only selecting a notify entity is not enough."
     },
     "provider_delete_by_period_not_supported": {
       "message": "{provider} does not support deleting messages by date or time range. Use message_id or message_ids."
@@ -441,16 +462,19 @@
       "message": "{provider} does not support deleting the last outgoing message."
     },
     "missing_target": {
-      "message": "Specify a MaxNotify notify entity_id or config_entry_id when multiple integrations exist."
+      "message": "Choose where to send: set Target to your MaxNotify notify entity (e.g. notify.maxnotify_…), or if you have several MaxNotify integrations pick the correct one under Integration (config_entry_id)."
     },
     "invalid_config_entry": {
-      "message": "Invalid config entry: {config_entry_id}"
+      "message": "Wrong integration id in «Integration» (config_entry_id): {config_entry_id}. Open Settings → Devices & services → MaxNotify and copy the id from the integration card."
     },
     "missing_config_entry_id": {
-      "message": "Multiple MaxNotify integrations found; specify config_entry_id."
+      "message": "You have several MaxNotify integrations — pick which one to use: set «Integration» (config_entry_id) in the action, or select a notify entity so Home Assistant knows the chat."
+    },
+    "config_entry_entity_mismatch": {
+      "message": "The integration id ({config_entry_id}) does not belong to the selected notify entity. Either remove «Integration» and keep only the entity, or set Integration to {resolved_entry_id}."
     },
     "no_matching_entities": {
-      "message": "No matching notify entities for integration {config_entry_id}."
+      "message": "No notify entities found for this integration id ({config_entry_id}). Add a chat in MaxNotify or check that the id matches Settings → Devices & services."
     },
     "plain_recipient_not_resolved": {
       "message": "Could not resolve recipient. Check the notify entity and integration settings."
@@ -484,6 +508,66 @@
     },
     "link_button_url_http_https_only": {
       "message": "Link button URL must use http or https (received: {url})."
+    },
+    "service_datetime_empty": {
+      "message": "Date or time is empty. Enter a value or fix the template."
+    },
+    "service_invalid_calendar_date": {
+      "message": "Invalid calendar date in «{field_name}». Check day/month/year (e.g. 31 February is invalid)."
+    },
+    "service_invalid_date_format_expected": {
+      "message": "Wrong date format in «{field_name}». Use YYYY-MM-DD, DD-MM-YYYY, or Unix time in milliseconds; examples: 2026-10-23, 23.10.2026."
+    },
+    "service_date_without_time_only": {
+      "message": "Field «{field_name}» must be a date without time (delete by single day). Remove the time part."
+    },
+    "service_invalid_time_format": {
+      "message": "Invalid time: use HH:MM:SS or HH-MM-SS (24-hour)."
+    },
+    "service_invalid_clock_values": {
+      "message": "Invalid time: hour must be 0–23, minutes and seconds 0–59."
+    },
+    "service_invalid_datetime_value": {
+      "message": "Invalid date and time in «{field_name}». Check date, time and timezone."
+    },
+    "service_field_cannot_be_null": {
+      "message": "Field «{field_name}» is missing. Provide a value or fix the automation."
+    },
+    "service_field_cannot_be_empty": {
+      "message": "Field «{field_name}» is empty. Fill it in or fix the template."
+    },
+    "service_delete_date_bad_type": {
+      "message": "Field «{field_name}»: use a text date or Unix timestamp (number). Other types are not supported."
+    },
+    "service_url_auth_need_type": {
+      "message": "You set URL login/password or token — also set «URL auth type» (url_auth_type): basic, digest, or bearer."
+    },
+    "service_url_auth_bearer_need_token": {
+      "message": "For url_auth_type «bearer» you must set url_auth_token."
+    },
+    "service_url_auth_token_bearer_only": {
+      "message": "url_auth_token is only used with url_auth_type «bearer». For basic/digest use login and password."
+    },
+    "service_url_auth_login_password_pairs": {
+      "message": "For basic or digest auth set both url_auth_login and url_auth_password together."
+    },
+    "service_url_auth_basic_digest_only_login_password": {
+      "message": "Login and password are only used with url_auth_type «basic» or «digest»."
+    },
+    "service_files_not_list": {
+      "message": "Parameter «files» must be a YAML list of paths or URLs, e.g. files: [\"/config/file.jpg\"]."
+    },
+    "service_files_items_not_strings": {
+      "message": "Each item in «files» must be a text path or URL."
+    },
+    "service_files_none_given": {
+      "message": "No file paths: set «file» or non-empty «files»."
+    },
+    "service_send_document_use_file_not_files": {
+      "message": "send_document accepts one file only — use the «file» field, not «files»."
+    },
+    "service_send_document_one_file_only": {
+      "message": "send_document: attach exactly one file (path or URL)."
     },
     "delete_message_permission_denied": {
       "message": "No permission to delete messages. In a group chat, make the bot an administrator and grant it permission to delete messages."

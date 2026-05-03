@@ -57,27 +57,11 @@ async def async_setup_entry(
             hass, entry, recipient_id=recipient_id, subentry=subentry
         )
         async_add_entities([out], config_subentry_id=subentry_id)
-        async_add_entities(
-            [
-                MaxNotifyLegacyRecipientLastOutgoingMessageIdSensor(
-                    hass, entry, recipient_id=recipient_id, subentry=subentry
-                )
-            ],
-            config_subentry_id=subentry_id,
-        )
         if want_incoming:
             inc = MaxNotifyLastIncomingMessageIdSensor(
                 hass, entry, recipient_id=recipient_id, subentry=subentry
             )
             async_add_entities([inc], config_subentry_id=subentry_id)
-            async_add_entities(
-                [
-                    MaxNotifyLegacyRecipientLastIncomingMessageIdSensor(
-                        hass, entry, recipient_id=recipient_id, subentry=subentry
-                    )
-                ],
-                config_subentry_id=subentry_id,
-            )
     # Legacy sensors (entry-level scope) must stay available after v2 migration.
     # Keep old unique_id values so recorder/entity registry continue to resolve them.
     async_add_entities([MaxNotifyLegacyLastOutgoingMessageIdSensor(hass, entry)])
@@ -206,7 +190,7 @@ class MaxNotifyLastIncomingMessageIdSensor(_BaseMessageIdSensor):
 
 
 class _BaseLegacyRecipientMessageIdSensor(_BaseMessageIdSensor):
-    """Legacy per-recipient sensors with old unique_id format."""
+    """Устаревшие сенсоры по чату со старым форматом unique_id (по recipient_id)."""
 
     _attr_entity_category = EntityCategory.DIAGNOSTIC
 
@@ -228,7 +212,7 @@ class _BaseLegacyRecipientMessageIdSensor(_BaseMessageIdSensor):
 class MaxNotifyLegacyRecipientLastOutgoingMessageIdSensor(
     _BaseLegacyRecipientMessageIdSensor
 ):
-    """Legacy sensor: last outgoing message ID with recipient-based unique_id."""
+    """Старый unique_id: {entry_id}_{recipient_id}_last_outgoing_message_id."""
 
     def __init__(
         self,
@@ -266,7 +250,7 @@ class MaxNotifyLegacyRecipientLastOutgoingMessageIdSensor(
 class MaxNotifyLegacyRecipientLastIncomingMessageIdSensor(
     _BaseLegacyRecipientMessageIdSensor
 ):
-    """Legacy sensor: last incoming message ID with recipient-based unique_id."""
+    """Старый unique_id: {entry_id}_{recipient_id}_last_incoming_message_id."""
 
     def __init__(
         self,

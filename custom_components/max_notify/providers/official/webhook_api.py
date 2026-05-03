@@ -109,14 +109,14 @@ async def async_list_subscription_urls(
             if resp.status != 200:
                 text = await resp.text()
                 _LOGGER.warning(
-                    "GET /subscriptions failed: status=%s body=%s",
+                    "Список подписок WebHook (GET /subscriptions): ошибка API, код=%s, ответ: %s",
                     resp.status,
                     text[:200],
                 )
                 return [], "polling_subscription_list_failed"
             data = await resp.json()
     except Exception as e:
-        _LOGGER.warning("GET /subscriptions error: %s", e)
+        _LOGGER.warning("Ошибка запроса списка подписок WebHook (GET /subscriptions): %s", e)
         return [], "polling_subscription_list_failed"
     return subscription_urls_from_payload(data), None
 
@@ -148,9 +148,9 @@ async def async_delete_subscription_url(
                 data = await resp.json()
                 if data.get("success") is True:
                     return True
-            _LOGGER.debug("DELETE /subscriptions: status=%s", resp.status)
+            _LOGGER.debug("DELETE /subscriptions: код ответа %s", resp.status)
     except Exception as e:
-        _LOGGER.warning("async_delete_subscription_url error: %s", e)
+        _LOGGER.warning("Ошибка удаления подписки WebHook (DELETE /subscriptions): %s", e)
     return False
 
 
@@ -171,7 +171,7 @@ async def async_clear_subscriptions_for_long_polling(
         if not await async_delete_subscription_url(
             hass, token, u, api_base_url=api_base_url, api_version=api_version
         ):
-            _LOGGER.warning("Could not DELETE subscription url=%s", u[:80])
+            _LOGGER.warning("Не удалось удалить подписку WebHook по URL: %s", u[:80])
     urls2, err2 = await async_list_subscription_urls(
         hass, token, api_base_url=api_base_url, api_version=api_version
     )
@@ -190,19 +190,22 @@ async def async_register_platform_webhook(
     webhook_public_url: str,
 ) -> bool:
     """POST /subscriptions в Max API."""
-    _LOGGER.debug("register_webhook: entry_id=%s", entry.entry_id)
+    _LOGGER.debug("Регистрация WebHook: запись=%s", entry.entry_id)
     if not webhook_public_url or not webhook_public_url.startswith("https://"):
         _LOGGER.warning(
-            "WebHook URL not available or not HTTPS: %s. "
-            "Configure external HTTPS URL in Settings → System → Network — "
+            "Адрес WebHook недоступен или не начинается с https://: %s. "
+            "Настройте внешний HTTPS-URL Home Assistant: Настройки → Система → Сеть — "
             "https://www.home-assistant.io/docs/configuration/basic/",
-            webhook_public_url or "(empty)",
+            webhook_public_url or "(пусто)",
         )
         return False
 
     token = entry.data.get(CONF_ACCESS_TOKEN)
     if not token:
-        _LOGGER.warning("No access token for entry %s", entry.entry_id)
+        _LOGGER.warning(
+            "Регистрация WebHook: нет токена доступа для записи конфигурации %s",
+            entry.entry_id,
+        )
         return False
 
     body: dict[str, Any] = {
@@ -217,7 +220,7 @@ async def async_register_platform_webhook(
     headers = {"Authorization": token, "Content-Type": "application/json"}
 
     _LOGGER.debug(
-        "register_webhook: api_url=%s, body=%s",
+        "Регистрация WebHook: api_url=%s, body=%s",
         api_url,
         {**body, "secret": "***" if "secret" in body else None},
     )
@@ -234,17 +237,20 @@ async def async_register_platform_webhook(
                 data = await resp.json()
                 if data.get("success") is True:
                     _LOGGER.info(
-                        "WebHook registered for entry_id=%s url=%s",
+                        "WebHook зарегистрирован в Max API: запись=%s url=%s",
                         entry.entry_id,
                         webhook_public_url,
                     )
                     return True
             text = await resp.text()
             _LOGGER.warning(
-                "POST /subscriptions failed: status=%s body=%s", resp.status, text[:200]
+                "Регистрация WebHook в Max API не удалась (POST /subscriptions): "
+                "HTTP %s, ответ: %s",
+                resp.status,
+                text[:200],
             )
     except Exception as e:
-        _LOGGER.warning("register_webhook error: %s", e)
+        _LOGGER.warning("Ошибка при регистрации WebHook в Max API: %s", e)
     return False
 
 
@@ -257,13 +263,13 @@ async def async_unregister_platform_webhook(
     path_needle: str,
 ) -> bool:
     """Снять WebHook в Max API (DELETE /subscriptions?url=... или по списку)."""
-    _LOGGER.debug("unregister_webhook: entry_id=%s", entry.entry_id)
+    _LOGGER.debug("Снятие WebHook: запись=%s", entry.entry_id)
     token = entry.data.get(CONF_ACCESS_TOKEN)
     if not token:
         return True
 
     if webhook_public_url:
-        _LOGGER.debug("unregister_webhook: url=%s", webhook_public_url)
+        _LOGGER.debug("Снятие WebHook: url=%s", webhook_public_url)
         if await async_delete_subscription_url(
             hass,
             token,
@@ -271,14 +277,14 @@ async def async_unregister_platform_webhook(
             api_base_url=provider.api_base_url,
             api_version=provider.api_version,
         ):
-            _LOGGER.info("WebHook unregistered for entry_id=%s", entry.entry_id)
+            _LOGGER.info("WebHook снят в Max API: запись=%s", entry.entry_id)
         return True
 
     urls, err = await async_list_subscription_urls(
         hass, token, api_base_url=provider.api_base_url, api_version=provider.api_version
     )
     if err:
-        _LOGGER.warning("unregister_webhook: list subscriptions failed: %s", err)
+        _LOGGER.warning("Снятие WebHook: не удалось получить список подписок: %s", err)
         return True
     for u in urls:
         if path_needle in u:
@@ -290,7 +296,7 @@ async def async_unregister_platform_webhook(
                 api_version=provider.api_version,
             ):
                 _LOGGER.info(
-                    "WebHook unregistered (listed URL) for entry_id=%s",
+                    "WebHook снят (по URL из списка): запись=%s",
                     entry.entry_id,
                 )
     return True
@@ -310,11 +316,11 @@ async def async_handle_inbound_webhook_post(
     if secret:
         received = request.headers.get(WEBHOOK_SECRET_HEADER)
         if received != secret:
-            _LOGGER.warning("WebHook secret mismatch for entry_id=%s", entry.entry_id)
+            _LOGGER.warning("Неверный секрет WebHook для записи %s", entry.entry_id)
             return web.Response(status=401, text="unauthorized")
 
     _LOGGER.debug(
-        "WebHook POST received: entry_id=%s, headers=%s",
+        "Получен POST WebHook: запись=%s, заголовки=%s",
         entry.entry_id,
         {
             k: v
@@ -326,7 +332,7 @@ async def async_handle_inbound_webhook_post(
     try:
         body = await request.json()
     except Exception as e:
-        _LOGGER.warning("WebHook invalid JSON: %s", e)
+        _LOGGER.warning("Некорректный JSON в теле WebHook: %s", e)
         return web.Response(status=400, text="invalid json")
 
     if not isinstance(body, dict):
@@ -335,7 +341,7 @@ async def async_handle_inbound_webhook_post(
     updates = extract_webhook_updates_from_payload(body)
     if not updates:
         _LOGGER.warning(
-            "WebHook payload does not contain recognized update format: entry_id=%s keys=%s",
+            "Тело WebHook в неизвестном формате: запись=%s, ключи=%s",
             entry.entry_id,
             sorted(body.keys()),
         )

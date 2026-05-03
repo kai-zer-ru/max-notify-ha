@@ -548,8 +548,8 @@ class MaxNotifyConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         """
         if not HAS_CONFIG_SUBENTRY:
             _LOGGER.debug(
-                "subentry_types: entry_id=%s blocked (no ConfigSubentry support) "
-                "stored_integration_type=%r title=%r",
+                "subentry_types: запись=%s заблокирована (нет поддержки ConfigSubentry) "
+                "stored_integration_type=%r заголовок=%r",
                 config_entry.entry_id,
                 config_entry.data.get(CONF_INTEGRATION_TYPE),
                 config_entry.title,
@@ -559,8 +559,8 @@ class MaxNotifyConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         from .config_subentry_flow import MaxNotifyRecipientSubentryFlow
 
         _LOGGER.debug(
-            "subentry_types: entry_id=%s exposed provider=%s label=%r "
-            "is_add_chat_available=%s stored_integration_type=%r title=%r",
+            "subentry_types: запись=%s провайдер=%s метка=%r "
+            "добавление_чата=%s stored_integration_type=%r заголовок=%r",
             config_entry.entry_id,
             provider.integration_type,
             provider.label,

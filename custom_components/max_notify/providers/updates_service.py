@@ -24,6 +24,7 @@ from ..const import (
     DOMAIN,
     EVENT_MAX_NOTIFY_RECEIVED,
     POLLING_RETRY_DELAY,
+    UPDATE_MESSAGE_CALLBACK,
     UPDATE_MESSAGE_CREATED,
     UPDATE_SLASH_COMMAND,
 )
@@ -87,7 +88,7 @@ def _log_updates_curl_debug(
     params: dict[str, Any],
 ) -> None:
     _LOGGER.debug(
-        "GET /updates reproducible request (entry_id=%s):\n%s",
+        "GET /updates воспроизводимый запрос (запись=%s):\n%s",
         entry_id,
         _format_updates_debug_curl(url, headers, params),
     )
@@ -151,6 +152,18 @@ def _extract_user_id(update: dict[str, Any], message: dict[str, Any], update_typ
     return sender.get("user_id") or sender.get("userId")
 
 
+def normalize_command_token(value: str | None) -> str | None:
+    """Strip whitespace, one leading ``/``, lowercase — для сравнения и событий (report == /report)."""
+    if value is None:
+        return None
+    s = str(value).strip()
+    if not s:
+        return None
+    if s.startswith("/"):
+        s = s[1:].strip()
+    return s.lower() if s else None
+
+
 def _extract_event_data(entry: ConfigEntry, update: dict[str, Any]) -> dict[str, Any]:
     """Build flat event data from Max Update for automations."""
     update_type = update.get("update_type") or ""
@@ -190,6 +203,18 @@ def _extract_event_data(entry: ConfigEntry, update: dict[str, Any]) -> dict[str,
     args = None
     if text:
         command, args = _extract_slash_command_from_text(text)
+    if not command and update_type == UPDATE_MESSAGE_CREATED:
+        alt_cmd = (
+            body.get("command")
+            or body.get("slash_command")
+            or message.get("command")
+            or update.get("command")
+            or update.get("slash_command")
+        )
+        if alt_cmd is not None:
+            alt_s = str(alt_cmd).strip()
+            if alt_s:
+                command = normalize_command_token(alt_s)
 
     # Callback payload (message_callback) — payload нажатой кнопки для триггеров
     callback_data = _get_callback_payload(update, message, body)
@@ -199,13 +224,16 @@ def _extract_event_data(entry: ConfigEntry, update: dict[str, Any]) -> dict[str,
         if len(cb_repr) > 500:
             cb_repr = cb_repr[:500] + "..."
         _LOGGER.debug(
-            "message_callback: callback_data not found. update.callback = %s",
+            "message_callback: callback_data не найден. update.callback = %s",
             cb_repr,
         )
 
     # Для нажатий на кнопки, где нет текстовой команды /..., считаем командой payload кнопки.
     if update_type == "message_callback" and callback_data and not command:
         command = str(callback_data).strip()
+
+    if command:
+        command = normalize_command_token(command)
 
     normalized_update_type = (
         UPDATE_SLASH_COMMAND
@@ -344,27 +372,36 @@ def _normalize_message_id(value: Any) -> str | None:
 
 
 def _should_fire_command_event(entry: ConfigEntry, command: str | None, update_type: str) -> bool:
-    """If entry has buttons, fire for all. Else if legacy commands allowlist, only those (message_created). Callbacks always fire."""
+    """Кнопки: все события. message_callback: всегда. Иначе allowlist команд — для message_created и slash_command."""
     opts = entry.options or {}
     buttons = opts.get(CONF_BUTTONS)
     if buttons and isinstance(buttons, list) and len(buttons) > 0:
         return True
-    if update_type != "message_created" or not command:
+    if update_type == UPDATE_MESSAGE_CALLBACK:
+        return True
+    if not command:
         return True
     commands = opts.get(CONF_COMMANDS)
     if not commands or not isinstance(commands, list):
         return True
-    allowed = []
+    allowed: list[str] = []
     for c in commands:
         if isinstance(c, dict):
             name = (c.get("name") or "").strip()
             if name:
-                allowed.append(name.lower())
+                tok = normalize_command_token(name)
+                if tok:
+                    allowed.append(tok)
         elif isinstance(c, str) and c.strip():
-            allowed.append(c.strip().lower())
+            tok = normalize_command_token(c.strip())
+            if tok:
+                allowed.append(tok)
     if not allowed:
         return True
-    return command.lower() in allowed
+    if update_type not in (UPDATE_MESSAGE_CREATED, UPDATE_SLASH_COMMAND):
+        return True
+    nc = normalize_command_token(command)
+    return nc in allowed if nc else False
 
 
 # Окно дедупликации для message_callback: одно нажатие = одно событие; повтор через N сек допустим
@@ -414,7 +451,7 @@ async def async_process_incoming_update_impl(
     try:
         dedupe_key = _update_dedup_key(update)
         _LOGGER.debug(
-            "async_process_update: entry_id=%s, raw_update_type=%s, dedupe_key=%s",
+            "async_process_update: запись=%s тип_update=%s ключ_дедуп=%s",
             entry.entry_id,
             update.get("update_type"),
             (dedupe_key or "")[:120],
@@ -430,7 +467,7 @@ async def async_process_incoming_update_impl(
                 if expiry <= now:
                     del recent[k]
             if dedupe_key and recent.get(dedupe_key, 0) > now:
-                _LOGGER.debug("Skip duplicate update (recent): %s", dedupe_key[:80])
+                _LOGGER.debug("Пропуск дубликата update (недавний): %s", dedupe_key[:80])
                 return
             window = (
                 CALLBACK_DEDUPE_WINDOW
@@ -444,7 +481,7 @@ async def async_process_incoming_update_impl(
                 raw = json.dumps(update, ensure_ascii=False, default=str)
             except Exception:
                 raw = repr(update)
-            _LOGGER.debug("Raw update from Max (full): %s", raw)
+            _LOGGER.debug("Полный update от Max: %s", raw)
 
         event_data = _extract_event_data(entry, update)
         raw_update_type = str(update.get("update_type") or "").strip()
@@ -462,25 +499,25 @@ async def async_process_incoming_update_impl(
                     recipient_id=incoming_rid,
                 )
             except Exception as e:
-                _LOGGER.debug("Failed to update last incoming message ID: %s", e)
+                _LOGGER.debug("Не удалось сохранить последний входящий message_id: %s", e)
         update_type = event_data.get("update_type") or ""
         chat_id = event_data.get("chat_id")
         user_id = event_data.get("user_id")
         _LOGGER.debug(
-            "Update received: update_type=%s chat_id=%s user_id=%s (group if chat_id<0)",
+            "Получен update: тип=%s chat_id=%s user_id=%s (группа если chat_id<0)",
             update_type,
             chat_id,
             user_id,
         )
         command = event_data.get("command")
         if not _should_fire_command_event(entry, command, update_type):
-            _LOGGER.debug("Command %s not in allowlist, skip event", command)
+            _LOGGER.debug("Команда %s не в белом списке, событие пропущено", command)
             return
         event_data["event_id"] = dedupe_key
         hass.bus.async_fire(EVENT_MAX_NOTIFY_RECEIVED, event_data)
-        _LOGGER.debug("Fired %s: update_type=%s", EVENT_MAX_NOTIFY_RECEIVED, update_type)
+        _LOGGER.debug("Событие %s: тип=%s", EVENT_MAX_NOTIFY_RECEIVED, update_type)
     except Exception as e:
-        _LOGGER.warning("Failed to process update: %s", e, exc_info=True)
+        _LOGGER.warning("Не удалось обработать update: %s", e, exc_info=True)
 
 
 def _parse_json_response_text(raw_text: str, content_type: str) -> Any:
@@ -497,7 +534,7 @@ async def async_run_polling_loop(hass: HomeAssistant, entry: ConfigEntry) -> Non
     """Polling task: GET /updates and process each update."""
     token = entry.data.get(CONF_ACCESS_TOKEN)
     if not token:
-        _LOGGER.warning("Polling skipped: no access token for entry %s", entry.entry_id)
+        _LOGGER.warning("Polling пропущен: нет токена доступа для записи %s", entry.entry_id)
         return
 
     entry_id = entry.entry_id
@@ -507,7 +544,7 @@ async def async_run_polling_loop(hass: HomeAssistant, entry: ConfigEntry) -> Non
     markers[entry_id] = markers.get(entry_id)
 
     session = async_get_clientsession(hass)
-    _LOGGER.info("Updates polling started for entry_id=%s", entry_id)
+    _LOGGER.info("Запущен polling обновлений (GET /updates) для записи %s", entry_id)
     next_request_not_before = 0.0
 
     while True:
@@ -525,7 +562,7 @@ async def async_run_polling_loop(hass: HomeAssistant, entry: ConfigEntry) -> Non
         params = provider.build_updates_poll_params(entry, marker)
 
         _LOGGER.debug(
-            "Polling GET /updates: entry_id=%s, marker=%s, params=%s",
+            "Polling GET /updates: запись=%s маркер=%s параметры=%s",
             entry_id,
             marker,
             params,
@@ -549,7 +586,7 @@ async def async_run_polling_loop(hass: HomeAssistant, entry: ConfigEntry) -> Non
                 if resp.status != 200:
                     summary = _summarize_updates_http_error(resp.status, raw_text)
                     _LOGGER.warning(
-                        "GET /updates failed: entry_id=%s %s",
+                        "GET /updates ошибка: запись=%s %s",
                         entry_id,
                         summary,
                     )
@@ -572,7 +609,7 @@ async def async_run_polling_loop(hass: HomeAssistant, entry: ConfigEntry) -> Non
             raise
         except Exception as e:
             detail = f"{type(e).__name__}: {e}"
-            _LOGGER.warning("GET /updates error: entry_id=%s %s", entry_id, detail)
+            _LOGGER.warning("GET /updates исключение: запись=%s %s", entry_id, detail)
             _log_updates_curl_debug(entry_id, url, headers, params)
             _set_updates_polling_issue(
                 hass,
@@ -592,7 +629,7 @@ async def async_run_polling_loop(hass: HomeAssistant, entry: ConfigEntry) -> Non
             schedule_integration_persist(hass)
 
         _LOGGER.debug(
-            "Polling: entry_id=%s, received %s updates, new_marker=%s",
+            "Polling: запись=%s получено обновлений=%s новый_маркер=%s",
             entry_id,
             len(updates_list),
             new_marker,
@@ -604,7 +641,7 @@ async def async_run_polling_loop(hass: HomeAssistant, entry: ConfigEntry) -> Non
                 continue
             dedupe_key = _update_dedup_key(one)
             if dedupe_key and dedupe_key in seen_keys:
-                _LOGGER.debug("Skip duplicate update: %s", dedupe_key[:80])
+                _LOGGER.debug("Пропуск дубликата update: %s", dedupe_key[:80])
                 continue
             seen_keys.add(dedupe_key or "")
             hass.async_create_task(

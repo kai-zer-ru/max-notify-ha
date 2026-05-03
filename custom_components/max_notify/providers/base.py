@@ -54,7 +54,8 @@ class MaxNotifyIntegrationProvider:
         "supports_receive_polling",
         "supports_receive_long_polling",
         "supports_group_chats",
-        "supports_bot_commands",
+        "supports_bot_command_registration",
+        "supports_slash_command_allowlist_ui",
         "allow_multiple_config_entries_same_token",
         "max_attachments_per_message_limit",
     )
@@ -80,7 +81,8 @@ class MaxNotifyIntegrationProvider:
         supports_receive_polling: bool = False,
         supports_receive_long_polling: bool = False,
         supports_group_chats: bool = False,
-        supports_bot_commands: bool = False,
+        supports_bot_command_registration: bool = False,
+        supports_slash_command_allowlist_ui: bool = True,
         allow_multiple_config_entries_same_token: bool = True,
         max_attachments_per_message_limit: int | None = None,
     ) -> None:
@@ -102,7 +104,8 @@ class MaxNotifyIntegrationProvider:
         self.supports_receive_polling = supports_receive_polling
         self.supports_receive_long_polling = supports_receive_long_polling
         self.supports_group_chats = supports_group_chats
-        self.supports_bot_commands = supports_bot_commands
+        self.supports_bot_command_registration = supports_bot_command_registration
+        self.supports_slash_command_allowlist_ui = supports_slash_command_allowlist_ui
         self.allow_multiple_config_entries_same_token = (
             allow_multiple_config_entries_same_token
         )
@@ -811,21 +814,16 @@ class MaxNotifyIntegrationProvider:
         buttons_api: list[list[dict[str, Any]]] | None,
         attachment_type: str,
     ) -> dict[str, Any]:
-        media_type = attachment_type if attachment_type in ("image", "file") else "image"
-        attachments = [
-            {"type": media_type, "payload": payload} for payload in upload_payloads
-        ]
-        if buttons_api:
-            attachments.append(
-                {"type": "inline_keyboard", "payload": {"buttons": buttons_api}}
-            )
-        payload: dict[str, Any] = {
-            "text": (caption or "")[:max_message_length],
-            "attachments": attachments,
-        }
-        if message_format != "text":
-            payload["format"] = message_format
-        return payload
+        from .message_payload_builders import compose_media_message_payload
+
+        return compose_media_message_payload(
+            upload_payloads=upload_payloads,
+            caption=caption,
+            max_message_length=max_message_length,
+            message_format=message_format,
+            buttons_api=buttons_api,
+            attachment_type=attachment_type,
+        )
 
     def build_video_message_payload(
         self,
@@ -836,21 +834,15 @@ class MaxNotifyIntegrationProvider:
         message_format: str,
         buttons_api: list[list[dict[str, Any]]] | None,
     ) -> dict[str, Any]:
-        attachments = [
-            {"type": "video", "payload": {"token": video_token}}
-            for video_token in video_tokens
-        ]
-        if buttons_api:
-            attachments.append(
-                {"type": "inline_keyboard", "payload": {"buttons": buttons_api}}
-            )
-        payload: dict[str, Any] = {
-            "text": (caption or "")[:max_message_length],
-            "attachments": attachments,
-        }
-        if message_format != "text":
-            payload["format"] = message_format
-        return payload
+        from .message_payload_builders import compose_video_message_payload
+
+        return compose_video_message_payload(
+            video_tokens=video_tokens,
+            caption=caption,
+            max_message_length=max_message_length,
+            message_format=message_format,
+            buttons_api=buttons_api,
+        )
 
     def upload_step2_response_ok(self, resp: Any) -> bool:
         return isinstance(resp, dict) and bool(resp)

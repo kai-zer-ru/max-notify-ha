@@ -38,7 +38,7 @@ def start_polling(hass: HomeAssistant, entry: ConfigEntry) -> asyncio.Task[None]
     if receive_mode == RECEIVE_MODE_LONG_POLLING:
         if not caps.supports_receive_long_polling:
             _LOGGER.debug(
-                "start_polling skipped: long_polling not supported entry_id=%s",
+                "start_polling пропущен: long polling не поддерживается, запись=%s",
                 entry.entry_id,
             )
             return None
@@ -46,7 +46,7 @@ def start_polling(hass: HomeAssistant, entry: ConfigEntry) -> asyncio.Task[None]
     elif receive_mode == RECEIVE_MODE_POLLING:
         if not caps.supports_receive_polling:
             _LOGGER.debug(
-                "start_polling skipped: polling not supported entry_id=%s",
+                "start_polling пропущен: polling не поддерживается, запись=%s",
                 entry.entry_id,
             )
             return None

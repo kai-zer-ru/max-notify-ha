@@ -65,22 +65,25 @@ def test_delete_date_field_accepts_date_only(raw: str) -> None:
 
 @pytest.mark.parametrize("raw", _DATETIME_CASES)
 def test_delete_date_field_rejects_time(raw: str) -> None:
-    with pytest.raises(ServiceValidationError, match="without time"):
+    with pytest.raises(ServiceValidationError) as exc:
         _day_bounds_ms_from_delete_date(raw, field_name=CONF_DELETE_DATE)
+    assert exc.value.translation_key == "service_date_without_time_only"
 
 
 def test_delete_date_iso_t_with_time_rejected() -> None:
-    with pytest.raises(ServiceValidationError, match="without time"):
+    with pytest.raises(ServiceValidationError) as exc:
         _day_bounds_ms_from_delete_date(
             "2026-10-23T00:00:00", field_name=CONF_DELETE_DATE
         )
+    assert exc.value.translation_key == "service_date_without_time_only"
 
 
 def test_invalid_date_rejected() -> None:
-    with pytest.raises(ServiceValidationError):
+    with pytest.raises(ServiceValidationError) as exc:
         _coerce_service_datetime_to_unix(
             "2026-13-40", field_name="from", is_to_bound=False
         )
+    assert exc.value.translation_key == "service_invalid_calendar_date"
 
 
 def test_date_priority_over_from_to_when_no_message_ids() -> None:

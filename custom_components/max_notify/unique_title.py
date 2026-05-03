@@ -22,7 +22,7 @@ def get_unique_entry_title(
         if exclude_entry_id is None or e.entry_id != exclude_entry_id
     }
     _LOGGER.debug(
-        "get_unique_entry_title: base_title=%s, exclude_entry_id=%s, existing_count=%s",
+        "get_unique_entry_title: базовый_заголовок=%s исключить_запись=%s число_существующих=%s",
         base_title,
         exclude_entry_id,
         len(existing),

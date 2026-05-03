@@ -114,7 +114,10 @@ async def test_delete_message_handler_accepts_period_and_deletes_found_ids(
         patch("custom_components.max_notify.services.er.async_get", return_value=registry),
         patch(
             "custom_components.max_notify.services.get_capabilities",
-            return_value=SimpleNamespace(supports_delete_message=True),
+            return_value=SimpleNamespace(
+                supports_delete_message=True,
+                supports_delete_message_by_period=True,
+            ),
         ),
         patch(
             "custom_components.max_notify.services.list_message_ids_in_period",
@@ -168,7 +171,10 @@ async def test_delete_message_handler_accepts_date_field(
         patch("custom_components.max_notify.services.er.async_get", return_value=registry),
         patch(
             "custom_components.max_notify.services.get_capabilities",
-            return_value=SimpleNamespace(supports_delete_message=True),
+            return_value=SimpleNamespace(
+                supports_delete_message=True,
+                supports_delete_message_by_period=True,
+            ),
         ),
         patch(
             "custom_components.max_notify.services.list_message_ids_in_period",
@@ -188,6 +194,49 @@ async def test_delete_message_handler_accepts_date_field(
     ts_from, ts_to = first_call.kwargs["ts_from"], first_call.kwargs["ts_to"]
     assert ts_from is not None and ts_to is not None
     assert ts_from < ts_to
+
+
+@pytest.mark.asyncio
+async def test_delete_message_handler_rejects_wrong_config_entry_with_entity(
+    hass, mock_config_entry
+) -> None:
+    """config_entry_id должен совпадать с записью выбранной сущности notify."""
+    from custom_components.max_notify.services import async_delete_message_handler
+
+    mock_config_entry.entry_id = "entry-correct"
+    wrong_entry = MagicMock()
+    wrong_entry.entry_id = "entry-wrong"
+    wrong_entry.domain = mock_config_entry.domain
+
+    hass.config_entries = MagicMock()
+    hass.config_entries.async_get_entry = MagicMock(
+        side_effect=lambda eid: wrong_entry if eid == "entry-wrong" else mock_config_entry
+    )
+
+    registry = MagicMock()
+    entity_entry = SimpleNamespace(
+        config_entry_id="entry-correct",
+        config_subentry_id="sub-1",
+        domain="notify",
+        platform="max_notify",
+    )
+    registry.async_get = MagicMock(return_value=entity_entry)
+    registry.entities = {"notify.test_chat": entity_entry}
+
+    service = SimpleNamespace(
+        hass=hass,
+        data={
+            "entity_id": ["notify.test_chat"],
+            "config_entry_id": "entry-wrong",
+            "from": 1714020000,
+            "to": 1714023600,
+        },
+    )
+
+    with patch("custom_components.max_notify.services.er.async_get", return_value=registry):
+        with pytest.raises(ServiceValidationError) as exc:
+            await async_delete_message_handler(service)
+    assert exc.value.translation_key == "config_entry_entity_mismatch"
 
 
 @pytest.mark.asyncio

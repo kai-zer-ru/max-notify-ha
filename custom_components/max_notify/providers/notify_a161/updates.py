@@ -42,6 +42,15 @@ def normalize_reply_update(item: Any) -> dict[str, Any] | None:
     )
     text = str(text_raw).strip() if text_raw is not None else ""
     if not text:
+        cmd_only = (
+            reply.get("command")
+            or reply.get("slash_command")
+            or item.get("command")
+            or item.get("slash_command")
+        )
+        if cmd_only is not None:
+            text = str(cmd_only).strip()
+    if not text:
         return None
 
     user_id = (

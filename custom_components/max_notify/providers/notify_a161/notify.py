@@ -116,25 +116,17 @@ def build_media_payload(
     attachment_type: str,
 ) -> dict[str, Any]:
     """Тело сообщения a161 после загрузки изображения/документа."""
-    if attachment_type not in ("image", "file"):
-        attachment_type = "image"
-    attachments: list[dict[str, Any]] = []
-    for upload_response in upload_responses:
-        attachments.append({"type": attachment_type, "payload": upload_response})
-    if buttons_api:
-        attachments.append(
-            {
-                "type": "inline_keyboard",
-                "payload": {"buttons": buttons_api},
-            }
-        )
-    payload: dict[str, Any] = {
-        "text": (caption or "")[:max_message_length],
-        "attachments": attachments,
-    }
-    if message_format != "text":
-        payload["format"] = message_format
-    return payload
+    from ..message_payload_builders import compose_media_message_payload
+
+    atype = attachment_type if attachment_type in ("image", "file") else "image"
+    return compose_media_message_payload(
+        upload_payloads=upload_responses,
+        caption=caption,
+        max_message_length=max_message_length,
+        message_format=message_format,
+        buttons_api=buttons_api,
+        attachment_type=atype,
+    )
 
 
 def build_video_payload(
@@ -146,20 +138,12 @@ def build_video_payload(
     buttons_api: list[list[dict[str, Any]]] | None,
 ) -> dict[str, Any]:
     """Тело сообщения a161 после загрузки видео."""
-    attachments: list[dict[str, Any]] = []
-    for video_token in video_tokens:
-        attachments.append({"type": "video", "payload": {"token": str(video_token)}})
-    if buttons_api:
-        attachments.append(
-            {
-                "type": "inline_keyboard",
-                "payload": {"buttons": buttons_api},
-            }
-        )
-    payload: dict[str, Any] = {
-        "text": (caption or "")[:max_message_length],
-        "attachments": attachments,
-    }
-    if message_format != "text":
-        payload["format"] = message_format
-    return payload
+    from ..message_payload_builders import compose_video_message_payload
+
+    return compose_video_message_payload(
+        video_tokens=video_tokens,
+        caption=caption,
+        max_message_length=max_message_length,
+        message_format=message_format,
+        buttons_api=buttons_api,
+    )

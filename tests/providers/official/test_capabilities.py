@@ -32,7 +32,10 @@ def test_resolve_official(mock_config_entry) -> None:
     assert get_capabilities(mock_config_entry).supports_receive_polling is False
     assert get_capabilities(mock_config_entry).supports_receive_long_polling is True
     assert get_capabilities(mock_config_entry).supports_receive_webhook is True
-    assert get_capabilities(mock_config_entry).supports_bot_commands is True
+    assert get_capabilities(mock_config_entry).supports_bot_command_registration is True
+    assert (
+        get_capabilities(mock_config_entry).supports_slash_command_allowlist_ui is True
+    )
     assert (
         get_capabilities(mock_config_entry).supports_delete_last_outgoing_message is True
     )
@@ -58,9 +61,12 @@ def test_official_reports_upload_limit(mock_config_entry) -> None:
     assert get_provider(mock_config_entry).max_attachment_upload_bytes() == OFFICIAL_MAX_UPLOAD_BYTES
 
 
-def test_notify_a161_does_not_support_bot_commands(mock_config_entry) -> None:
+def test_notify_a161_does_not_register_bot_commands_with_max(mock_config_entry) -> None:
     mock_config_entry.data[CONF_INTEGRATION_TYPE] = INTEGRATION_TYPE_NOTIFY_A161
-    assert get_capabilities(mock_config_entry).supports_bot_commands is False
+    assert get_capabilities(mock_config_entry).supports_bot_command_registration is False
+    assert (
+        get_capabilities(mock_config_entry).supports_slash_command_allowlist_ui is True
+    )
 
 
 def test_provider_recipient_error_for_group_when_unsupported(mock_config_entry) -> None:

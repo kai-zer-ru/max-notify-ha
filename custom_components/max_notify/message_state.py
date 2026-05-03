@@ -144,7 +144,7 @@ async def _async_persist_integration_state(hass: HomeAssistant) -> None:
     try:
         await store.async_save(deepcopy(payload))
     except Exception as e:
-        _LOGGER.warning("Failed to persist MaxNotify integration state: %s", e)
+        _LOGGER.warning("Не удалось сохранить состояние MaxNotify: %s", e)
 
 
 async def async_load_integration_store(hass: HomeAssistant) -> None:
@@ -160,7 +160,7 @@ async def async_load_integration_store(hass: HomeAssistant) -> None:
     try:
         loaded = await store.async_load()
     except Exception as e:
-        _LOGGER.warning("Failed to load MaxNotify integration state: %s", e)
+        _LOGGER.warning("Не удалось загрузить состояние MaxNotify: %s", e)
         loaded = None
     if not isinstance(loaded, dict):
         return

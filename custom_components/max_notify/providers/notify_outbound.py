@@ -60,6 +60,11 @@ from ..message_state import (
     set_stored_recipient_id,
 )
 from ..outbound_rate import async_acquire_outbound_api_slot
+from .message_payload_builders import (
+    apply_notify_false,
+    build_text_message_body,
+    inline_keyboard_attachment,
+)
 from .registry import get_capabilities, get_provider
 _LOGGER = logging.getLogger(__name__)
 _CHAT_ID_KEY = "chat_id"
@@ -160,7 +165,7 @@ def _validate_attachments_count_limit(
     prov = get_provider(entry)
     if is_document and len(file_sources) > 1:
         _LOGGER.error(
-            "Document attachments limit exceeded: entry_id=%s provider=%s max_documents=1 actual=%s",
+            "Превышен лимит документов: запись=%s провайдер=%s макс_документов=1 фактически=%s",
             entry.entry_id,
             prov.label,
             len(file_sources),
@@ -171,7 +176,7 @@ def _validate_attachments_count_limit(
     actual_with_keyboard = len(file_sources) + (1 if has_inline_keyboard else 0)
     if actual_with_keyboard > MAX_ATTACHMENTS_PER_MESSAGE:
         _LOGGER.error(
-            "Global attachments limit exceeded: entry_id=%s provider=%s max=%s actual=%s files=%s keyboard=%s",
+            "Превышен общий лимит вложений: запись=%s провайдер=%s макс=%s фактически=%s файлов=%s клавиатура=%s",
             entry.entry_id,
             prov.label,
             MAX_ATTACHMENTS_PER_MESSAGE,
@@ -194,7 +199,7 @@ def _validate_attachments_count_limit(
     if actual_with_keyboard <= max_count:
         return
     _LOGGER.error(
-        "Attachment count exceeds provider code limit: entry_id=%s provider=%s configured_limit=%s actual=%s",
+        "Число вложений выше лимита провайдера: запись=%s провайдер=%s лимит_в_настройках=%s фактически=%s",
         entry.entry_id,
         prov.label,
         max_count,
@@ -564,7 +569,7 @@ async def _download_http_media(
             )
             if resp.status != 401:
                 return resp
-            _LOGGER.debug("Digest auth attempt %s returned 401", idx)
+            _LOGGER.debug("Попытка Digest-авторизации %s вернула 401", idx)
             if last_resp is not None:
                 last_resp.release()
             last_resp = resp
@@ -582,7 +587,7 @@ async def _parse_upload_response(resp: aiohttp.ClientResponse) -> dict[str, Any]
     try:
         return json.loads(text)
     except json.JSONDecodeError as e:
-        _LOGGER.warning("Upload response is not JSON: %s, body: %s", e, text[:200])
+        _LOGGER.warning("Ответ загрузки не JSON: %s, тело: %s", e, text[:200])
         return {}
 
 
@@ -814,7 +819,7 @@ async def _request_upload_url_json_with_retry(
                 text = await resp.text()
                 if resp.status == 200:
                     _LOGGER.info(
-                        "%s HTTP response: status=%s body=%s",
+                        "%s HTTP ответ: код=%s тело=%s",
                         op_label,
                         resp.status,
                         text[:500],
@@ -837,7 +842,7 @@ async def _request_upload_url_json_with_retry(
                 ):
                     wait_s = delays[attempt]
                     _LOGGER.warning(
-                        "%s attempt %s/%s failed: status=%s, retry in %ss; body=%s",
+                        "%s попытка %s/%s не удалась: код=%s, повтор через %s с; тело=%s",
                         op_label,
                         attempt + 1,
                         max_attempts,
@@ -855,7 +860,7 @@ async def _request_upload_url_json_with_retry(
             if attempt < max_attempts - 1:
                 wait_s = delays[attempt]
                 _LOGGER.warning(
-                    "%s attempt %s/%s failed (%s), retry in %ss",
+                    "%s попытка %s/%s ошибка (%s), повтор через %s с",
                     op_label,
                     attempt + 1,
                     max_attempts,
@@ -918,10 +923,10 @@ async def _async_read_media_body_for_upload(
                     )
                 )
             except Exception as e:
-                _LOGGER.error("Download media failed: %s", e)
+                _LOGGER.error("Скачивание медиа не удалось: %s", e)
                 return None
             if status != 200:
-                _LOGGER.error("Download media failed: status=%s", status)
+                _LOGGER.error("Скачивание медиа не удалось: код=%s", status)
                 return None
             raw_ct = response_headers.get("Content-Type") or ""
             if as_document:
@@ -948,7 +953,7 @@ async def _async_read_media_body_for_upload(
                     ext = _ext_from_content_type(content_type)
                     filename = f"{filename}.{ext}" if ext else f"{filename}.jpg"
             _LOGGER.debug(
-                "Downloaded media from URL via requests digest: %d bytes, content_type=%s",
+                "Медиа скачано (requests digest): %d байт, тип=%s",
                 len(body),
                 content_type,
             )
@@ -967,7 +972,7 @@ async def _async_read_media_body_for_upload(
             )
             async with response as r:
                 if r.status != 200:
-                    _LOGGER.error("Download media failed: status=%s", r.status)
+                    _LOGGER.error("Скачивание медиа не удалось: код=%s", r.status)
                     return None
                 raw_ct = r.headers.get("Content-Type") or ""
                 if as_document:
@@ -995,12 +1000,12 @@ async def _async_read_media_body_for_upload(
                         filename = f"{filename}.{ext}" if ext else f"{filename}.jpg"
                 body = await r.read()
                 _LOGGER.debug(
-                    "Downloaded media from URL: %d bytes, content_type=%s",
+                    "Медиа скачано с URL: %d байт, тип=%s",
                     len(body),
                     content_type,
                 )
         except aiohttp.ClientError as e:
-            _LOGGER.error("Download media failed: %s", e)
+            _LOGGER.error("Скачивание медиа не удалось: %s", e)
             return None
     else:
         if as_document:
@@ -1023,7 +1028,7 @@ async def _async_read_media_body_for_upload(
                 _read_file_bytes, file_path_or_url, hass.config.config_dir
             )
         except (OSError, ValueError) as e:
-            _LOGGER.error("Read media file failed: %s", e)
+            _LOGGER.error("Чтение локального файла медиа не удалось: %s", e)
             return None
     return body, content_type, filename
 
@@ -1044,7 +1049,7 @@ async def _get_message_url_and_recipient(
     )
     if out is None and cid is not None and int(cid) < 0:
         _LOGGER.error(
-            "Provider %s does not resolve group chat recipients (chat_id=%s)",
+            "Провайдер %s не разрешает групповой чат для получателя (chat_id=%s)",
             prov.label,
             cid,
         )
@@ -1070,7 +1075,7 @@ async def _post_message_with_retry(
         n = max(n, len(API_REQUEST_RETRY_DELAYS) + 1)
         att_count, att_types = _payload_attachments_summary(payload)
         _LOGGER.info(
-            "Sending %s message: url=%s attempts=%s attachments=%s attachment_types=%s payload=%s",
+            "Отправка %s: url=%s попыток=%s вложений=%s типы_вложений=%s тело=%s",
             log_label,
             url,
             n,
@@ -1092,7 +1097,7 @@ async def _post_message_with_retry(
                     if resp.status < 400:
                         if on_success is not None:
                             on_success(body)
-                        _LOGGER.info("%s sent successfully (status=%s)", log_label, resp.status)
+                        _LOGGER.info("%s отправлено успешно (код=%s)", log_label, resp.status)
                         return True
                     if (
                         resp.status == 400
@@ -1106,18 +1111,18 @@ async def _post_message_with_retry(
                                 if attempt < len(retry_delays)
                                 else retry_delays[-1]
                             )
-                            _LOGGER.debug("%s not ready, retry in %ss (attempt %s)", log_label, delay, attempt + 2)
+                            _LOGGER.debug("%s не готов, повтор через %s с (попытка %s)", log_label, delay, attempt + 2)
                             await asyncio.sleep(delay)
                             continue
-                    _LOGGER.error("Max API send %s failed: status=%s body=%s", log_label, resp.status, body[:500])
+                    _LOGGER.error("Отправка в Max API (%s) не удалась: код=%s тело=%s", log_label, resp.status, body[:500])
                     if resp.status == 400 and "attachment.not.ready" in body:
                         if log_label in ("Video", LOG_LABEL_THIRD_PARTY_VIDEO):
                             _LOGGER.error(
-                                "Max is still processing the video; increase `count_requests` on send_video for large files."
+                                "Max ещё обрабатывает видео; увеличьте count_requests в send_video для больших файлов."
                             )
                         elif log_label == LOG_LABEL_THIRD_PARTY_MEDIA:
                             _LOGGER.error(
-                                "Max is still processing the attachment; increase `count_requests` on send_photo or send_document for large files."
+                                "Max ещё обрабатывает вложение; увеличьте count_requests в send_photo или send_document для больших файлов."
                             )
                     return False
             except (aiohttp.ClientError, asyncio.TimeoutError) as e:
@@ -1129,7 +1134,7 @@ async def _post_message_with_retry(
                         else API_REQUEST_RETRY_DELAYS[-1]
                     )
                     _LOGGER.warning(
-                        "Max API send %s request failed (attempt %s/%s): %s; retry in %ss",
+                        "Запрос отправки в Max API (%s) не удалась (попытка %s/%s): %s; повтор через %s с",
                         log_label,
                         attempt + 1,
                         n,
@@ -1139,13 +1144,13 @@ async def _post_message_with_retry(
                     await asyncio.sleep(delay)
                     continue
                 _LOGGER.warning(
-                    "Max API send %s request failed after retries: %s",
+                    "Запрос отправки в Max API (%s) не удалась после повторов: %s",
                     log_label,
                     e,
                 )
                 return False
         if last_error:
-            _LOGGER.error("Max API send %s failed after retries: %s", log_label, last_error[:300])
+            _LOGGER.error("Отправка в Max API (%s) не удалась после повторов: %s", log_label, last_error[:300])
         return False
 
     return await _run_with_send_pace_lock(hass, entry, _inner)
@@ -1223,16 +1228,16 @@ async def delete_message(
         ) as resp:
             body = await resp.text()
             if resp.status < 400:
-                _LOGGER.debug("delete_message OK message_id=%s", mid)
+                _LOGGER.debug("delete_message успешно message_id=%s", mid)
                 return True
             _LOGGER.debug(
-                "delete_message failed status=%s body=%s", resp.status, body[:500]
+                "delete_message ошибка код=%s тело=%s", resp.status, body[:500]
             )
             _raise_delete_api_error(resp.status, body)
     except ServiceValidationError:
         raise
     except aiohttp.ClientError as e:
-        _LOGGER.warning("delete_message network error: %s", e)
+        _LOGGER.warning("delete_message сетевая ошибка: %s", e)
         raise ServiceValidationError(
             translation_domain=DOMAIN,
             translation_key="delete_message_network_error",
@@ -1273,11 +1278,11 @@ async def edit_message(
     """Правка сообщения через Max API PUT /messages; text/buttons могут быть None — оставить как есть."""
     token = entry.data.get(CONF_ACCESS_TOKEN)
     if not token:
-        _LOGGER.error("No access token in config entry")
+        _LOGGER.error("В записи конфигурации нет токена доступа")
         return False
     mid = _message_id_candidates(message_id)
     if not mid:
-        _LOGGER.error("edit_message: empty message_id")
+        _LOGGER.error("edit_message: пустой message_id")
         return False
     headers = {"Authorization": token, "Content-Type": "application/json"}
     payload: dict[str, Any] = {}
@@ -1292,13 +1297,10 @@ async def edit_message(
         payload["attachments"] = []
     elif buttons is not None:
         payload["attachments"] = [
-            {
-                "type": "inline_keyboard",
-                "payload": {"buttons": _normalize_buttons_for_api(buttons)},
-            }
+            inline_keyboard_attachment(_normalize_buttons_for_api(buttons))
         ]
     if not payload:
-        _LOGGER.warning("edit_message: no changes specified")
+        _LOGGER.warning("edit_message: изменения не указаны")
         return False
     base = _api_base_url_for_entry(entry)
     prov = get_provider(entry)
@@ -1314,19 +1316,19 @@ async def edit_message(
             ) as resp:
                 body = await resp.text()
                 _LOGGER.info(
-                    "edit_message HTTP response: status=%s body=%s", resp.status, body
+                    "edit_message HTTP: код=%s тело=%s", resp.status, body
                 )
                 if resp.status < 400:
-                    _LOGGER.info("Message %s edited successfully", mid)
+                    _LOGGER.info("Сообщение %s успешно изменено", mid)
                     return True
                 _LOGGER.error(
-                    "Max API edit message failed: status=%s body=%s",
+                    "Изменение сообщения в Max API не удалось: код=%s тело=%s",
                     resp.status,
                     body,
                 )
                 return False
         except aiohttp.ClientError as e:
-            _LOGGER.error("Max API edit message request failed: %s", e)
+            _LOGGER.error("Запрос изменения сообщения в Max API не удался: %s", e)
             return False
 
     return await _run_with_send_pace_lock(hass, entry, _put)
@@ -1531,9 +1533,9 @@ def _store_outgoing_message_id_from_response(
                 hass, entry_id, message_id, recipient_id=recipient_id
             )
         except Exception as e:
-            _LOGGER.debug("Failed to update last outgoing message ID: %s", e)
+            _LOGGER.debug("Не удалось сохранить последний исходящий message_id: %s", e)
     else:
-        _LOGGER.debug("%s: message_id not found in response body: %s", source, (body or "")[:500])
+        _LOGGER.debug("%s: message_id нет в ответе: %s", source, (body or "")[:500])
 
 
 def _extract_message_id_from_messages_item(item: dict[str, Any]) -> str | None:
@@ -1581,7 +1583,7 @@ async def list_message_ids_in_period(
     """GET /messages для получателя и извлечение message_id за период."""
     token = entry.data.get(CONF_ACCESS_TOKEN)
     if not token:
-        _LOGGER.error("No access token in config entry")
+        _LOGGER.error("В записи конфигурации нет токена доступа")
         return []
     resolved = await _get_message_url_and_recipient(hass, entry, token, recipient)
     if not resolved:
@@ -1621,6 +1623,14 @@ async def list_message_ids_in_period(
             ) as resp:
                 body_text = await resp.text()
                 if resp.status != 200:
+                    _LOGGER.warning(
+                        "GET /messages для удаления по диапазону: ошибка код=%s url=%s "
+                        "параметры=%s фрагмент_ответа=%s",
+                        resp.status,
+                        url,
+                        params,
+                        (body_text or "")[:400],
+                    )
                     continue
                 try:
                     data = json.loads(body_text) if body_text.strip() else {}
@@ -1642,7 +1652,7 @@ async def list_message_ids_in_period(
         if out:
             break
     if out:
-        _LOGGER.info("GET /messages for delete range: %s", ", ".join(out))
+        _LOGGER.info("GET /messages для удаления по диапазону: %s", ", ".join(out))
     return out
 
 
@@ -1660,11 +1670,11 @@ async def send_message(
     """Отправить текст: с inline-клавиатурой или без неё."""
     token = entry.data.get(CONF_ACCESS_TOKEN)
     if not token:
-        _LOGGER.error("No access token in config entry")
+        _LOGGER.error("В записи конфигурации нет токена доступа")
         return
     result = await _get_message_url_and_recipient(hass, entry, token, recipient)
     if not result:
-        _LOGGER.error("Could not resolve recipient for message")
+        _LOGGER.error("Не удалось определить получателя для сообщения")
         raise ServiceValidationError(
             translation_domain=DOMAIN,
             translation_key="plain_recipient_not_resolved",
@@ -1673,23 +1683,20 @@ async def send_message(
 
     text = f"{title}\n{message}" if title else message
     if len(text) > MAX_MESSAGE_LENGTH:
-        _LOGGER.warning("Message truncated from %d to %d characters", len(text), MAX_MESSAGE_LENGTH)
+        _LOGGER.warning("Текст обрезан с %d до %d символов", len(text), MAX_MESSAGE_LENGTH)
         text = text[:MAX_MESSAGE_LENGTH]
 
     msg_format = message_format or entry.data.get(CONF_MESSAGE_FORMAT, "text")
-    payload: dict[str, Any] = {"text": text}
-    if msg_format != "text":
-        payload["format"] = msg_format
+    payload = build_text_message_body(text, msg_format)
     has_buttons = bool(buttons)
     if has_buttons:
         payload["attachments"] = [
-            {
-                "type": "inline_keyboard",
-                "payload": {"buttons": _normalize_buttons_for_api(buttons or [])},
-            }
+            inline_keyboard_attachment(
+                _normalize_buttons_for_api(buttons or [])
+            )
         ]
     if not notify:
-        payload["notify"] = False
+        apply_notify_false(payload)
 
     headers = {"Authorization": token}
     session = async_get_clientsession(hass)
@@ -1697,18 +1704,18 @@ async def send_message(
 
     def _on_success(body: str) -> None:
         _LOGGER.info(
-            "send_message: full server response body=%s",
+            "send_message: полный ответ сервера=%s",
             body,
         )
         extracted_mid = _extract_message_id_from_response(body)
         if extracted_mid:
             _LOGGER.info(
-                "send_message: extracted message_id=%s",
+                "send_message: извлечён message_id=%s",
                 extracted_mid,
             )
         else:
             _LOGGER.info(
-                "send_message: message_id not found in response",
+                "send_message: message_id в ответе не найден",
             )
         _store_outgoing_message_id_from_response(
             hass,
@@ -1798,7 +1805,7 @@ async def _upload_media_and_send(
     prov = get_provider(entry)
     has_inline_keyboard = bool(buttons)
     _LOGGER.info(
-        "Preparing media send: entry_id=%s provider=%s attachment_type=%s files_count=%s keyboard=%s files=%s",
+        "Подготовка отправки медиа: запись=%s провайдер=%s тип=%s файлов=%s клавиатура=%s пути=%s",
         entry.entry_id,
         prov.label,
         attachment_type,
@@ -1814,13 +1821,13 @@ async def _upload_media_and_send(
     )
     token = entry.data.get(CONF_ACCESS_TOKEN)
     if not token:
-        _LOGGER.error("No access token in config entry")
+        _LOGGER.error("В записи конфигурации нет токена доступа")
         return
     result = await _get_message_url_and_recipient(hass, entry, token, recipient)
     if not result:
         _LOGGER.error(
-            "Could not resolve recipient for %s",
-            "document" if as_document else "photo",
+            "Не удалось определить получателя для %s",
+            "документа" if as_document else "фото",
         )
         return
     msg_url, _ = result
@@ -1840,7 +1847,7 @@ async def _upload_media_and_send(
     upload_payloads: list[dict[str, Any]] = []
     if not prov.shares_platform_bot_token_pool:
         _LOGGER.debug(
-            "Using third-party upload flow: provider=%s files_count=%s",
+            "Сторонняя схема загрузки: провайдер=%s файлов=%s",
             prov.label,
             len(file_sources),
         )
@@ -1861,7 +1868,7 @@ async def _upload_media_and_send(
             body, content_type, filename = read_out
 
             if not body:
-                _LOGGER.error("Image data is empty")
+                _LOGGER.error("Данные изображения пусты")
                 return
 
             if len(body) > max_up_effective:
@@ -1907,14 +1914,14 @@ async def _upload_media_and_send(
                 ) as resp:
                     upload_body = await resp.text()
                     _LOGGER.info(
-                        "%s upload step2 response: status=%s body=%s",
+                        "%s шаг загрузки 2: код=%s тело=%s",
                         prov.label,
                         resp.status,
                         upload_body[:500],
                     )
                     if resp.status >= 400:
                         _LOGGER.error(
-                            "%s file upload failed: status=%s body=%s",
+                            "%s загрузка файла не удалась: код=%s тело=%s",
                             prov.label,
                             resp.status,
                             upload_body[:500],
@@ -1924,20 +1931,20 @@ async def _upload_media_and_send(
                         upload_resp = json.loads(upload_body) if upload_body.strip() else {}
                     except json.JSONDecodeError as e:
                         _LOGGER.warning(
-                            "Upload response is not JSON: %s, body: %s",
+                            "Ответ загрузки не JSON: %s, тело: %s",
                             e,
                             upload_body[:200],
                         )
                         upload_resp = {}
             except (aiohttp.ClientError, ValueError) as e:
-                _LOGGER.error("%s file upload failed: %s", prov.label, e)
+                _LOGGER.error("%s загрузка файла не удалась: %s", prov.label, e)
                 return
             if not prov.upload_step2_response_ok(upload_resp):
-                _LOGGER.error("%s upload response unexpected: %s", prov.label, upload_resp)
+                _LOGGER.error("%s неожиданный ответ загрузки: %s", prov.label, upload_resp)
                 return
             upload_payloads.append(upload_resp)
             _LOGGER.debug(
-                "%s upload step2 accepted for source=%s; accumulated_upload_payloads=%s",
+                "%s шаг 2 загрузки принят для %s; накоплено=%s",
                 prov.label,
                 file_source,
                 len(upload_payloads),
@@ -1952,10 +1959,10 @@ async def _upload_media_and_send(
             attachment_type=attachment_type,
         )
         if not notify:
-            payload_tp["notify"] = False
+            apply_notify_false(payload_tp)
         att_count_tp, att_types_tp = _payload_attachments_summary(payload_tp)
         _LOGGER.info(
-            "Built third-party media payload: provider=%s attachments=%s attachment_types=%s payload=%s",
+            "Собрано тело медиа (сторонний провайдер): провайдер=%s вложений=%s типы=%s тело=%s",
             prov.label,
             att_count_tp,
             att_types_tp,
@@ -2024,7 +2031,7 @@ async def _upload_media_and_send(
         body, content_type, filename = read_out
 
         if not body:
-            _LOGGER.error("Image data is empty")
+            _LOGGER.error("Данные изображения пусты")
             return
         if len(body) > max_up_effective:
             raise ServiceValidationError(
@@ -2044,31 +2051,31 @@ async def _upload_media_and_send(
             ) as resp:
                 upload_body = await resp.text()
                 _LOGGER.info(
-                    "Max API upload step2 response: status=%s body=%s",
+                    "Max API шаг загрузки 2: код=%s тело=%s",
                     resp.status,
                     upload_body[:500],
                 )
                 if resp.status >= 400:
-                    _LOGGER.error("Max API file upload failed: status=%s body=%s", resp.status, upload_body[:300])
+                    _LOGGER.error("Загрузка файла в Max API не удалась: код=%s тело=%s", resp.status, upload_body[:300])
                     return
                 try:
                     upload_resp = json.loads(upload_body) if upload_body.strip() else {}
                 except json.JSONDecodeError as e:
-                    _LOGGER.warning("Upload response is not JSON: %s, body: %s", e, upload_body[:200])
+                    _LOGGER.warning("Ответ загрузки не JSON: %s, тело: %s", e, upload_body[:200])
                     upload_resp = {}
         except (aiohttp.ClientError, ValueError) as e:
-            _LOGGER.error("Max API file upload failed: %s", e)
+            _LOGGER.error("Загрузка файла в Max API не удалась: %s", e)
             return
 
         if not isinstance(upload_resp, dict) or not upload_resp:
-            _LOGGER.error("Max API upload response is not a non-empty dict: %s", type(upload_resp))
+            _LOGGER.error("Ответ загрузки Max API не непустой словарь: %s", type(upload_resp))
             return
         if not _upload_response_has_token(upload_resp):
-            _LOGGER.error("Max API upload response has no token: %s", upload_resp)
+            _LOGGER.error("В ответе загрузки Max API нет token: %s", upload_resp)
             return
         upload_payloads.append(_attachment_payload_from_upload_response(upload_resp))
         _LOGGER.debug(
-            "Official upload accepted for source=%s; accumulated_upload_payloads=%s",
+            "Официальная загрузка принята для %s; накоплено=%s",
             file_source,
             len(upload_payloads),
         )
@@ -2085,10 +2092,10 @@ async def _upload_media_and_send(
         attachment_type=attachment_type,
     )
     if not notify:
-        payload["notify"] = False
+        apply_notify_false(payload)
     att_count, att_types = _payload_attachments_summary(payload)
     _LOGGER.info(
-        "Built official media payload: attachments=%s attachment_types=%s payload=%s",
+        "Собрано тело медиа (официальный API): вложений=%s типы=%s тело=%s",
         att_count,
         att_types,
         payload,
@@ -2260,13 +2267,13 @@ async def _read_video_body_for_upload(
                         if will_retry:
                             await asyncio.sleep(delays[attempt])
                             continue
-                        _LOGGER.error("Download video failed: status=%s body=%s", r.status, err_text)
+                        _LOGGER.error("Скачивание видео не удалось: код=%s тело=%s", r.status, err_text)
                         return None
                 except aiohttp.ClientError as e:
                     if attempt < max_attempts - 1:
                         await asyncio.sleep(delays[attempt])
                         continue
-                    _LOGGER.error("Download video failed: %s", e)
+                    _LOGGER.error("Скачивание видео не удалось: %s", e)
                     return None
         except asyncio.CancelledError:
             raise
@@ -2278,10 +2285,10 @@ async def _read_video_body_for_upload(
         try:
             body = await hass.async_add_executor_job(_read_file_bytes, file_path_or_url, hass.config.config_dir)
         except (OSError, ValueError) as e:
-            _LOGGER.error("Read video file failed: %s", e)
+            _LOGGER.error("Чтение файла видео не удалось: %s", e)
             return None
     if not body:
-        _LOGGER.error("Video data is empty")
+        _LOGGER.error("Данные видео пусты")
         return None
     return body, content_type, filename
 
@@ -2313,11 +2320,11 @@ async def upload_video_and_send(
     )
     token = entry.data.get(CONF_ACCESS_TOKEN)
     if not token:
-        _LOGGER.error("No access token in config entry")
+        _LOGGER.error("В записи конфигурации нет токена доступа")
         return
     result = await _get_message_url_and_recipient(hass, entry, token, recipient)
     if not result:
-        _LOGGER.error("Could not resolve recipient for video")
+        _LOGGER.error("Не удалось определить получателя для видео")
         return
     msg_url, _ = result
     store_vid = _coerce_recipient_id_for_message_store(recipient)
@@ -2406,18 +2413,18 @@ async def upload_video_and_send(
             ) as resp:
                 upload_body = await resp.text()
                 _LOGGER.info(
-                    "Video upload step2 response: status=%s body=%s",
+                    "Видео шаг загрузки 2: код=%s тело=%s",
                     resp.status,
                     upload_body[:500],
                 )
                 if resp.status >= 400:
                     _LOGGER.error(
-                        "Video file upload failed: status=%s body=%s", resp.status, upload_body[:300]
+                        "Загрузка видео не удалась: код=%s тело=%s", resp.status, upload_body[:300]
                     )
                     return
-                _LOGGER.debug("Video upload to storage completed: status=%s", resp.status)
+                _LOGGER.debug("Видео загружено в хранилище: код=%s", resp.status)
         except (aiohttp.ClientError, ValueError) as e:
-            _LOGGER.error("Max API video upload failed: %s", e)
+            _LOGGER.error("Загрузка видео в Max API не удалась: %s", e)
             return
 
         video_tokens.append(str(video_token))
@@ -2435,7 +2442,7 @@ async def upload_video_and_send(
             buttons_api=_normalize_buttons_for_api(buttons) if buttons else None,
         )
         if not notify:
-            payload_tp["notify"] = False
+            apply_notify_false(payload_tp)
 
         def _on_success_third_party_vid(resp_body: str) -> None:
             _store_outgoing_message_id_from_response(
@@ -2472,7 +2479,7 @@ async def upload_video_and_send(
         buttons_api=_normalize_buttons_for_api(buttons) if buttons else None,
     )
     if not notify:
-        payload["notify"] = False
+        apply_notify_false(payload)
 
     def _on_success(body: str) -> None:
         _store_outgoing_message_id_from_response(
@@ -2516,23 +2523,21 @@ async def entity_send_plain_message(
     text = f"{title}\n{message}" if title else message
     if len(text) > MAX_MESSAGE_LENGTH:
         _LOGGER.warning(
-            "Message truncated from %d to %d characters", len(text), MAX_MESSAGE_LENGTH
+            "Текст обрезан с %d до %d символов", len(text), MAX_MESSAGE_LENGTH
         )
         text = text[:MAX_MESSAGE_LENGTH]
 
     token = entry.data.get(CONF_ACCESS_TOKEN)
     if not token:
-        _LOGGER.error("No access token in config entry")
+        _LOGGER.error("В записи конфигурации нет токена доступа")
         return
 
     uid, cid = _recipient_to_user_chat(recipient)
     msg_format = entry.data.get(CONF_MESSAGE_FORMAT, "text")
-    payload = {"text": text}
-    if msg_format != "text":
-        payload["format"] = msg_format
+    payload = build_text_message_body(text, msg_format)
 
     _LOGGER.debug(
-        "Preparing to send Max message: entry_id=%s, user_id=%s, chat_id=%s, format=%s, text_len=%s",
+        "Отправка текста в Max: запись=%s user_id=%s chat_id=%s формат=%s длина=%s",
         entry.entry_id,
         uid,
         cid,
@@ -2543,7 +2548,7 @@ async def entity_send_plain_message(
     resolved = await _get_message_url_and_recipient(hass, entry, token, recipient)
     if not resolved:
         _LOGGER.error(
-            "Config must have non-zero recipient_id (resolved user_id=%s, chat_id=%s)",
+            "В настройках нужен ненулевой recipient_id (user_id=%s, chat_id=%s)",
             uid,
             cid,
         )
@@ -2555,7 +2560,7 @@ async def entity_send_plain_message(
     session = async_get_clientsession(hass)
 
     _LOGGER.debug(
-        "Starting Max send with retries: url=%s, payload_keys=%s, max_attempts=5",
+        "Повторы отправки в Max: url=%s ключи_тела=%s макс_попыток=5",
         url,
         list(payload.keys()),
     )
@@ -2563,7 +2568,7 @@ async def entity_send_plain_message(
     async def _send_attempts() -> bool:
         last_error: Exception | None = None
         for attempt in range(1, 6):
-            _LOGGER.debug("Max send attempt %s/5: url=%s", attempt, url)
+            _LOGGER.debug("Попытка отправки в Max %s/5: url=%s", attempt, url)
             try:
                 await async_acquire_outbound_api_slot(hass)
                 async with session.post(
@@ -2575,7 +2580,7 @@ async def entity_send_plain_message(
                     body = await resp.text()
                     if resp.status >= 400:
                         _LOGGER.error(
-                            "Max API send failed: status=%s body=%s request_url=%s",
+                            "Отправка в Max API не удалась: код=%s тело=%s url=%s",
                             resp.status,
                             body[:500],
                             url,
@@ -2587,20 +2592,20 @@ async def entity_send_plain_message(
                                 "и настройте интеграцию с типом «Групповой чат» и этим chat_id."
                             )
                         return False
-                    _LOGGER.info("Message sent successfully (status=%s)", resp.status)
+                    _LOGGER.info("Сообщение отправлено (код=%s)", resp.status)
                     _LOGGER.info(
-                        "entity_send_plain_message: full server response body=%s",
+                        "entity_send_plain_message: полный ответ=%s",
                         body,
                     )
                     extracted_mid = _extract_message_id_from_response(body)
                     if extracted_mid:
                         _LOGGER.info(
-                            "entity_send_plain_message: extracted message_id=%s",
+                            "entity_send_plain_message: message_id=%s",
                             extracted_mid,
                         )
                     else:
                         _LOGGER.info(
-                            "entity_send_plain_message: message_id not found in response",
+                            "entity_send_plain_message: message_id в ответе не найден",
                         )
                     _store_outgoing_message_id_from_response(
                         hass,
@@ -2609,30 +2614,30 @@ async def entity_send_plain_message(
                         "entity_send_plain_message",
                         recipient_id=store_rid,
                     )
-                    _LOGGER.debug("Max send finished successfully on attempt %s/5", attempt)
+                    _LOGGER.debug("Отправка в Max успешна на попытке %s/5", attempt)
                     return True
             except aiohttp.ClientError as e:
                 last_error = e
                 _LOGGER.error(
-                    "Max API request failed (attempt %s/5): %s",
+                    "Запрос к Max API не удался (попытка %s/5): %s",
                     attempt,
                     e,
                 )
                 if attempt < 5:
                     delay = 2 ** (attempt - 1)
                     _LOGGER.debug(
-                        "Scheduling next Max send retry in %ss (attempt %s/5)",
+                        "Следующая повторная отправка через %s с (попытка %s/5)",
                         delay,
                         attempt + 1,
                     )
                     await asyncio.sleep(delay)
             except Exception as e:
                 last_error = e
-                _LOGGER.exception("Unexpected error sending Max message: %s", e)
+                _LOGGER.exception("Неожиданная ошибка при отправке в Max: %s", e)
                 break
 
         _LOGGER.error(
-            "Max message send failed after 5 attempts: last_error=%r, url=%s, entry_id=%s",
+            "Отправка сообщения в Max не удалась после 5 попыток: ошибка=%r url=%s запись=%s",
             last_error,
             url,
             entry.entry_id,

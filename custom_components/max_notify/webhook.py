@@ -88,15 +88,15 @@ def get_webhook_url(hass: HomeAssistant, entry: ConfigEntry) -> str:
             )
         except NoURLAvailableError as err:
             _LOGGER.warning(
-                "WebHook base URL: no external URL configured (%s). "
-                "Set HTTPS external URL in Settings → System → Network "
-                "(see https://www.home-assistant.io/docs/configuration/basic/).",
+                "Базовый URL для WebHook: внешний адрес не настроен (%s). "
+                "Укажите внешний HTTPS в Настройки → Система → Сеть "
+                "(см. https://www.home-assistant.io/docs/configuration/basic/).",
                 err,
             )
         except Exception as e:
-            _LOGGER.warning("get_url (external, no ssl requirement) failed: %s", e)
+            _LOGGER.warning("get_url (внешний, без обязательного SSL): %s", e)
     except Exception as e:
-        _LOGGER.warning("get_url (external, require ssl) failed: %s", e)
+        _LOGGER.warning("get_url (внешний, требуется SSL): %s", e)
 
     base = (base or "").rstrip("/")
     path = f"{WEBHOOK_PATH_PREFIX}/{entry.entry_id}"
@@ -121,14 +121,14 @@ def log_webhook_https_diagnostics(hass: HomeAssistant, entry: ConfigEntry) -> No
     webhook_url = get_webhook_url(hass, entry)
     can_receive = bool(webhook_url and webhook_url.startswith("https://"))
     _LOGGER.info(
-        "MaxNotify [%s]: HTTPS for Max webhook=%s; webhook URL=%s; "
-        "external_base_https_ok=%s; HA external_url=%s; internal_url=%s",
+        "MaxNotify [%s]: HTTPS для WebHook Max=%s; URL WebHook=%s; "
+        "внешний_HTTPS_настроен=%s; HA external_url=%s; internal_url=%s",
         entry.title or entry.entry_id,
-        "yes" if can_receive else "no",
-        webhook_url or "(none)",
-        "yes" if base_https_ok else "no",
-        ext or "(none)",
-        int_url or "(none)",
+        "да" if can_receive else "нет",
+        webhook_url or "(нет)",
+        "да" if base_https_ok else "нет",
+        ext or "(нет)",
+        int_url or "(нет)",
     )
 
 
@@ -155,11 +155,11 @@ async def register_webhook(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Зарегистрировать URL WebHook у провайдера записи. True при успехе."""
     if not get_capabilities(entry).supports_receive_webhook:
         _LOGGER.debug(
-            "register_webhook skipped: provider does not support webhook for entry_id=%s",
+            "Регистрация WebHook пропущена: провайдер не поддерживает WebHook, запись=%s",
             entry.entry_id,
         )
         return False
-    _LOGGER.debug("register_webhook: entry_id=%s", entry.entry_id)
+    _LOGGER.debug("Регистрация WebHook: запись=%s", entry.entry_id)
     url = get_webhook_url(hass, entry)
     return await get_provider(entry).async_webhook_register(
         hass, entry, webhook_public_url=url
@@ -170,7 +170,7 @@ async def unregister_webhook(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Снять WebHook у провайдера записи."""
     if not get_capabilities(entry).supports_receive_webhook:
         return True
-    _LOGGER.debug("unregister_webhook: entry_id=%s", entry.entry_id)
+    _LOGGER.debug("Снятие WebHook: запись=%s", entry.entry_id)
     url = get_webhook_url(hass, entry)
     needle = f"{WEBHOOK_PATH_PREFIX}/{entry.entry_id}"
     return await get_provider(entry).async_webhook_unregister(
@@ -199,7 +199,7 @@ class MaxNotifyWebHookView(HomeAssistantView):
         hass = request.app["hass"]
         entry = hass.config_entries.async_get_entry(entry_id)
         if not entry or entry.domain != DOMAIN:
-            _LOGGER.debug("WebHook: unknown entry_id=%s", entry_id)
+            _LOGGER.debug("WebHook: неизвестная запись %s", entry_id)
             return web.Response(status=404, text="not found")
 
         if not get_capabilities(entry).supports_receive_webhook:

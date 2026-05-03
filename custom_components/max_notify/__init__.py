@@ -79,10 +79,10 @@ def _is_ha_version_compatible() -> bool:
 def _ensure_service_registered(hass: HomeAssistant) -> None:
     """Зарегистрировать max_notify.send_message (идемпотентно). Отложенно, чтобы реестр служб был готов."""
     try:
-        _LOGGER.debug("Ensuring max_notify services are registered")
+        _LOGGER.debug("Проверка регистрации служб MaxNotify")
         register_send_message_service(hass)
     except Exception as e:
-        _LOGGER.exception("Failed to register max_notify.send_message: %s", e)
+        _LOGGER.exception("Не удалось зарегистрировать max_notify.send_message: %s", e)
 
 
 async def _async_register_service_once(hass: HomeAssistant) -> None:
@@ -107,11 +107,11 @@ def _ensure_webhook_view_registered(hass: HomeAssistant) -> None:
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Настроить MaxNotify из записи конфигурации."""
-    _LOGGER.debug("async_setup_entry: entry_id=%s title=%s", entry.entry_id, entry.title)
+    _LOGGER.debug("async_setup_entry: запись=%s заголовок=%s", entry.entry_id, entry.title)
     issue_id = f"{_ISSUE_UNSUPPORTED_HA_PREFIX}{entry.entry_id}"
     if not _is_ha_version_compatible():
         _LOGGER.error(
-            "MaxNotify [%s]: unsupported Home Assistant Core version %s; requires %s+.",
+            "MaxNotify [%s]: неподдерживаемая версия Home Assistant Core %s; нужна %s или новее.",
             entry.title or entry.entry_id,
             HA_VERSION,
             MINIMUM_HA_VERSION,
@@ -122,7 +122,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 await unregister_webhook(hass, entry)
             except Exception as e:
                 _LOGGER.warning(
-                    "Failed to unregister WebHook for incompatible entry %s: %s",
+                    "Не удалось снять WebHook для несовместимой записи %s: %s",
                     entry.entry_id,
                     e,
                 )
@@ -164,11 +164,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     provider = get_provider(entry)
     await provider.async_prepare_entry_for_receive(hass, entry)
-    if provider.supports_bot_commands:
+    if provider.supports_bot_command_registration:
         synced = await sync_bot_commands_to_max(hass, entry)
         if not synced:
             _LOGGER.warning(
-                "Failed to sync slash commands for entry_id=%s",
+                "Не удалось синхронизировать слеш-команды с Max для записи %s",
                 entry.entry_id,
             )
     receive_mode = (entry.options or {}).get(CONF_RECEIVE_MODE, "send_only")
@@ -179,7 +179,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         start_polling(hass, entry)
     elif receive_mode == RECEIVE_MODE_WEBHOOK:
         _LOGGER.debug(
-            "async_setup_entry: ensuring WebHook view registered for entry_id=%s",
+            "async_setup_entry: регистрация представления WebHook, запись=%s",
             entry.entry_id,
         )
         _ensure_webhook_view_registered(hass)
@@ -189,8 +189,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     try:
         await hass.config_entries.async_forward_entry_setups(entry, [Platform.SENSOR])
     except Exception as e:
-        _LOGGER.warning("Failed to set up sensor platform for entry_id=%s: %s", entry.entry_id, e)
-    _LOGGER.debug("async_setup_entry: forward done for entry_id=%s", entry.entry_id)
+        _LOGGER.warning("Не удалось подключить платформу sensor для записи %s: %s", entry.entry_id, e)
+    _LOGGER.debug("async_setup_entry: пересылка платформ завершена, запись=%s", entry.entry_id)
     return True
 
 
@@ -215,7 +215,7 @@ def _hydrate_recipient_ids_from_subentries(
             continue
     if migrated:
         _LOGGER.debug(
-            "Recipient storage hydration completed: entry_id=%s migrated=%s",
+            "Восстановление получателей завершено: запись=%s обновлено=%s",
             entry.entry_id,
             migrated,
         )
@@ -230,7 +230,7 @@ async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> Non
     """Перезагрузка интеграции при изменении записи или субпунктов (с debounce).
     При добавлении/удалении чата перезагрузка подхватит новые сущности через ~0.5 с.
     """
-    _LOGGER.debug("_async_update_listener: entry_id=%s, schedule reload", entry.entry_id)
+    _LOGGER.debug("_async_update_listener: запись=%s, планируется перезагрузка", entry.entry_id)
     debouncers = hass.data.get(DOMAIN, {})
     if entry.entry_id in debouncers:
         debouncers[entry.entry_id].async_schedule_call()
@@ -238,7 +238,7 @@ async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> Non
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Выгрузить запись конфигурации."""
-    _LOGGER.debug("async_unload_entry: entry_id=%s", entry.entry_id)
+    _LOGGER.debug("async_unload_entry: запись=%s", entry.entry_id)
     # Остановить polling всегда: entry.options могут уже отражать новый режим.
     stop_polling(hass, entry)
     receive_mode = (entry.options or {}).get(CONF_RECEIVE_MODE, "send_only")

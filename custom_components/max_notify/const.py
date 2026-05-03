@@ -80,8 +80,8 @@ URL_AUTH_TYPE_DIGEST = "digest"
 URL_AUTH_TYPE_BEARER = "bearer"
 URL_AUTH_TYPES = [URL_AUTH_TYPE_BASIC, URL_AUTH_TYPE_DIGEST, URL_AUTH_TYPE_BEARER]
 
-# Long polling (GET /updates)
-POLLING_TIMEOUT = 25
+# Long polling (GET /updates); таймаут long poll на стороне Max (см. README / issue #16).
+POLLING_TIMEOUT = 30
 POLLING_LIMIT = 100
 POLLING_RETRY_DELAY = 5
 

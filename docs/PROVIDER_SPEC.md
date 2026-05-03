@@ -69,7 +69,8 @@
 | `supports_send_photo` | Цепочка загрузки + сообщение с вложением «фото». |
 | `supports_send_document` | Аналогично для файла. |
 | `supports_send_video` | Аналогично для видео. |
-| `supports_bot_commands` | Синхронизация slash-команд с бэкендом (как у официального API). |
+| `supports_bot_command_registration` | Синхронизация списка slash-команд с Max (PATCH /me) — только официальный API. |
+| `supports_slash_command_allowlist_ui` | Мастер/опции: allowlist slash-команд (для a161 — без регистрации в Max). |
 | `max_client_upload_bytes` | Верхняя граница размера тела вложения для **предпроверки** на стороне HA (или `null`, если не ограничиваете на клиенте). |
 | `supports_receive_polling` | Периодический опрос очереди обновлений без long-hold. |
 | `supports_receive_long_polling` | Long polling к `/updates` (или эквиваленту) с `marker` и таймаутом. |

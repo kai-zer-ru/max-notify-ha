@@ -396,14 +396,15 @@
   },
   "invalid_notify_entity": "Недопустимая сущность MaxNotify: {entity_id}",
   "invalid_message_id": "ID сообщения не может быть пустым.",
-  "delete_from_to_both_required": "Укажите вместе «Начало периода для поиска» и «Конец периода для поиска», либо не заполняйте их, если используете ID сообщения, список ID или дату.",
-  "delete_requires_id_date_or_period": "Укажите ID сообщения, список ID, дату или интервал (начало и конец периода для поиска). Одной только сущности уведомления недостаточно.",
+  "delete_from_to_both_required": "Заполните оба поля — «Начало периода для поиска» и «Конец периода для поиска», либо очистите оба, если используете message_id, message_ids или поле «Дата».",
+  "delete_requires_id_date_or_period": "Чтобы удалять по чату, укажите способ поиска сообщений: message_id, message_ids, поле «Дата» или оба поля периода («Начало» и «Конец»). Одной только сущности уведомления недостаточно.",
   "provider_delete_by_period_not_supported": "Провайдер {provider} не поддерживает удаление сообщений по дате или интервалу. Используйте message_id или message_ids.",
   "provider_delete_last_outgoing_not_supported": "Провайдер {provider} не поддерживает удаление последнего исходящего сообщения.",
-  "missing_target": "Укажите entity_id сущности notify MaxNotify или config_entry_id (если интеграций несколько).",
-  "invalid_config_entry": "Недопустимая запись конфигурации: {config_entry_id}",
-  "missing_config_entry_id": "Найдено несколько интеграций MaxNotify; укажите config_entry_id.",
-  "no_matching_entities": "Нет подходящих сущностей уведомлений для интеграции {config_entry_id}.",
+  "missing_target": "Укажите, куда отправлять: в «Цель» выберите сущность notify MaxNotify (например notify.maxnotify_…), либо при нескольких интеграциях MaxNotify укажите нужную в поле «Интеграция» (config_entry_id).",
+  "invalid_config_entry": "Неверный идентификатор в поле «Интеграция» (config_entry_id): {config_entry_id}. Откройте Настройки → Устройства и службы → MaxNotify и скопируйте id с карточки интеграции.",
+  "missing_config_entry_id": "У вас несколько интеграций MaxNotify — укажите, какую использовать: поле «Интеграция» (config_entry_id) в действии или сущность notify, чтобы Home Assistant знал чат.",
+  "config_entry_entity_mismatch": "Идентификатор интеграции ({config_entry_id}) не относится к выбранной сущности notify. Уберите «Интеграцию» и оставьте только сущность или укажите интеграцию {resolved_entry_id}.",
+  "no_matching_entities": "Для этого id интеграции ({config_entry_id}) нет сущностей notify. Добавьте чат в MaxNotify или проверьте, что id совпадает с Настройки → Устройства и службы.",
   "plain_recipient_not_resolved": "Не удалось определить получателя. Проверьте сущность notify и настройки интеграции.",
   "unsupported_for_notify_a161": "Операция {operation} не поддерживается для {provider_label}.",
   "delete_last_outgoing_group_only": "Это действие работает только для групповых чатов (recipient_id < 0). Для личных чатов удаляйте сообщение по явному message_id (например, сохраните его сразу после отправки).",
@@ -421,6 +422,26 @@
   "attachments_count_limit_exceeded": "Для {provider} действует лимит {max_count} вложений на сообщение (файлы + inline-клавиатура); запрошено: {actual_count}.",
   "send_message_failed_after_retries": "Не удалось отправить сообщение после {attempts} попыток. Ошибка: {error}.",
   "link_button_url_http_https_only": "URL кнопки-ссылки должен быть только http или https (получено: {url}).",
+  "service_datetime_empty": "Дата или время пустые. Введите значение или исправьте шаблон.",
+  "service_invalid_calendar_date": "Некорректная календарная дата в поле «{field_name}». Проверьте день, месяц и год (например, 31 февраля быть не может).",
+  "service_invalid_date_format_expected": "Неверный формат даты в поле «{field_name}». Используйте ГГГГ-ММ-ДД, ДД-ММ-ГГГГ или Unix-время в миллисекундах; примеры: 2026-10-23, 23.10.2026.",
+  "service_date_without_time_only": "Поле «{field_name}» должно содержать только дату без времени (удаление за один день). Уберите часть со временем.",
+  "service_invalid_time_format": "Неверное время: используйте ЧЧ:ММ:СС или ЧЧ-ММ-СС (24 часа).",
+  "service_invalid_clock_values": "Неверное время: час — от 0 до 23, минуты и секунды — от 0 до 59.",
+  "service_invalid_datetime_value": "Некорректные дата и время в поле «{field_name}». Проверьте дату, время и часовой пояс.",
+  "service_field_cannot_be_null": "Поле «{field_name}» не задано. Укажите значение или исправьте автоматизацию.",
+  "service_field_cannot_be_empty": "Поле «{field_name}» пустое. Заполните его или исправьте шаблон.",
+  "service_delete_date_bad_type": "Поле «{field_name}»: укажите дату текстом или Unix-метку времени (число). Другие типы не поддерживаются.",
+  "service_url_auth_need_type": "Заданы логин/пароль или токен для URL — также укажите «Тип авторизации URL» (url_auth_type): basic, digest или bearer.",
+  "service_url_auth_bearer_need_token": "При url_auth_type «bearer» нужно задать url_auth_token.",
+  "service_url_auth_token_bearer_only": "url_auth_token используется только с url_auth_type «bearer». Для basic/digest укажите логин и пароль.",
+  "service_url_auth_login_password_pairs": "Для basic или digest задайте оба поля: url_auth_login и url_auth_password.",
+  "service_url_auth_basic_digest_only_login_password": "Логин и пароль используются только с url_auth_type «basic» или «digest».",
+  "service_files_not_list": "Параметр «files» должен быть списком YAML с путями или URL, например files: [\"/config/file.jpg\"].",
+  "service_files_items_not_strings": "Каждый элемент в «files» должен быть текстовым путём или URL.",
+  "service_files_none_given": "Не указаны файлы: задайте «file» или непустой список «files».",
+  "service_send_document_use_file_not_files": "send_document принимает только один файл — используйте поле «file», а не «files».",
+  "service_send_document_one_file_only": "send_document: прикрепите ровно один файл (путь или URL).",
   "exceptions": {
     "invalid_notify_entity": {
       "message": "Недопустимая сущность MaxNotify: {entity_id}"
@@ -429,10 +450,10 @@
       "message": "ID сообщения не может быть пустым."
     },
     "delete_from_to_both_required": {
-      "message": "Укажите вместе «Начало периода для поиска» и «Конец периода для поиска», либо не заполняйте их, если используете ID сообщения, список ID или дату."
+      "message": "Заполните оба поля — «Начало периода для поиска» и «Конец периода для поиска», либо очистите оба, если используете message_id, message_ids или поле «Дата»."
     },
     "delete_requires_id_date_or_period": {
-      "message": "Укажите ID сообщения, список ID, дату или интервал (начало и конец периода для поиска). Одной только сущности уведомления недостаточно."
+      "message": "Чтобы удалять по чату, укажите способ поиска сообщений: message_id, message_ids, поле «Дата» или оба поля периода («Начало» и «Конец»). Одной только сущности уведомления недостаточно."
     },
     "provider_delete_by_period_not_supported": {
       "message": "Провайдер {provider} не поддерживает удаление сообщений по дате или интервалу. Используйте message_id или message_ids."
@@ -441,16 +462,19 @@
       "message": "Провайдер {provider} не поддерживает удаление последнего исходящего сообщения."
     },
     "missing_target": {
-      "message": "Укажите entity_id сущности notify MaxNotify или config_entry_id (если интеграций несколько)."
+      "message": "Укажите, куда отправлять: в «Цель» выберите сущность notify MaxNotify (например notify.maxnotify_…), либо при нескольких интеграциях MaxNotify укажите нужную в поле «Интеграция» (config_entry_id)."
     },
     "invalid_config_entry": {
-      "message": "Недопустимая запись конфигурации: {config_entry_id}"
+      "message": "Неверный идентификатор в поле «Интеграция» (config_entry_id): {config_entry_id}. Откройте Настройки → Устройства и службы → MaxNotify и скопируйте id с карточки интеграции."
     },
     "missing_config_entry_id": {
-      "message": "Найдено несколько интеграций MaxNotify; укажите config_entry_id."
+      "message": "У вас несколько интеграций MaxNotify — укажите, какую использовать: поле «Интеграция» (config_entry_id) в действии или сущность notify, чтобы Home Assistant знал чат."
+    },
+    "config_entry_entity_mismatch": {
+      "message": "Идентификатор интеграции ({config_entry_id}) не относится к выбранной сущности notify. Уберите «Интеграцию» и оставьте только сущность или укажите интеграцию {resolved_entry_id}."
     },
     "no_matching_entities": {
-      "message": "Нет подходящих сущностей уведомлений для интеграции {config_entry_id}."
+      "message": "Для этого id интеграции ({config_entry_id}) нет сущностей notify. Добавьте чат в MaxNotify или проверьте, что id совпадает с Настройки → Устройства и службы."
     },
     "plain_recipient_not_resolved": {
       "message": "Не удалось определить получателя. Проверьте сущность notify и настройки интеграции."
@@ -484,6 +508,66 @@
     },
     "link_button_url_http_https_only": {
       "message": "URL кнопки-ссылки должен быть только http или https (получено: {url})."
+    },
+    "service_datetime_empty": {
+      "message": "Дата или время пустые. Введите значение или исправьте шаблон."
+    },
+    "service_invalid_calendar_date": {
+      "message": "Некорректная календарная дата в поле «{field_name}». Проверьте день, месяц и год (например, 31 февраля быть не может)."
+    },
+    "service_invalid_date_format_expected": {
+      "message": "Неверный формат даты в поле «{field_name}». Используйте ГГГГ-ММ-ДД, ДД-ММ-ГГГГ или Unix-время в миллисекундах; примеры: 2026-10-23, 23.10.2026."
+    },
+    "service_date_without_time_only": {
+      "message": "Поле «{field_name}» должно содержать только дату без времени (удаление за один день). Уберите часть со временем."
+    },
+    "service_invalid_time_format": {
+      "message": "Неверное время: используйте ЧЧ:ММ:СС или ЧЧ-ММ-СС (24 часа)."
+    },
+    "service_invalid_clock_values": {
+      "message": "Неверное время: час — от 0 до 23, минуты и секунды — от 0 до 59."
+    },
+    "service_invalid_datetime_value": {
+      "message": "Некорректные дата и время в поле «{field_name}». Проверьте дату, время и часовой пояс."
+    },
+    "service_field_cannot_be_null": {
+      "message": "Поле «{field_name}» не задано. Укажите значение или исправьте автоматизацию."
+    },
+    "service_field_cannot_be_empty": {
+      "message": "Поле «{field_name}» пустое. Заполните его или исправьте шаблон."
+    },
+    "service_delete_date_bad_type": {
+      "message": "Поле «{field_name}»: укажите дату текстом или Unix-метку времени (число). Другие типы не поддерживаются."
+    },
+    "service_url_auth_need_type": {
+      "message": "Заданы логин/пароль или токен для URL — также укажите «Тип авторизации URL» (url_auth_type): basic, digest или bearer."
+    },
+    "service_url_auth_bearer_need_token": {
+      "message": "При url_auth_type «bearer» нужно задать url_auth_token."
+    },
+    "service_url_auth_token_bearer_only": {
+      "message": "url_auth_token используется только с url_auth_type «bearer». Для basic/digest укажите логин и пароль."
+    },
+    "service_url_auth_login_password_pairs": {
+      "message": "Для basic или digest задайте оба поля: url_auth_login и url_auth_password."
+    },
+    "service_url_auth_basic_digest_only_login_password": {
+      "message": "Логин и пароль используются только с url_auth_type «basic» или «digest»."
+    },
+    "service_files_not_list": {
+      "message": "Параметр «files» должен быть списком YAML с путями или URL, например files: [\"/config/file.jpg\"]."
+    },
+    "service_files_items_not_strings": {
+      "message": "Каждый элемент в «files» должен быть текстовым путём или URL."
+    },
+    "service_files_none_given": {
+      "message": "Не указаны файлы: задайте «file» или непустой список «files»."
+    },
+    "service_send_document_use_file_not_files": {
+      "message": "send_document принимает только один файл — используйте поле «file», а не «files»."
+    },
+    "service_send_document_one_file_only": {
+      "message": "send_document: прикрепите ровно один файл (путь или URL)."
     },
     "delete_message_permission_denied": {
       "message": "Нет прав на удаление сообщений. В групповом чате назначьте бота администратором и выдайте право удалять сообщения."
