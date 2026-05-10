@@ -12,13 +12,11 @@ send_message:
     message:
       required: true
       selector:
-        text:
-          multiline: true
+        template: {}
     title:
       example: "Заголовок"
       selector:
-        text:
-          multiline: true
+        template: {}
     advanced:
       collapsed: true
       fields:
@@ -60,13 +58,11 @@ send_text_to_all:
     message:
       required: true
       selector:
-        text:
-          multiline: true
+        template: {}
     title:
       example: "Заголовок"
       selector:
-        text:
-          multiline: true
+        template: {}
     advanced:
       collapsed: true
       fields:
@@ -115,8 +111,7 @@ send_photo:
         object:
     caption:
       selector:
-        text:
-          multiline: true
+        template: {}
     advanced:
       collapsed: true
       fields:
@@ -215,8 +210,7 @@ send_video:
         object:
     caption:
       selector:
-        text:
-          multiline: true
+        template: {}
     advanced:
       collapsed: true
       fields:
@@ -312,8 +306,7 @@ send_document:
         text:
     caption:
       selector:
-        text:
-          multiline: true
+        template: {}
     advanced:
       collapsed: true
       fields:
@@ -475,8 +468,7 @@ edit_message:
         text:
     text:
       selector:
-        text:
-          multiline: true
+        template: {}
     send_keyboard:
       default: true
       selector:
