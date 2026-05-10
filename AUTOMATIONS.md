@@ -23,6 +23,14 @@
 ## Содержание
 
 - [Форматы поля buttons](#formats-buttons)
+- [Рабочие паттерны](#working-patterns)
+  - [Прямое уведомление из автоматизации](#pattern-direct-automation-notify)
+  - [Разные сообщения по `trigger.id`](#pattern-trigger-id-choose)
+  - [Кнопка → команда → сценарий](#pattern-button-command-script)
+  - [Кнопка «Удалить»](#pattern-delete-button)
+  - [Временное сообщение «формируется»](#pattern-temporary-message)
+  - [Фото/видео с камеры и меню действий](#pattern-camera-menu)
+  - [Динамическое фото по URL](#pattern-dynamic-url-photo)
 - [max_notify.send_message](#autom-send-message)
   - [Ответ в тот же чат (из события)](#autom-send-message-same-chat)
   - [Вручную](#autom-send-message-manual)
@@ -83,6 +91,375 @@
       "Ряд 1 / Кнопка 2": "r1_b2"
     - "Ряд 2 / Кнопка 1": "r2_b1"
   ```
+
+[↑ Наверх](#automations-top)
+
+---
+
+<a id="working-patterns"></a>
+
+## Рабочие паттерны
+
+Эти примеры собраны по реальным рабочим автоматизациям. Замените `notify.maxnotify_webhook_chat_123456`, сенсоры `sensor.maxnotify_...` и пути к файлам на свои.
+
+<a id="pattern-direct-automation-notify"></a>
+
+### Прямое уведомление из автоматизации
+
+Самый простой рабочий вариант — вызвать `max_notify.send_message` прямо из `automations.yaml` по событию Home Assistant: запуск системы, состояние датчика, дверной звонок, высокий CO2 и т.п. `entity_id` можно передавать в `data` или через `target`; оба варианта используются в Home Assistant.
+
+```yaml
+alias: MaxNotify — запуск Home Assistant
+description: Сообщает о старте системы и предлагает удалить уведомление кнопкой.
+triggers:
+  - trigger: homeassistant
+    event: start
+conditions: []
+actions:
+  - action: max_notify.send_message
+    data:
+      entity_id: notify.maxnotify_webhook_chat_123456
+      message: >
+        Сервер Home Assistant запущен в {{ utcnow().astimezone().strftime('%H:%M %d.%m.%Y') }}.
+        Отчёт о состоянии будет через 1 минуту.
+      send_keyboard: true
+      buttons:
+        - text: "Удалить"
+          payload: delete
+mode: single
+```
+
+```yaml
+alias: MaxNotify — дверной звонок
+triggers:
+  - trigger: device
+    domain: mqtt
+    device_id: your_device_id
+    type: action
+    subtype: single
+conditions: []
+actions:
+  - action: max_notify.send_message
+    target:
+      entity_id: notify.maxnotify_webhook_chat_123456
+    data:
+      message: "Звонок в дверь"
+      send_keyboard: true
+mode: single
+```
+
+[↑ Наверх](#automations-top)
+
+<a id="pattern-trigger-id-choose"></a>
+
+### Разные сообщения по `trigger.id`
+
+Если одна автоматизация слушает несколько событий, удобно поставить каждому триггеру `id`, а затем выбрать текст через `choose`. Так можно держать связанную логику в одной automation и отправлять разные сообщения в Max.
+
+```yaml
+alias: MaxNotify — события двери
+triggers:
+  - trigger: state
+    entity_id: sensor.door_lock_event
+    to: "Doorbell is ringing"
+    id: doorbell
+  - trigger: state
+    entity_id: sensor.door_lock_event
+    to: "The door is not closed"
+    id: opened_from_outside
+conditions: []
+actions:
+  - choose:
+      - conditions:
+          - condition: trigger
+            id: opened_from_outside
+        sequence:
+          - action: max_notify.send_message
+            data:
+              entity_id:
+                - notify.maxnotify_webhook_chat_123456
+              message: >
+                Входная дверь открыта снаружи.
+                Пользователь: {{ states('sensor.last_door_user') }}
+              send_keyboard: true
+
+      - conditions:
+          - condition: trigger
+            id: doorbell
+        sequence:
+          - action: max_notify.send_message
+            data:
+              entity_id:
+                - notify.maxnotify_webhook_chat_123456
+              message: "Звонок в дверь"
+              send_keyboard: true
+mode: queued
+max: 10
+```
+
+[↑ Наверх](#automations-top)
+
+<a id="pattern-button-command-script"></a>
+
+### Кнопка → команда → сценарий
+
+Кнопки с `payload` приходят в событие `max_notify_received` как `command`. Удобно делать одно сообщение с меню и отдельные автоматизации-роутеры для каждой команды.
+
+```yaml
+alias: MaxNotify — уведомление с меню
+triggers:
+  - trigger: state
+    entity_id: binary_sensor.washing_machine_done
+    to: "on"
+conditions: []
+actions:
+  - action: max_notify.send_message
+    data:
+      entity_id:
+        - notify.maxnotify_webhook_chat_123456
+      message: "Стирка окончена, вытащи бельё"
+      send_keyboard: true
+      buttons:
+        - - text: "Отчёт"
+            payload: report
+          - text: "Все ушли из дома"
+            payload: away
+        - - text: "Удалить"
+            payload: delete
+mode: single
+```
+
+```yaml
+alias: MaxNotify — команда report
+triggers:
+  - trigger: event
+    event_type: max_notify_received
+    event_data:
+      command: report
+conditions: []
+actions:
+  - action: script.turn_on
+    target:
+      entity_id: script.system_report
+mode: single
+```
+
+[↑ Наверх](#automations-top)
+
+<a id="pattern-delete-button"></a>
+
+### Кнопка «Удалить»
+
+Если в сообщении есть кнопка с `payload: delete`, можно удалить именно то сообщение, на котором нажали кнопку. Для этого берите `config_entry_id` и `message_id` из события.
+
+```yaml
+alias: MaxNotify — удалить сообщение по кнопке
+triggers:
+  - trigger: event
+    event_type: max_notify_received
+    event_data:
+      command: delete
+conditions: []
+actions:
+  - action: max_notify.delete_message
+    data:
+      config_entry_id: "{{ trigger.event.data.config_entry_id }}"
+      message_id: "{{ trigger.event.data.message_id }}"
+mode: single
+```
+
+[↑ Наверх](#automations-top)
+
+<a id="pattern-temporary-message"></a>
+
+### Временное сообщение «формируется»
+
+Для долгих операций удобно сначала отправить короткое сообщение, дождаться обновления сенсора последнего исходящего `message_id`, выполнить работу, отправить итог и удалить промежуточное сообщение.
+
+```yaml
+alias: MaxNotify — временное сообщение и удаление
+triggers:
+  - trigger: event
+    event_type: my_long_task
+conditions: []
+actions:
+  - alias: "1. Сообщаем, что результат формируется"
+    action: max_notify.send_message
+    data:
+      entity_id:
+        - notify.maxnotify_webhook_chat_123456
+      message: "Фото с камеры формируется"
+      send_keyboard: false
+
+  - alias: "2. Ждём ID последнего исходящего сообщения"
+    wait_for_trigger:
+      - trigger: state
+        entity_id:
+          - sensor.maxnotify_webhook_last_outgoing_message_id_chat_123456
+        for:
+          seconds: 1
+    timeout: "00:00:10"
+    continue_on_timeout: false
+
+  - alias: "3. Сохраняем ID промежуточного сообщения"
+    variables:
+      message_id_to_delete: "{{ wait.trigger.to_state.state }}"
+
+  - alias: "4. Выполняем долгую операцию"
+    delay: "00:00:05"
+
+  - alias: "5. Отправляем итог"
+    action: max_notify.send_message
+    data:
+      entity_id:
+        - notify.maxnotify_webhook_chat_123456
+      message: "Готово"
+      send_keyboard: true
+
+  - alias: "6. Удаляем промежуточное сообщение"
+    action: max_notify.delete_message
+    data:
+      entity_id:
+        - notify.maxnotify_webhook_chat_123456
+      message_id: "{{ message_id_to_delete }}"
+mode: single
+```
+
+[↑ Наверх](#automations-top)
+
+<a id="pattern-camera-menu"></a>
+
+### Фото/видео с камеры и меню действий
+
+Рабочая схема для камер: сделать снимок или запись, отправить медиа и приложить меню с командами для следующих действий. Для локальных файлов используйте путь, доступный Home Assistant, например `/config/www/...`.
+
+```yaml
+alias: MaxNotify — фото с камеры
+triggers:
+  - trigger: event
+    event_type: max_notify_received
+    event_data:
+      command: photo_cam
+conditions: []
+actions:
+  - alias: "1. Делаем снимок"
+    action: camera.snapshot
+    target:
+      entity_id: camera.front_door
+    data:
+      filename: /config/www/cam_captures/front_door.jpg
+
+  - alias: "2. Отправляем фото с меню"
+    action: max_notify.send_photo
+    data:
+      entity_id:
+        - notify.maxnotify_webhook_chat_123456
+      file: /config/www/cam_captures/front_door.jpg
+      send_keyboard: true
+      count_requests: 10
+      buttons:
+        - - text: "Фото"
+            payload: photo_cam
+          - text: "Видео"
+            payload: video_cam
+        - - text: "Фото со всех камер"
+            payload: photo_cam_all
+          - text: "Видео со всех камер"
+            payload: video_cam_all
+        - - text: "Удалить"
+            payload: delete
+mode: single
+```
+
+```yaml
+alias: MaxNotify — видео с камеры
+triggers:
+  - trigger: event
+    event_type: max_notify_received
+    event_data:
+      command: video_cam
+conditions: []
+actions:
+  - alias: "1. Записываем видео"
+    action: camera.record
+    target:
+      entity_id: camera.front_door
+    data:
+      filename: /config/www/cam_captures/front_door.mp4
+      duration: 30
+      lookback: 10
+
+  - alias: "2. Отправляем видео"
+    action: max_notify.send_video
+    data:
+      entity_id:
+        - notify.maxnotify_webhook_chat_123456
+      file: /config/www/cam_captures/front_door.mp4
+      send_keyboard: true
+      buttons:
+        - - text: "Фото"
+            payload: photo_cam
+          - text: "Видео"
+            payload: video_cam
+        - - text: "Удалить"
+            payload: delete
+mode: single
+```
+
+[↑ Наверх](#automations-top)
+
+<a id="pattern-dynamic-url-photo"></a>
+
+### Динамическое фото по URL
+
+`file` у `send_photo` может быть не только локальным файлом, но и URL, собранным шаблоном. Это удобно для статических карт, камер и внешних генераторов изображений. Если источник использует самоподписанный или нестандартный SSL, можно указать `disable_ssl: true`.
+
+```yaml
+alias: MaxNotify — где все
+triggers:
+  - trigger: event
+    event_type: max_notify_received
+    event_data:
+      command: where
+conditions: []
+actions:
+  - repeat:
+      for_each: "{{ states.person | map(attribute='entity_id') | list }}"
+      sequence:
+        - action: max_notify.send_photo
+          data:
+            config_entry_id: "{{ trigger.event.data.config_entry_id }}"
+            recipient_id: "{{ trigger.event.data.recipient_id }}"
+            send_keyboard: false
+            disable_ssl: true
+            file: >
+              {% set lat = state_attr(repeat.item, 'latitude') %}
+              {% set lon = state_attr(repeat.item, 'longitude') %}
+              {% if lat is not none and lon is not none %}
+                https://static-maps.example.com/map?lat={{ lat }}&lon={{ lon }}&zoom=17&key=YOUR_API_KEY
+              {% else %}
+                https://static-maps.example.com/map?lat=0&lon=0&zoom=1&key=YOUR_API_KEY
+              {% endif %}
+            caption: >
+              {% set name = state_attr(repeat.item, 'friendly_name') %}
+              {% set lat = state_attr(repeat.item, 'latitude') %}
+              {% set lon = state_attr(repeat.item, 'longitude') %}
+              {% if lat is not none and lon is not none %}
+                {{ name }}: {{ state_translated(repeat.item) }}
+              {% else %}
+                {{ name }}: нет координат
+              {% endif %}
+            buttons:
+              - - type: link
+                  text: "Google"
+                  url: >
+                    {% set lat = state_attr(repeat.item, 'latitude') %}
+                    {% set lon = state_attr(repeat.item, 'longitude') %}
+                    {% if lat is not none and lon is not none %}
+                      https://www.google.com/maps/search/?api=1&query={{ lat }},{{ lon }}
+                    {% endif %}
+mode: single
+```
 
 [↑ Наверх](#automations-top)
 
