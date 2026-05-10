@@ -39,7 +39,6 @@ send_message:
             config_entry:
               integration: max_notify
         recipient_id:
-          description: "Chat/recipient ID (same as in max_notify_received). Use with Integration when Target is not set — sends only to this chat."
           selector:
             number:
               mode: box
@@ -130,7 +129,6 @@ send_photo:
             config_entry:
               integration: max_notify
         recipient_id:
-          description: "Chat/recipient ID (same as in max_notify_received). Use with Integration when Target is not set — sends only to this chat."
           selector:
             number:
               mode: box
@@ -227,7 +225,6 @@ send_video:
             config_entry:
               integration: max_notify
         recipient_id:
-          description: "Chat/recipient ID (same as in max_notify_received). Use with Integration when Target is not set — sends only to this chat."
           selector:
             number:
               mode: box
@@ -321,7 +318,6 @@ send_document:
             config_entry:
               integration: max_notify
         recipient_id:
-          description: "Chat/recipient ID (same as in max_notify_received). Use with Integration when Target is not set — sends only to this chat."
           selector:
             number:
               mode: box
@@ -410,7 +406,6 @@ delete_message:
         config_entry:
           integration: max_notify
     recipient_id:
-      description: "When deleting by time range: limit to this chat (same ID as in max_notify_received)."
       selector:
         number:
           mode: box
@@ -451,7 +446,6 @@ edit_message:
         config_entry:
           integration: max_notify
     recipient_id:
-      description: "Chat/recipient ID (same as in max_notify_received). Use with Integration when Target is not set."
       selector:
         number:
           mode: box
