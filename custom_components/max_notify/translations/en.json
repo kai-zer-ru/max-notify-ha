@@ -29,6 +29,10 @@
           "name": "Integration",
           "description": "MaxNotify config entry when you have several; targets are that entry's notify entities."
         },
+        "recipient_id": {
+          "name": "Recipient ID",
+          "description": "Chat/recipient ID (same as in max_notify_received). Use with Integration when Target is not set — sends only to this chat."
+        },
         "buttons": {
           "name": "Buttons",
           "description": "Custom inline buttons. Formats: object map (Text -> payload), list of objects (text, payload), or rows of objects (type: callback|message|link, text, payload/url). Link buttons require http(s) URLs only. How they combine with the default keyboard is controlled by Send keyboard."
@@ -109,6 +113,10 @@
           "name": "Integration",
           "description": "MaxNotify config entry when you have several."
         },
+        "recipient_id": {
+          "name": "Recipient ID",
+          "description": "Chat/recipient ID (same as in max_notify_received). Use with Integration when Target is not set — sends only to this chat."
+        },
         "disable_ssl": {
           "name": "Disable SSL verification",
           "description": "Disables SSL certificate validation for this operation. Use only for endpoints with self-signed or invalid certificates."
@@ -178,6 +186,10 @@
         "config_entry_id": {
           "name": "Integration",
           "description": "MaxNotify config entry when you have several."
+        },
+        "recipient_id": {
+          "name": "Recipient ID",
+          "description": "Chat/recipient ID (same as in max_notify_received). Use with Integration when Target is not set — sends only to this chat."
         },
         "disable_ssl": {
           "name": "Disable SSL verification",
@@ -252,6 +264,10 @@
         "config_entry_id": {
           "name": "Integration",
           "description": "MaxNotify config entry when you have several."
+        },
+        "recipient_id": {
+          "name": "Recipient ID",
+          "description": "Chat/recipient ID (same as in max_notify_received). Use with Integration when Target is not set — sends only to this chat."
         },
         "disable_ssl": {
           "name": "Disable SSL verification",
@@ -334,6 +350,10 @@
         "config_entry_id": {
           "name": "Integration",
           "description": "MaxNotify integration to use (required if multiple exist)."
+        },
+        "recipient_id": {
+          "name": "Recipient ID",
+          "description": "When deleting by time range: limit to this chat (same ID as in max_notify_received)."
         }
       }
     },
@@ -390,6 +410,10 @@
         "config_entry_id": {
           "name": "Integration",
           "description": "MaxNotify integration to use (required if multiple exist)."
+        },
+        "recipient_id": {
+          "name": "Recipient ID",
+          "description": "Chat/recipient ID (same as in max_notify_received). Use with Integration when Target is not set."
         }
       }
     }
