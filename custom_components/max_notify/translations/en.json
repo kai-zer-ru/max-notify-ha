@@ -405,6 +405,7 @@
   "missing_config_entry_id": "You have several MaxNotify integrations — pick which one to use: set «Integration» (config_entry_id) in the action, or select a notify entity so Home Assistant knows the chat.",
   "config_entry_entity_mismatch": "The integration id ({config_entry_id}) does not belong to the selected notify entity. Either remove «Integration» and keep only the entity, or set Integration to {resolved_entry_id}.",
   "no_matching_entities": "No notify entities found for this integration id ({config_entry_id}). Add a chat in MaxNotify or check that the id matches Settings → Devices & services.",
+  "recipient_id_no_notify_entity": "No notify entity for integration id {config_entry_id} with recipient_id {recipient_id}. Check the chat ID or pick Target (notify entity) in the action.",
   "plain_recipient_not_resolved": "Could not resolve recipient. Check the notify entity and integration settings.",
   "unsupported_for_notify_a161": "Operation {operation} is not supported for {provider_label}.",
   "delete_last_outgoing_group_only": "This action works only for group chats (recipient_id < 0). For personal chats, delete by explicit message_id (for example, save it right after sending).",
@@ -475,6 +476,9 @@
     },
     "no_matching_entities": {
       "message": "No notify entities found for this integration id ({config_entry_id}). Add a chat in MaxNotify or check that the id matches Settings → Devices & services."
+    },
+    "recipient_id_no_notify_entity": {
+      "message": "No notify entity for integration id {config_entry_id} with recipient_id {recipient_id}. Check the chat ID or pick Target (notify entity) in the action."
     },
     "plain_recipient_not_resolved": {
       "message": "Could not resolve recipient. Check the notify entity and integration settings."

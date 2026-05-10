@@ -405,6 +405,7 @@
   "missing_config_entry_id": "У вас несколько интеграций MaxNotify — укажите, какую использовать: поле «Интеграция» (config_entry_id) в действии или сущность notify, чтобы Home Assistant знал чат.",
   "config_entry_entity_mismatch": "Идентификатор интеграции ({config_entry_id}) не относится к выбранной сущности notify. Уберите «Интеграцию» и оставьте только сущность или укажите интеграцию {resolved_entry_id}.",
   "no_matching_entities": "Для этого id интеграции ({config_entry_id}) нет сущностей notify. Добавьте чат в MaxNotify или проверьте, что id совпадает с Настройки → Устройства и службы.",
+  "recipient_id_no_notify_entity": "Нет сущности notify для записи {config_entry_id} с recipient_id {recipient_id}. Проверьте ID чата или выберите цель (сущность notify) в действии.",
   "plain_recipient_not_resolved": "Не удалось определить получателя. Проверьте сущность notify и настройки интеграции.",
   "unsupported_for_notify_a161": "Операция {operation} не поддерживается для {provider_label}.",
   "delete_last_outgoing_group_only": "Это действие работает только для групповых чатов (recipient_id < 0). Для личных чатов удаляйте сообщение по явному message_id (например, сохраните его сразу после отправки).",
@@ -475,6 +476,9 @@
     },
     "no_matching_entities": {
       "message": "Для этого id интеграции ({config_entry_id}) нет сущностей notify. Добавьте чат в MaxNotify или проверьте, что id совпадает с Настройки → Устройства и службы."
+    },
+    "recipient_id_no_notify_entity": {
+      "message": "Нет сущности notify для записи {config_entry_id} с recipient_id {recipient_id}. Проверьте ID чата или выберите цель (сущность notify) в действии."
     },
     "plain_recipient_not_resolved": {
       "message": "Не удалось определить получателя. Проверьте сущность notify и настройки интеграции."

@@ -152,6 +152,7 @@ SERVICE_SEND_PHOTO_SCHEMA = vol.All(
         vol.Optional("notify", default=True): cv.boolean,
         vol.Optional(ATTR_ENTITY_ID): vol.All(cv.ensure_list, [cv.entity_id]),
         vol.Optional(CONF_CONFIG_ENTRY_ID): cv.string,
+        vol.Optional(CONF_RECIPIENT_ID): vol.Coerce(int),
         vol.Optional(CONF_COUNT_REQUESTS): vol.All(vol.Coerce(int), vol.Range(min=1)),
         vol.Optional(CONF_DISABLE_SSL, default=False): cv.boolean,
         vol.Optional(CONF_URL_AUTH_TYPE): vol.In(URL_AUTH_TYPES),
@@ -174,6 +175,7 @@ SERVICE_SEND_DOCUMENT_SCHEMA = vol.All(
         vol.Optional("notify", default=True): cv.boolean,
         vol.Optional(ATTR_ENTITY_ID): vol.All(cv.ensure_list, [cv.entity_id]),
         vol.Optional(CONF_CONFIG_ENTRY_ID): cv.string,
+        vol.Optional(CONF_RECIPIENT_ID): vol.Coerce(int),
         vol.Optional(CONF_COUNT_REQUESTS): vol.All(vol.Coerce(int), vol.Range(min=1)),
         vol.Optional(CONF_DISABLE_SSL, default=False): cv.boolean,
         vol.Optional(CONF_URL_AUTH_TYPE): vol.In(URL_AUTH_TYPES),
@@ -197,6 +199,7 @@ SERVICE_SEND_VIDEO_SCHEMA = vol.All(
         vol.Optional("notify", default=True): cv.boolean,
         vol.Optional(ATTR_ENTITY_ID): vol.All(cv.ensure_list, [cv.entity_id]),
         vol.Optional(CONF_CONFIG_ENTRY_ID): cv.string,
+        vol.Optional(CONF_RECIPIENT_ID): vol.Coerce(int),
         vol.Optional(CONF_COUNT_REQUESTS): vol.All(vol.Coerce(int), vol.Range(min=1)),
         vol.Optional(CONF_DISABLE_SSL, default=False): cv.boolean,
         vol.Optional(CONF_URL_AUTH_TYPE): vol.In(URL_AUTH_TYPES),
@@ -218,6 +221,7 @@ SERVICE_DELETE_MESSAGE_SCHEMA = vol.All(
             vol.Optional("to"): object,
             vol.Optional(ATTR_ENTITY_ID): vol.All(cv.ensure_list, [cv.entity_id]),
             vol.Optional(CONF_CONFIG_ENTRY_ID): cv.string,
+            vol.Optional(CONF_RECIPIENT_ID): vol.Coerce(int),
         }
     ),
     _validate_message_id_or_ids,
@@ -233,6 +237,7 @@ SERVICE_EDIT_MESSAGE_SCHEMA = vol.Schema(
         vol.Optional("format"): vol.In(["text", "markdown", "html"]),
         vol.Optional(ATTR_ENTITY_ID): vol.All(cv.ensure_list, [cv.entity_id]),
         vol.Optional(CONF_CONFIG_ENTRY_ID): cv.string,
+        vol.Optional(CONF_RECIPIENT_ID): vol.Coerce(int),
     }
 )
 

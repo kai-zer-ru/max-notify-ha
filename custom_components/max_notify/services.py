@@ -511,17 +511,47 @@ def _resolve_legacy_notify_entity_id(
     return None
 
 
+def _resolved_recipient_id_from_notify_entity(
+    hass: HomeAssistant, entity_id: str
+) -> int | None:
+    """Числовой recipient_id субпункта для сущности notify MaxNotify."""
+    reg = er.async_get(hass)
+    ent = reg.async_get(entity_id)
+    if not ent or not ent.config_entry_id or not ent.config_subentry_id:
+        return None
+    entry = hass.config_entries.async_get_entry(ent.config_entry_id)
+    if not entry or entry.domain != DOMAIN:
+        return None
+    sub = (getattr(entry, "subentries", None) or {}).get(ent.config_subentry_id)
+    if not sub:
+        return None
+    recipient = recipient_dict_from_subentry(
+        sub, hass=hass, entry_id=entry.entry_id
+    )
+    rid_raw = recipient.get(CONF_RECIPIENT_ID)
+    try:
+        return int(rid_raw)
+    except (TypeError, ValueError):
+        return None
+
+
 def _resolve_entity_ids(
     hass: HomeAssistant,
     *,
     entity_ids: list[str] | None = None,
     config_entry_id: str | None = None,
+    recipient_id: int | None = None,
 ) -> list[str]:
-    """Сущности notify MaxNotify: явный список или все сущности записи по config_entry_id."""
+    """Сущности notify MaxNotify: явный список или все сущности записи по config_entry_id.
+
+    При переданном ``recipient_id`` остаются только сущности с этим получателем (как в событии
+    ``max_notify_received`` — личный или групповой ID чата).
+    """
     _LOGGER.debug(
-        "_resolve_entity_ids: сущности=%s, запись_конфигурации=%s",
+        "_resolve_entity_ids: сущности=%s, запись_конфигурации=%s, recipient_id=%s",
         entity_ids,
         config_entry_id,
+        recipient_id,
     )
     reg = er.async_get(hass)
 
@@ -542,41 +572,64 @@ def _resolve_entity_ids(
                     translation_placeholders={"entity_id": eid},
                 )
             out.append(eid)
-        return out
+        entity_ids_out = out
+    else:
+        resolved_entry_id = config_entry_id
+        if not resolved_entry_id:
+            entries = hass.config_entries.async_entries(DOMAIN)
+            if len(entries) == 1:
+                resolved_entry_id = entries[0].entry_id
+            else:
+                raise ServiceValidationError(
+                    translation_domain=DOMAIN,
+                    translation_key="missing_target",
+                )
 
-    resolved_entry_id = config_entry_id
-    if not resolved_entry_id:
-        entries = hass.config_entries.async_entries(DOMAIN)
-        if len(entries) == 1:
-            resolved_entry_id = entries[0].entry_id
-        else:
+        entry = hass.config_entries.async_get_entry(resolved_entry_id)
+        if not entry or entry.domain != DOMAIN:
             raise ServiceValidationError(
                 translation_domain=DOMAIN,
-                translation_key="missing_target",
+                translation_key="invalid_config_entry",
+                translation_placeholders={"config_entry_id": resolved_entry_id or ""},
             )
 
-    entry = hass.config_entries.async_get_entry(resolved_entry_id)
-    if not entry or entry.domain != DOMAIN:
-        raise ServiceValidationError(
-            translation_domain=DOMAIN,
-            translation_key="invalid_config_entry",
-            translation_placeholders={"config_entry_id": resolved_entry_id or ""},
-        )
+        entity_ids_out = []
+        for ent in reg.entities.values():
+            if getattr(ent, "config_entry_id", None) != resolved_entry_id:
+                continue
+            if ent.domain != "notify" or ent.platform != DOMAIN:
+                continue
+            entity_ids_out.append(ent.entity_id)
 
-    entity_ids_out: list[str] = []
-    for ent in reg.entities.values():
-        if getattr(ent, "config_entry_id", None) != resolved_entry_id:
-            continue
-        if ent.domain != "notify" or ent.platform != DOMAIN:
-            continue
-        entity_ids_out.append(ent.entity_id)
+        if not entity_ids_out:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="no_matching_entities",
+                translation_placeholders={"config_entry_id": resolved_entry_id},
+            )
 
-    if not entity_ids_out:
-        raise ServiceValidationError(
-            translation_domain=DOMAIN,
-            translation_key="no_matching_entities",
-            translation_placeholders={"config_entry_id": resolved_entry_id},
-        )
+    if recipient_id is not None:
+        want = int(recipient_id)
+        filtered: list[str] = []
+        for eid in entity_ids_out:
+            rid = _resolved_recipient_id_from_notify_entity(hass, eid)
+            if rid is not None and rid == want:
+                filtered.append(eid)
+        if not filtered:
+            resolved_entry_id = config_entry_id
+            if not resolved_entry_id and entity_ids_out:
+                ent0 = reg.async_get(entity_ids_out[0])
+                if ent0 and getattr(ent0, "config_entry_id", None):
+                    resolved_entry_id = ent0.config_entry_id
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="recipient_id_no_notify_entity",
+                translation_placeholders={
+                    "config_entry_id": resolved_entry_id or "",
+                    "recipient_id": str(want),
+                },
+            )
+        entity_ids_out = filtered
 
     _LOGGER.debug("_resolve_entity_ids: итог=%s", entity_ids_out)
     return entity_ids_out
@@ -668,6 +721,7 @@ async def async_delete_message_handler(service: ServiceCall) -> ServiceResponse:
         hass,
         entity_ids=entity_ids,
         config_entry_id=config_entry_id,
+        recipient_id=data.get(CONF_RECIPIENT_ID),
     )
     reg = er.async_get(hass)
     for eid in resolved_entities:
@@ -722,11 +776,13 @@ def _resolve_single_notify_target(
     *,
     entity_ids: list[str] | None,
     config_entry_id: str | None,
+    recipient_id: int | None = None,
 ) -> tuple[ConfigEntry, dict[str, Any]]:
     resolved = _resolve_entity_ids(
         hass,
         entity_ids=entity_ids,
         config_entry_id=config_entry_id,
+        recipient_id=recipient_id,
     )
     if len(resolved) != 1:
         raise ServiceValidationError(
@@ -970,6 +1026,7 @@ async def async_edit_message_handler(service: ServiceCall) -> None:
             hass,
             entity_ids=entity_ids,
             config_entry_id=config_entry_id,
+            recipient_id=data.get(CONF_RECIPIENT_ID),
         )
         for eid in resolved_entities:
             ent = reg.async_get(eid)
@@ -1006,6 +1063,7 @@ def _get_entry_for_delete_edit(
             hass,
             entity_ids=entity_ids,
             config_entry_id=config_entry_id,
+            recipient_id=None,
         )
         entry_ids: set[str] = set()
         for eid in resolved:
@@ -1067,14 +1125,16 @@ async def async_send_message_handler(service: ServiceCall) -> None:
     buttons_provided = "buttons" in data
     entity_ids = data.get(ATTR_ENTITY_ID)
     config_entry_id = data.get(CONF_CONFIG_ENTRY_ID)
+    recipient_id = data.get(CONF_RECIPIENT_ID)
 
     _LOGGER.debug(
         "async_send_message_handler: длина_текста=%s есть_заголовок=%s сущности=%s "
-        "запись=%s есть_кнопки=%s",
+        "запись=%s recipient_id=%s есть_кнопки=%s",
         len(message) if isinstance(message, str) else None,
         bool(title),
         entity_ids,
         config_entry_id,
+        recipient_id,
         buttons_provided,
     )
 
@@ -1082,6 +1142,7 @@ async def async_send_message_handler(service: ServiceCall) -> None:
         hass,
         entity_ids=entity_ids,
         config_entry_id=config_entry_id,
+        recipient_id=recipient_id,
     )
 
     if not resolved:
@@ -1307,13 +1368,14 @@ async def _send_photo(
 
     _LOGGER.debug(
         "_send_photo: файл=%s, число_файлов=%s есть_подпись=%s "
-        "сущности=%s запись=%s попыток=%s "
+        "сущности=%s запись=%s recipient_id=%s попыток=%s "
         "ssl_отключен=%s тип_авторизации=%s кнопки=%s",
         file_paths_or_urls[0],
         len(file_paths_or_urls),
         bool(caption),
         entity_ids,
         config_entry_id,
+        data.get(CONF_RECIPIENT_ID),
         count_requests,
         disable_ssl,
         auth_type,
@@ -1324,6 +1386,7 @@ async def _send_photo(
         hass,
         entity_ids=entity_ids,
         config_entry_id=config_entry_id,
+        recipient_id=data.get(CONF_RECIPIENT_ID),
     )
 
     if not resolved:
@@ -1405,13 +1468,14 @@ async def _send_document(
 
     _LOGGER.debug(
         "_send_document: файл=%s, число_файлов=%s есть_подпись=%s "
-        "сущности=%s запись=%s попыток=%s "
+        "сущности=%s запись=%s recipient_id=%s попыток=%s "
         "ssl_отключен=%s тип_авторизации=%s кнопки=%s",
         file_paths_or_urls[0],
         len(file_paths_or_urls),
         bool(caption),
         entity_ids,
         config_entry_id,
+        data.get(CONF_RECIPIENT_ID),
         count_requests,
         disable_ssl,
         auth_type,
@@ -1422,6 +1486,7 @@ async def _send_document(
         hass,
         entity_ids=entity_ids,
         config_entry_id=config_entry_id,
+        recipient_id=data.get(CONF_RECIPIENT_ID),
     )
     if not resolved:
         return
@@ -1503,12 +1568,13 @@ async def _send_video(
 
     _LOGGER.debug(
         "_send_video: файл=%s, число_файлов=%s есть_подпись=%s, сущности=%s, "
-        "запись=%s, попыток=%s, ssl_отключен=%s, тип_авторизации=%s, кнопки=%s",
+        "запись=%s, recipient_id=%s, попыток=%s, ssl_отключен=%s, тип_авторизации=%s, кнопки=%s",
         file_paths_or_urls[0],
         len(file_paths_or_urls),
         bool(caption),
         entity_ids,
         config_entry_id,
+        data.get(CONF_RECIPIENT_ID),
         count_requests,
         disable_ssl,
         auth_type,
@@ -1519,6 +1585,7 @@ async def _send_video(
         hass,
         entity_ids=entity_ids,
         config_entry_id=config_entry_id,
+        recipient_id=data.get(CONF_RECIPIENT_ID),
     )
 
     if not resolved:

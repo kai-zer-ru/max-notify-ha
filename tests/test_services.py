@@ -423,6 +423,52 @@ def test_resolve_entity_ids_accepts_legacy_user_suffix_for_group(hass, mock_conf
     assert resolved == ["notify.max_notify_chat_72936537541960"]
 
 
+def test_resolve_entity_ids_filters_by_recipient_id(hass, mock_config_entry) -> None:
+    """config_entry_id без entity_id: выбор одного чата по recipient_id (событие max_notify_received)."""
+    from custom_components.max_notify.services import _resolve_entity_ids
+
+    hass.config_entries = MagicMock()
+    hass.config_entries.async_entries = MagicMock(return_value=[mock_config_entry])
+    hass.config_entries.async_get_entry = MagicMock(return_value=mock_config_entry)
+
+    mock_config_entry.subentries = {
+        "sub-a": SimpleNamespace(
+            data={CONF_RECIPIENT_ID: 111},
+            unique_id="user_111",
+        ),
+        "sub-b": SimpleNamespace(
+            data={CONF_RECIPIENT_ID: 222},
+            unique_id="user_222",
+        ),
+    }
+    ent_a = SimpleNamespace(
+        entity_id="notify.max_a",
+        domain="notify",
+        platform="max_notify",
+        config_entry_id=mock_config_entry.entry_id,
+        config_subentry_id="sub-a",
+    )
+    ent_b = SimpleNamespace(
+        entity_id="notify.max_b",
+        domain="notify",
+        platform="max_notify",
+        config_entry_id=mock_config_entry.entry_id,
+        config_subentry_id="sub-b",
+    )
+    by_eid = {"notify.max_a": ent_a, "notify.max_b": ent_b}
+    registry = MagicMock()
+    registry.entities = {"notify.max_a": ent_a, "notify.max_b": ent_b}
+    registry.async_get = MagicMock(side_effect=lambda eid: by_eid.get(eid))
+
+    with patch("custom_components.max_notify.services.er.async_get", return_value=registry):
+        resolved = _resolve_entity_ids(
+            hass,
+            config_entry_id=mock_config_entry.entry_id,
+            recipient_id=111,
+        )
+    assert resolved == ["notify.max_a"]
+
+
 def test_coerce_service_datetime_to_unix_normalizes_to_milliseconds() -> None:
     from custom_components.max_notify.services import _coerce_service_datetime_to_unix
 

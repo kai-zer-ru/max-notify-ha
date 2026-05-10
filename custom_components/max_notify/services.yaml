@@ -38,6 +38,11 @@ send_message:
           selector:
             config_entry:
               integration: max_notify
+        recipient_id:
+          description: "Chat/recipient ID (same as in max_notify_received). Use with Integration when Target is not set — sends only to this chat."
+          selector:
+            number:
+              mode: box
         buttons:
           example: >
             {"Button 1":"button_1","Button 2":"button_2"} или
@@ -124,6 +129,11 @@ send_photo:
           selector:
             config_entry:
               integration: max_notify
+        recipient_id:
+          description: "Chat/recipient ID (same as in max_notify_received). Use with Integration when Target is not set — sends only to this chat."
+          selector:
+            number:
+              mode: box
         count_requests:
           name: Count requests
           description: >
@@ -216,6 +226,11 @@ send_video:
           selector:
             config_entry:
               integration: max_notify
+        recipient_id:
+          description: "Chat/recipient ID (same as in max_notify_received). Use with Integration when Target is not set — sends only to this chat."
+          selector:
+            number:
+              mode: box
         count_requests:
           name: Count requests
           description: >
@@ -305,6 +320,11 @@ send_document:
           selector:
             config_entry:
               integration: max_notify
+        recipient_id:
+          description: "Chat/recipient ID (same as in max_notify_received). Use with Integration when Target is not set — sends only to this chat."
+          selector:
+            number:
+              mode: box
         count_requests:
           name: Count requests
           description: >
@@ -389,6 +409,11 @@ delete_message:
       selector:
         config_entry:
           integration: max_notify
+    recipient_id:
+      description: "When deleting by time range: limit to this chat (same ID as in max_notify_received)."
+      selector:
+        number:
+          mode: box
 
 delete_last_outgoing_message:
   fields:
@@ -425,6 +450,11 @@ edit_message:
       selector:
         config_entry:
           integration: max_notify
+    recipient_id:
+      description: "Chat/recipient ID (same as in max_notify_received). Use with Integration when Target is not set."
+      selector:
+        number:
+          mode: box
     message_id:
       required: true
       selector:

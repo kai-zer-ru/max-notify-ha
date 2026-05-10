@@ -15,6 +15,8 @@
 > **Отрицательный** `recipient_id` — **групповой чат** Max. Так работает и **официальный API**, и **`notify.a161.ru`** (отправка и приём в группе — в рамках [возможностей сервиса](https://notify.a161.ru/)).
 
 > Событие `max_notify_received` нормализуется к единому формату независимо от провайдера и содержит стандартные поля (`update_type`, `config_entry_id`, `timestamp`, `recipient_id`, `text`, `command`, `args`, `callback_data`, `message_id`, `event_id`, `raw_update`).
+>
+> Чтобы **ответить в тот же чат**, откуда пришло сообщение, в `max_notify.send_message` передайте **`config_entry_id`** и **`recipient_id`** именно из **`trigger.event.data`** (оба поля). Значение **`recipient_id`** в событии — это и есть идентификатор того диалога (личного или группового), в который нужно отправить ответ; подбирать `entity_id` сущности `notify` для этого не требуется.
 
 <a id="содержание"></a>
 
@@ -22,8 +24,8 @@
 
 - [Форматы поля buttons](#formats-buttons)
 - [max_notify.send_message](#autom-send-message)
+  - [Ответ в тот же чат (из события)](#autom-send-message-same-chat)
   - [Вручную](#autom-send-message-manual)
-  - [Из события](#autom-send-message-event)
 - [max_notify.send_photo](#autom-send-photo)
   - [Вручную](#autom-send-photo-manual)
   - [Из события](#autom-send-photo-event)
@@ -120,9 +122,51 @@ mode: single
 
 ## max_notify.send_message
 
+<a id="autom-send-message-same-chat"></a>
+<a id="autom-send-message-event"></a>
+
+### Ответ в тот же чат (из события)
+
+Типовая автоматизация: на любое входящее событие отправить текст **обратно в тот же диалог** (личный или групповой). Обязательно укажите в **`data`** оба поля из триггера — **`config_entry_id`** (запись MaxNotify в Home Assistant) и **`recipient_id`** (чат в Max для этого сообщения). Не задавайте **«Цель»** (`target` / `entity_id`) в редакторе действия: при одной только записи без `recipient_id` служба не может однозначно выбрать чат среди нескольких добавленных в интеграцию.
+
+```yaml
+alias: MaxNotify — ответ в тот же чат
+description: Отправляет сообщение в тот же чат, откуда пришло max_notify_received.
+triggers:
+  - trigger: event
+    event_type: max_notify_received
+conditions: []
+actions:
+  - action: max_notify.send_message
+    data:
+      config_entry_id: "{{ trigger.event.data.config_entry_id }}"
+      recipient_id: "{{ trigger.event.data.recipient_id }}"
+      message: "Получено: {{ trigger.event.data.text | default('') }}"
+      buttons:
+        - "Ок": "ok"
+        - "Повтор": "retry"
+mode: single
+```
+
+Чтобы реагировать только на команды или ключевые слова, добавьте **условия** или **`event_data`** у триггера (пример — только команда `hello`):
+
+```yaml
+triggers:
+  - trigger: event
+    event_type: max_notify_received
+    event_data:
+      command: hello
+```
+
+Для фото, видео и документов в разделах ниже действует то же правило: **`config_entry_id`** и **`recipient_id`** из **`trigger.event.data`**, без выбора цели через сущность `notify`, если нужен ответ именно в источник события.
+
+[↑ Наверх](#automations-top)
+
 <a id="autom-send-message-manual"></a>
 
 ### Вручную
+
+Фиксированная запись и чат (без привязки к событию):
 
 ```yaml
 alias: MaxNotify — send_message (manual)
@@ -141,30 +185,6 @@ actions:
       buttons:
         "Button 1": "button_1"
         "Button 2": "button_2"
-mode: single
-```
-
-[↑ Наверх](#automations-top)
-
-<a id="autom-send-message-event"></a>
-
-### Из события
-
-```yaml
-alias: MaxNotify — send_message (from event)
-triggers:
-  - trigger: event
-    event_type: max_notify_received
-conditions: []
-actions:
-  - action: max_notify.send_message
-    data:
-      config_entry_id: "{{ trigger.event.data.config_entry_id }}"
-      recipient_id: "{{ trigger.event.data.recipient_id }}"
-      message: "Получено: {{ trigger.event.data.text | default('') }}"
-      buttons:
-        - "Ок": "ok"
-        - "Повтор": "retry"
 mode: single
 ```
 
