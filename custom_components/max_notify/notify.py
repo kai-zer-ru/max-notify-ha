@@ -396,5 +396,10 @@ class MaxNotifyEntity(NotifyEntity):
             self._entry, self._recipient, with_buttons=False
         )
         await provider.async_entity_send_plain_message(
-            self.hass, self._entry, self._recipient, message, title
+            self.hass,
+            self._entry,
+            self._recipient,
+            message,
+            title,
+            notify=True,
         )

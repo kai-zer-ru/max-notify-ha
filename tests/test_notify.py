@@ -679,6 +679,110 @@ class TestUploadDispatch:
 
 
 @pytest.mark.asyncio
+async def test_send_message_json_includes_notify_false(hass, mock_config_entry) -> None:
+    """Тело POST /messages содержит notify: false при notify=False (официальный контракт API Max)."""
+    from custom_components.max_notify.providers.notify_outbound import (
+        send_message as outbound_send_message,
+    )
+
+    captured: dict[str, object] = {}
+
+    async def capture_payload(
+        hass_inner,
+        entry,
+        session,
+        url,
+        headers,
+        payload,
+        retry_delays,
+        log_label,
+        **kwargs,
+    ):
+        captured["payload"] = payload
+        return True
+
+    with (
+        patch(
+            "custom_components.max_notify.providers.notify_outbound._get_message_url_and_recipient",
+            new=AsyncMock(return_value=("https://example.invalid/messages", {})),
+        ),
+        patch(
+            "custom_components.max_notify.providers.notify_outbound.async_get_clientsession",
+            return_value=MagicMock(),
+        ),
+        patch(
+            "custom_components.max_notify.providers.notify_outbound._post_message_with_retry",
+            new=capture_payload,
+        ),
+    ):
+        await outbound_send_message(
+            hass,
+            mock_config_entry,
+            {"recipient_id": 1},
+            "hello",
+            notify=False,
+        )
+
+    assert captured["payload"]["notify"] is False
+
+
+@pytest.mark.asyncio
+async def test_entity_send_plain_message_notify_false_in_payload(
+    hass, mock_config_entry
+) -> None:
+    posted_json: dict[str, object] | None = None
+
+    resp = AsyncMock()
+    resp.status = 200
+    resp.text = AsyncMock(return_value="{}")
+
+    post_cm = MagicMock()
+    post_cm.__aenter__ = AsyncMock(return_value=resp)
+    post_cm.__aexit__ = AsyncMock(return_value=None)
+
+    def capture_post(url, json=None, headers=None, timeout=None):
+        nonlocal posted_json
+        posted_json = json
+        return post_cm
+
+    async def pace_run(hass_inner, entry_inner, run):
+        return await run()
+
+    with (
+        patch(
+            "custom_components.max_notify.providers.notify_outbound._get_message_url_and_recipient",
+            new=AsyncMock(return_value=("https://example.invalid/messages", {})),
+        ),
+        patch(
+            "custom_components.max_notify.providers.notify_outbound.async_get_clientsession"
+        ) as mock_sess,
+        patch(
+            "custom_components.max_notify.providers.notify_outbound.async_acquire_outbound_api_slot",
+            new=AsyncMock(),
+        ),
+        patch(
+            "custom_components.max_notify.providers.notify_outbound._run_with_send_pace_lock",
+            new=pace_run,
+        ),
+    ):
+        session = MagicMock()
+        session.post = MagicMock(side_effect=capture_post)
+        mock_sess.return_value = session
+
+        await entity_send_plain_message(
+            hass,
+            mock_config_entry,
+            recipient={CONF_RECIPIENT_ID: 1},
+            message="quiet",
+            title=None,
+            notify=False,
+        )
+
+    assert posted_json is not None
+    assert posted_json.get("notify") is False
+
+
+@pytest.mark.asyncio
 async def test_entity_send_plain_message_raises_ui_error_after_retries(
     hass, mock_config_entry
 ) -> None:

@@ -2100,9 +2100,6 @@ async def _upload_media_and_send(
         att_types,
         payload,
     )
-    # Отключено: Max не отключает push/звук по notify: false.
-    # if not notify:
-    #     payload["notify"] = False
     store_rid_official = _coerce_recipient_id_for_message_store(recipient)
 
     def _on_success(body: str) -> None:
@@ -2518,6 +2515,8 @@ async def entity_send_plain_message(
     recipient: dict[str, Any],
     message: str,
     title: str | None,
+    *,
+    notify: bool = True,
 ) -> None:
     """Отправка текста с сущности notify (повторы, ошибка в UI и логах при провале)."""
     text = f"{title}\n{message}" if title else message
@@ -2535,6 +2534,8 @@ async def entity_send_plain_message(
     uid, cid = _recipient_to_user_chat(recipient)
     msg_format = entry.data.get(CONF_MESSAGE_FORMAT, "text")
     payload = build_text_message_body(text, msg_format)
+    if not notify:
+        apply_notify_false(payload)
 
     _LOGGER.debug(
         "Отправка текста в Max: запись=%s user_id=%s chat_id=%s формат=%s длина=%s",

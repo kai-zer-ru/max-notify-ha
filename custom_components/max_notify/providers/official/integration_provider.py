@@ -560,9 +560,11 @@ class OfficialIntegrationProvider(MaxNotifyIntegrationProvider):
         recipient: dict[str, Any],
         message: str,
         title: str | None,
+        *,
+        notify: bool = True,
     ) -> None:
         from .. import notify_outbound
 
         await notify_outbound.entity_send_plain_message(
-            hass, entry, recipient, message, title
+            hass, entry, recipient, message, title, notify=notify
         )

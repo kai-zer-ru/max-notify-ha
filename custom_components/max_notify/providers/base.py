@@ -386,6 +386,8 @@ class MaxNotifyIntegrationProvider:
         recipient: dict[str, Any],
         message: str,
         title: str | None,
+        *,
+        notify: bool = True,
     ) -> None:
         return None
 
