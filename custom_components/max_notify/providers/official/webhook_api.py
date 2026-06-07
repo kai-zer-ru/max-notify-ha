@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from ...log import get_logger
 import logging
 from typing import Any
 
@@ -24,7 +25,7 @@ from ...const import (
 from ...outbound_rate import async_acquire_outbound_api_slot
 from ...updates import async_process_update
 
-_LOGGER = logging.getLogger(__name__)
+_LOGGER = get_logger()
 
 
 def extract_webhook_updates_from_payload(body: Any) -> list[dict[str, Any]]:

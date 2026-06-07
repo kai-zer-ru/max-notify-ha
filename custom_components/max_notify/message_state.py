@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from .log import get_logger
 import json
 import logging
 import asyncio
@@ -14,7 +15,7 @@ from homeassistant.helpers.storage import Store
 
 from .const import DOMAIN
 
-_LOGGER = logging.getLogger(__name__)
+_LOGGER = get_logger()
 
 STATE_KEY = "message_state"
 STORAGE_KEY = f"{DOMAIN}.last_message_ids"

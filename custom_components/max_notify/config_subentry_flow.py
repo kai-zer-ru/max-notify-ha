@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from .log import get_logger
 import logging
 from typing import Any
 
@@ -13,7 +14,7 @@ from .const import CONF_INTEGRATION_TYPE, CONF_RECIPIENT_ID, SUBENTRY_TYPE_RECIP
 from .providers.registry import get_provider
 from .services import register_send_message_service
 
-_LOGGER = logging.getLogger(__name__)
+_LOGGER = get_logger()
 
 
 def _recipient_subentry_unique_id(recipient_id: int) -> str:

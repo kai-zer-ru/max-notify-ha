@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from .log import get_logger
 import asyncio
 import logging
 import time
@@ -84,7 +85,7 @@ from .schemas import (
     SERVICE_SEND_VIDEO_SCHEMA,
 )
 
-_LOGGER = logging.getLogger(__name__)
+_LOGGER = get_logger()
 
 _YMD_RE = re.compile(r"^(\d{4})[-./](\d{1,2})[-./](\d{1,2})$")
 _DMY_RE = re.compile(r"^(\d{1,2})[-./](\d{1,2})[-./](\d{4})$")

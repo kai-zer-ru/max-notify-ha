@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from ..log import get_logger
 import asyncio
 import base64
 import functools
@@ -66,7 +67,7 @@ from .message_payload_builders import (
     inline_keyboard_attachment,
 )
 from .registry import get_capabilities, get_provider
-_LOGGER = logging.getLogger(__name__)
+_LOGGER = get_logger()
 _CHAT_ID_KEY = "chat_id"
 _USER_ID_KEY = "user_id"
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from .log import get_logger
 import json
 import logging
 import re
@@ -35,7 +36,7 @@ from .webhook import (
     unregister_webhook,
 )
 
-_LOGGER = logging.getLogger(__name__)
+_LOGGER = get_logger()
 
 # Только config entry (без YAML). Служба регистрируется в async_setup и при загрузке entry/platform.
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)

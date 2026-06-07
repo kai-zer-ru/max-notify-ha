@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from ..log import get_logger
 import logging
 from typing import TYPE_CHECKING, Any
 
@@ -33,7 +34,7 @@ from ..translations import (
 if TYPE_CHECKING:
     from homeassistant.data_entry_flow import FlowResult
 
-_LOGGER = logging.getLogger(__name__)
+_LOGGER = get_logger()
 
 PRIMARY_CONFIG_SHARED_STEP_IDS = frozenset(
     {"webhook_secret", "receive_options_menu", "add_button", "remove_button"}
@@ -116,7 +117,15 @@ async def async_step_receive_options_menu_setup(
         if key == "remove_button":
             return await flow.async_step_remove_button(None)
         if flow._wizard_provider().supports_slash_command_allowlist_ui:
+            _LOGGER.debug(
+                "async_step_receive_options_menu: продолжить -> commands_menu provider=%s",
+                flow._wizard_provider().integration_type,
+            )
             return await flow.async_step_commands_menu(None)
+        _LOGGER.debug(
+            "async_step_receive_options_menu: продолжить -> recipient provider=%s",
+            flow._wizard_provider().integration_type,
+        )
         return await flow.async_step_recipient(None)
 
     return flow.async_show_form(
@@ -157,6 +166,10 @@ async def async_step_add_button_setup(
             flow.hass, flow.hass.config.language, "config", [DOMAIN]
         )
     except Exception:
+        _LOGGER.warning(
+            "async_step_add_button: не удалось загрузить переводы",
+            exc_info=True,
+        )
         trans = {}
     type_labels = get_option_labels(
         trans,

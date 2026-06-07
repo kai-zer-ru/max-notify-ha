@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from .log import get_logger
 import logging
 from typing import Any
 
@@ -14,7 +15,7 @@ from homeassistant.helpers.network import NoURLAvailableError, get_url
 from .const import DOMAIN, WEBHOOK_PATH_PREFIX
 from .providers.registry import get_capabilities, get_provider, get_provider_by_type
 
-_LOGGER = logging.getLogger(__name__)
+_LOGGER = get_logger()
 
 
 def hass_has_external_https_base_url(hass: HomeAssistant) -> bool:

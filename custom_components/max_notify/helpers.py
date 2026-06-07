@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from .log import get_logger
 from typing import Any
 
 import logging
@@ -20,7 +21,7 @@ from .const import (
     RECEIVE_MODE_WEBHOOK,
 )
 
-_LOGGER = logging.getLogger(__name__)
+_LOGGER = get_logger()
 
 
 def other_entry_has_receive_mode(

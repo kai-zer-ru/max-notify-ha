@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from ...log import get_logger
 import asyncio
 import logging
 from typing import Any
@@ -15,7 +16,7 @@ from ...const import API_PATH_ME, CONF_COMMANDS
 from ...outbound_rate import async_acquire_outbound_api_slot
 from .const import API_BASE_URL, API_VERSION
 
-_LOGGER = logging.getLogger(__name__)
+_LOGGER = get_logger()
 _SYNC_COMMANDS_RETRY_DELAYS_SECONDS: tuple[float, ...] = (1.0, 2.0, 4.0)
 
 

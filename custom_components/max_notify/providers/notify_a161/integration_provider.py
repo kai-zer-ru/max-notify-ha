@@ -281,28 +281,57 @@ class NotifyA161IntegrationProvider(MaxNotifyIntegrationProvider):
     async def async_config_setup_step(
         self, flow: Any, step_id: str, user_input: dict[str, Any] | None
     ) -> Any:
-        if is_primary_config_shared_step(step_id):
-            return await async_run_primary_config_shared_step(flow, step_id, user_input)
+        from ...flow_logging import async_run_flow_step_logged
 
-        from . import config_setup as notify_a161_config_setup
+        async def _run() -> Any:
+            if is_primary_config_shared_step(step_id):
+                return await async_run_primary_config_shared_step(
+                    flow, step_id, user_input
+                )
 
-        fn = getattr(notify_a161_config_setup, f"async_step_{step_id}", None)
-        if fn is None:
-            raise ValueError(f"Unknown notify.a161 setup step: {step_id}")
-        return await fn(flow, user_input)
+            from . import config_setup as notify_a161_config_setup
+
+            fn = getattr(notify_a161_config_setup, f"async_step_{step_id}", None)
+            if fn is None:
+                raise ValueError(f"Unknown notify.a161 setup step: {step_id}")
+            return await fn(flow, user_input)
+
+        return await async_run_flow_step_logged(
+            flow=flow,
+            flow_kind="config",
+            step_id=step_id,
+            user_input=user_input,
+            runner=_run,
+        )
 
     async def async_options_flow_step(
         self, flow: Any, step_id: str, user_input: dict[str, Any] | None
     ) -> Any:
-        if step_id == "init":
-            step_id = "init_notify"
+        from ...flow_logging import async_run_flow_step_logged
 
-        from . import options_flow as notify_a161_options_flow
+        async def _run() -> Any:
+            resolved_step_id = step_id
+            if step_id == "init":
+                resolved_step_id = "init_notify"
 
-        fn = getattr(notify_a161_options_flow, f"async_step_{step_id}", None)
-        if fn is None:
-            raise ValueError(f"Unknown notify.a161 options step: {step_id}")
-        return await fn(flow, user_input)
+            from . import options_flow as notify_a161_options_flow
+
+            fn = getattr(
+                notify_a161_options_flow, f"async_step_{resolved_step_id}", None
+            )
+            if fn is None:
+                raise ValueError(
+                    f"Unknown notify.a161 options step: {resolved_step_id}"
+                )
+            return await fn(flow, user_input)
+
+        return await async_run_flow_step_logged(
+            flow=flow,
+            flow_kind="options",
+            step_id=step_id,
+            user_input=user_input,
+            runner=_run,
+        )
 
     async def async_config_flow_updates_interval_setup(
         self, flow: Any, user_input: dict | None

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from ...log import get_logger
 import logging
 from typing import Any
 
@@ -52,7 +53,7 @@ from ..options_keyboard import (
 )
 from ..registry import get_provider_by_type
 
-_LOGGER = logging.getLogger(__name__)
+_LOGGER = get_logger()
 
 __all__ = [
     "async_step_init",

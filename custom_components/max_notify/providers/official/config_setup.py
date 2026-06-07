@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from ...log import get_logger
 import logging
 from typing import Any
 
@@ -45,7 +46,7 @@ try:
 except ImportError:
     ConfigSubentryData = dict[str, Any]
 
-_LOGGER = logging.getLogger(__name__)
+_LOGGER = get_logger()
 
 __all__ = [
     "async_step_user_official",

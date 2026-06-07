@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+from .log import get_logger
 import logging
 
 from homeassistant.core import HomeAssistant
 
-_LOGGER = logging.getLogger(__name__)
+_LOGGER = get_logger()
 
 
 def get_unique_entry_title(

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from ..log import get_logger
 import logging
 from typing import Any
 
@@ -36,7 +37,7 @@ from ..translations import (
 )
 from .registry import get_provider, get_provider_by_type
 
-_LOGGER = logging.getLogger(__name__)
+_LOGGER = get_logger()
 
 
 def _opt_row_choices(flow: Any) -> list[tuple[str, str]]:

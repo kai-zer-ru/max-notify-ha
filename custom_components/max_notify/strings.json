@@ -880,7 +880,7 @@
     },
     "updates_polling_unavailable": {
       "title": "MaxNotify: cannot receive messages (polling)",
-      "description": "While polling for incoming updates, the Max API request failed for {entry_title}: {error_detail}. HTTP 500 with code internal.error usually means a temporary problem on the Max servers; try again later. If this keeps happening, check your network and access token. Enable debug logging for the custom_components.max_notify integration to log a copy-paste curl command (including your token) for manual API checks."
+      "description": "While polling for incoming updates, the Max API request failed for {entry_title}: {error_detail}. HTTP 500 with code internal.error usually means a temporary problem on the Max servers; try again later. If this keeps happening, check your network and access token. Enable debug logging (custom_components.max_notify: debug) to log a copy-paste curl command (including your token) for manual API checks."
     }
   }
 }

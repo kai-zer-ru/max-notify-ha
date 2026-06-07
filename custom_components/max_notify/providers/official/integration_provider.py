@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from ...log import get_logger
 import logging
 from typing import TYPE_CHECKING, Any
 
@@ -28,7 +29,7 @@ if TYPE_CHECKING:
     from homeassistant.config_entries import ConfigEntry
     from homeassistant.core import HomeAssistant
 
-_LOGGER = logging.getLogger(__name__)
+_LOGGER = get_logger()
 
 
 def _entry_has_subentry_recipient(entry: ConfigEntry, recipient_id: int) -> bool:
@@ -181,25 +182,49 @@ class OfficialIntegrationProvider(MaxNotifyIntegrationProvider):
     async def async_config_setup_step(
         self, flow: Any, step_id: str, user_input: dict[str, Any] | None
     ) -> Any:
-        if is_primary_config_shared_step(step_id):
-            return await async_run_primary_config_shared_step(flow, step_id, user_input)
+        from ...flow_logging import async_run_flow_step_logged
 
-        from . import config_setup as official_config_setup
+        async def _run() -> Any:
+            if is_primary_config_shared_step(step_id):
+                return await async_run_primary_config_shared_step(
+                    flow, step_id, user_input
+                )
 
-        fn = getattr(official_config_setup, f"async_step_{step_id}", None)
-        if fn is None:
-            raise ValueError(f"Unknown official setup step: {step_id}")
-        return await fn(flow, user_input)
+            from . import config_setup as official_config_setup
+
+            fn = getattr(official_config_setup, f"async_step_{step_id}", None)
+            if fn is None:
+                raise ValueError(f"Unknown official setup step: {step_id}")
+            return await fn(flow, user_input)
+
+        return await async_run_flow_step_logged(
+            flow=flow,
+            flow_kind="config",
+            step_id=step_id,
+            user_input=user_input,
+            runner=_run,
+        )
 
     async def async_options_flow_step(
         self, flow: Any, step_id: str, user_input: dict[str, Any] | None
     ) -> Any:
-        from . import options_flow as official_options_flow
+        from ...flow_logging import async_run_flow_step_logged
 
-        fn = getattr(official_options_flow, f"async_step_{step_id}", None)
-        if fn is None:
-            raise ValueError(f"Unknown official options step: {step_id}")
-        return await fn(flow, user_input)
+        async def _run() -> Any:
+            from . import options_flow as official_options_flow
+
+            fn = getattr(official_options_flow, f"async_step_{step_id}", None)
+            if fn is None:
+                raise ValueError(f"Unknown official options step: {step_id}")
+            return await fn(flow, user_input)
+
+        return await async_run_flow_step_logged(
+            flow=flow,
+            flow_kind="options",
+            step_id=step_id,
+            user_input=user_input,
+            runner=_run,
+        )
 
     async def async_webhook_clear_subscriptions_for_long_polling(
         self, hass: HomeAssistant, token: str

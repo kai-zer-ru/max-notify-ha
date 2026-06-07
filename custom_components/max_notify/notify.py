@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from .log import get_logger
 import logging
 from typing import Any
 
@@ -23,7 +24,7 @@ from .providers.registry import (
     get_provider,
 )
 
-_LOGGER = logging.getLogger(__name__)
+_LOGGER = get_logger()
 
 
 def _recipient_preview(

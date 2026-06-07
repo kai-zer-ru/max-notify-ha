@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from ...log import get_logger
 import logging
 from typing import Any
 
@@ -13,7 +14,7 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from ...const import API_PATH_CHATS, API_PATH_ME, API_PATH_MESSAGES, CHATS_PAGE_SIZE
 from ...outbound_rate import async_acquire_outbound_api_slot
 
-_LOGGER = logging.getLogger(__name__)
+_LOGGER = get_logger()
 
 
 async def resolve_dialog_chat_id(

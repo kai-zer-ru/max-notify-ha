@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from .log import get_logger
 import asyncio
 import logging
 
@@ -17,7 +18,7 @@ from .const import (
 )
 from .providers.registry import get_capabilities, get_provider
 
-_LOGGER = logging.getLogger(__name__)
+_LOGGER = get_logger()
 
 
 async def async_process_update(

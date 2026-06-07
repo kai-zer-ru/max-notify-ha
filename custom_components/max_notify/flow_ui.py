@@ -5,11 +5,14 @@ from __future__ import annotations
 from typing import Any
 
 from homeassistant.core import HomeAssistant
+from .log import get_logger
 from homeassistant.helpers.translation import async_get_translations
 
 from .const import DOMAIN
 from .helpers import buttons_display_str
 from .translations import prefixed_step_id, tr_key
+
+_LOGGER = get_logger()
 
 
 async def async_keyboard_menu_intro(
@@ -24,6 +27,12 @@ async def async_keyboard_menu_intro(
     try:
         trans = await async_get_translations(hass, hass.config.language, category, [DOMAIN])
     except Exception:
+        _LOGGER.warning(
+            "async_keyboard_menu_intro: не удалось загрузить переводы category=%s step=%s",
+            category,
+            step_id,
+            exc_info=True,
+        )
         trans = {}
     sid = prefixed_step_id(flow, step_id)
     disp = buttons_display_str(buttons)

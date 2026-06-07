@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from .log import get_logger
 import json
 import logging
 from pathlib import Path
@@ -61,7 +62,7 @@ from .webhook import (
     webhook_receive_available,
 )
 
-_LOGGER = logging.getLogger(__name__)
+_LOGGER = get_logger()
 
 
 def _minimum_ha_version_from_manifest() -> str:

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from ..log import get_logger
 import asyncio
 import json
 import logging
@@ -32,7 +33,7 @@ from ..message_state import schedule_integration_persist, set_last_incoming_mess
 from ..outbound_rate import async_acquire_outbound_api_slot
 from .registry import get_provider
 
-_LOGGER = logging.getLogger(__name__)
+_LOGGER = get_logger()
 
 _UPDATES_POLLING_ISSUE_PREFIX = "updates_polling_error_"
 

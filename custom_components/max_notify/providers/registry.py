@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from ..log import get_logger
 import logging
 from typing import NoReturn
 
@@ -39,7 +40,7 @@ from .official.const import (
 from .official.capabilities import OFFICIAL_CAPABILITIES
 from .official.integration_provider import OfficialIntegrationProvider
 
-_LOGGER = logging.getLogger(__name__)
+_LOGGER = get_logger()
 
 NOTIFY_A161_TRANSLATION_KEYS = frozenset(
     {

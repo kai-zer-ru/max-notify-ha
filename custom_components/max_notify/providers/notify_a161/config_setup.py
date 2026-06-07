@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from ...log import get_logger
 import logging
 from typing import Any
 
@@ -43,7 +44,7 @@ try:
 except ImportError:
     ConfigSubentryData = dict[str, Any]
 
-_LOGGER = logging.getLogger(__name__)
+_LOGGER = get_logger()
 
 
 def _notify_user_description_placeholders(flow: Any) -> dict[str, str]:
