@@ -20,6 +20,7 @@
 - [Что умеет интеграция](#что-умеет)
 - [Что понадобится заранее](#что-понадобится)
 - [Установка](#установка)
+- [Сертификаты Минцифры (platform-api2.max.ru)](#сертификаты-минцифры-platform-api2maxru)
 - [Первичная настройка](#первичная-настройка)
 - [Приём сообщений и сценарии](#приём-сообщений)
 - [Кнопки под сообщением](#кнопки)
@@ -134,11 +135,25 @@
 
 ---
 
+## Сертификаты Минцифры (platform-api2.max.ru)
+
+Официальный API Max с **июля 2026** работает на **`platform-api2.max.ru`** с TLS-сертификатами **НУЦ Минцифры**. Если Home Assistant не доверяет этим CA, интеграция не сможет проверить токен и отправлять сообщения.
+
+**Порядок действий:** сначала добавьте сертификаты и перезапустите Home Assistant, убедитесь, что HTTPS к новому API проходит без ошибки SSL — **и только потом** обновляйте MaxNotify до **2.1.0+**. Иначе интеграция с официальным API временно перестанет работать.
+
+Пошаговые инструкции для **HAOS, Supervised, Docker, Core** и других способов установки — в **[docs/RUSSIAN_TRUSTED_CA.md](docs/RUSSIAN_TRUSTED_CA.md)**.
+
+Кратко: скачайте [корневой](https://gu-st.ru/content/lending/russian_trusted_root_ca_pem.crt) и [выпускающий](https://gu-st.ru/content/lending/russian_trusted_sub_ca_pem.crt) сертификаты; для HAOS и Docker удобнее всего интеграция **[Additional CA](https://github.com/Athozs/hass-additional-ca)** — настройте её **до** обновления MaxNotify.
+
+---
+
 ## Первичная настройка
 
 При добавлении записи сначала выберите **тип подключения** в списке.
 
-### Официальный API Max (platform-api.max.ru)
+### Официальный API Max (platform-api2.max.ru)
+
+> **До 19 июля 2026** платформа Max переводит API с `platform-api.max.ru` на **`platform-api2.max.ru`**. В MaxNotify **2.1.0+** уже используется новый адрес. **Сначала** добавьте сертификаты **НУЦ Минцифры** (удобнее через [Additional CA](https://github.com/Athozs/hass-additional-ca)), **затем** обновляйте интеграцию — иначе до настройки CA возможна ошибка SSL (`CERTIFICATE_VERIFY_FAILED`). Подробно: **[docs/RUSSIAN_TRUSTED_CA.md](docs/RUSSIAN_TRUSTED_CA.md)**.
 
 1. Укажите **токен** бота — интеграция проверит его через сеть.
 2. Выберите **формат текста**: обычный текст, Markdown или HTML (как позволяет API Max).
@@ -344,7 +359,7 @@ logger:
 
 ## Полезные ссылки
 
-- [Репозиторий MaxNotify](https://github.com/kai-zer-ru/max-notify-ha)
+- [Сертификаты НУЦ Минцифры для API Max](docs/RUSSIAN_TRUSTED_CA.md)
 - [Документация API Max](https://dev.max.ru/docs-api)
 - [Портал разработчика Max](https://dev.max.ru/)
 - [Канал в Telegram](https://t.me/kai_zer_ru_ha)

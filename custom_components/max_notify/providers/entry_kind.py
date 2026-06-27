@@ -17,7 +17,7 @@ def entry_matches_notify_a161(entry: ConfigEntry) -> bool:
 
 
 def is_official_max_platform_entry(entry: ConfigEntry) -> bool:
-    """Только официальный API Max (platform-api); notify.a161.ru и аналоги — False.
+    """Только официальный API Max (platform-api2); notify.a161.ru и аналоги — False.
 
     Для встроенных провайдеров совпадает с ``get_provider(entry).shares_platform_bot_token_pool``.
     """

@@ -1,4 +1,4 @@
-"""Max platform-api: подписки WebHook (GET/POST/DELETE /subscriptions) и приём POST."""
+"""Max platform-api2: подписки WebHook (GET/POST/DELETE /subscriptions) и приём POST."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""Параметры API и режимов приёма для официального провайдера (platform-api.max.ru)."""
+"""Параметры API и режимов приёма для официального провайдера (platform-api2.max.ru)."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from ...const import (
     UPDATE_MESSAGE_CREATED,
 )
 
-API_BASE_URL = "https://platform-api.max.ru"
+API_BASE_URL = "https://platform-api2.max.ru"
 API_VERSION = "1.2.5"
 OFFICIAL_MAX_UPLOAD_BYTES = 4 * 1024 * 1024 * 1024
 

@@ -85,7 +85,7 @@ NOTIFY_A161_PROVIDER = NotifyA161IntegrationProvider(
 
 OFFICIAL_PROVIDER = OfficialIntegrationProvider(
     integration_type=INTEGRATION_TYPE_OFFICIAL,
-    label="Official Max API (platform-api.max.ru)",
+    label="Official Max API (platform-api2.max.ru)",
     api_base_url=OFFICIAL_API_BASE_URL,
     api_version=OFFICIAL_API_VERSION,
     update_types_receive=OFFICIAL_UPDATE_TYPES_RECEIVE,

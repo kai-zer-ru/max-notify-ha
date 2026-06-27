@@ -6,7 +6,7 @@
 - с ручным указанием параметров;
 - с подстановкой параметров из события `max_notify_received`.
 
-Примеры можно использовать и для записи **Official Max API** (`platform-api.max.ru`), и для **`notify.a161.ru`** — подставьте свои `config_entry_id`, `entity_id` или `recipient_id` из нужной интеграции.
+Примеры можно использовать и для записи **Official Max API** (`platform-api2.max.ru`), и для **`notify.a161.ru`** — подставьте свои `config_entry_id`, `entity_id` или `recipient_id` из нужной интеграции.
 
 > **Событие `max_notify_received`** в примерах «из события» приходит при **официальном API** (Long Polling или WebHook) и при **`notify.a161.ru`**, если для записи включён **Polling** (опрос очереди прокси), а не режим «Только отправка».
 >

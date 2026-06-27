@@ -1,4 +1,4 @@
-"""Официальный API Max (platform-api.max.ru) — полный набор возможностей."""
+"""Официальный API Max (platform-api2.max.ru) — полный набор возможностей."""
 
 from __future__ import annotations
 
