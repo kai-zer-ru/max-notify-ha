@@ -720,7 +720,7 @@ class MaxNotifyIntegrationProvider:
         user_id: int | None,
         chat_id: int | None,
     ) -> tuple[str, dict[str, Any]] | None:
-        """Прямой URL POST /messages без GET /chats. Официальный API: None."""
+        """Прямой URL POST /messages (сторонние провайдеры). Официальный API: None."""
         return None
 
     async def async_resolve_message_post_url(

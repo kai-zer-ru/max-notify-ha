@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from ...log import get_logger
-import logging
 from typing import Any
 
 import aiohttp
@@ -11,49 +10,10 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
-from ...const import API_PATH_CHATS, API_PATH_ME, API_PATH_MESSAGES, CHATS_PAGE_SIZE
+from ...const import API_PATH_ME, API_PATH_MESSAGES
 from ...outbound_rate import async_acquire_outbound_api_slot
 
 _LOGGER = get_logger()
-
-
-async def resolve_dialog_chat_id(
-    hass: HomeAssistant,
-    entry: ConfigEntry,
-    token: str,
-    user_id: int,
-    *,
-    base_url: str,
-    api_version: str,
-) -> int | None:
-    """Получить chat_id диалога по user_id через GET /chats (нужно для ЛС в официальном API)."""
-    url = f"{base_url}{API_PATH_CHATS}?count={CHATS_PAGE_SIZE}&v={api_version}"
-    headers = {"Authorization": token}
-    session = async_get_clientsession(hass)
-    marker: int | None = None
-    for _ in range(50):
-        u = f"{url}&marker={marker}" if marker is not None else url
-        try:
-            await async_acquire_outbound_api_slot(hass)
-            async with session.get(u, headers=headers, timeout=aiohttp.ClientTimeout(total=10)) as resp:
-                if resp.status != 200:
-                    return None
-                data = await resp.json()
-        except (aiohttp.ClientError, ValueError) as e:
-            _LOGGER.debug("Ошибка GET /chats: %s", e)
-            return None
-        chats = data.get("chats") or []
-        for chat in chats:
-            cid = chat.get("chat_id") or chat.get("chatId")
-            dw = chat.get("dialog_with_user") or chat.get("dialogWithUser") or {}
-            dw_uid = dw.get("user_id") or dw.get("userId")
-            if dw_uid is not None and (dw_uid == user_id or int(dw_uid) == int(user_id)):
-                if cid is not None:
-                    return int(cid)
-        marker = data.get("marker")
-        if marker is None:
-            break
-    return None
 
 
 async def resolve_message_url(
@@ -67,18 +27,16 @@ async def resolve_message_url(
     user_id: int | None,
     chat_id: int | None,
 ) -> str | None:
-    """Собрать URL POST /messages для официального API и получателя."""
+    """Собрать URL POST /messages для официального API и получателя.
+
+    С июня 2026 GET /chats не поддерживается: для лички используем user_id,
+    для групп/каналов — chat_id (как в https://dev.max.ru/docs-api/methods/POST/messages).
+
+    ``hass``, ``entry`` и ``token`` сохранены в сигнатуре для совместимости с
+    ``async_resolve_message_post_url``; резолв списка чатов больше не нужен.
+    """
+    _ = (hass, entry, token)
     if user_id is not None and int(user_id) != 0:
-        resolved = await resolve_dialog_chat_id(
-            hass,
-            entry,
-            token,
-            int(user_id),
-            base_url=base_url,
-            api_version=api_version,
-        )
-        if resolved is not None:
-            return f"{base_url}{api_path_messages}?chat_id={resolved}&v={api_version}"
         return f"{base_url}{api_path_messages}?user_id={int(user_id)}&v={api_version}"
 
     if chat_id is not None and int(chat_id) != 0:
@@ -209,41 +167,24 @@ async def find_last_outgoing_message_id(
     recipient_id: int,
     scan_count: int,
 ) -> str | None:
-    """Найти id последнего исходящего сообщения бота в чате/диалоге."""
+    """Найти id последнего исходящего сообщения бота в групповом чате.
+
+    GET /messages принимает только chat_id (или message_ids). Список чатов через
+    GET /chats с июня 2026 недоступен — для лички этот поиск не используется
+    (delete_last_outgoing только для групп).
+    """
+    _ = entry
+    if recipient_id >= 0:
+        _LOGGER.info(
+            "Официальный API поиск сообщений пропущен: recipient_id=%s — личный чат; "
+            "нужен chat_id группы (отрицательный).",
+            recipient_id,
+        )
+        return None
+
     session = async_get_clientsession(hass)
     headers = {"Authorization": token}
-
-    chat_ids: list[int] = []
-    user_id: int | None
-    if recipient_id < 0:
-        chat_ids.append(recipient_id)
-        user_id = None
-    else:
-        user_id = recipient_id
-        resolved_chat_id = await resolve_dialog_chat_id(
-            hass,
-            entry,
-            token,
-            user_id,
-            base_url=base_url,
-            api_version=api_version,
-        )
-        if resolved_chat_id is not None:
-            chat_ids.append(resolved_chat_id)
-        _LOGGER.info(
-            "Официальный API поиск сообщений: recipient_id=%s user_id=%s chat_ids=%s chat_id=%s",
-            recipient_id,
-            user_id,
-            chat_ids,
-            resolved_chat_id,
-        )
-        if not chat_ids:
-            _LOGGER.info(
-                "Официальный API поиск сообщений пропущен: для user_id=%s не удалось определить chat_id диалога. "
-                "В GET /chats Max возвращаются в основном группы — историю ЛС через /messages прочитать нельзя.",
-                user_id,
-            )
-            return None
+    chat_ids = [recipient_id]
 
     bot_user_id = await _get_bot_user_id(
         hass,

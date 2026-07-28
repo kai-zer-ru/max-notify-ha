@@ -2589,9 +2589,11 @@ async def entity_send_plain_message(
                         )
                         if resp.status == 403 and "chatId" in body and "user_id=" in url:
                             _LOGGER.info(
-                                "Подсказка: GET /chats не отдаёт диалоги (0 чатов), chat_id диалога через API недоступен. "
-                                "Используйте групповой чат: добавьте бота в группу в Max, получите chat_id через GET /chats "
-                                "и настройте интеграцию с типом «Групповой чат» и этим chat_id."
+                                "Подсказка: отправка по user_id отклонена (403). "
+                                "Для группы/канала укажите отрицательный chat_id (из события "
+                                "bot_added / message_created при WebHook или Long Polling, "
+                                "или через бота CHECK ID) и настройте получателя как групповой чат. "
+                                "См. https://dev.max.ru/docs-api/methods/POST/subscriptions"
                             )
                         return False
                     _LOGGER.info("Сообщение отправлено (код=%s)", resp.status)
