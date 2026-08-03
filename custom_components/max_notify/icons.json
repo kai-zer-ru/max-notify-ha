@@ -1,0 +1,28 @@
+{
+  "services": {
+    "send_message": {
+      "service": "mdi:send"
+    },
+    "send_text_to_all": {
+      "service": "mdi:message-text"
+    },
+    "send_photo": {
+      "service": "mdi:camera"
+    },
+    "send_document": {
+      "service": "mdi:file-document"
+    },
+    "send_video": {
+      "service": "mdi:video"
+    },
+    "delete_message": {
+      "service": "mdi:delete"
+    },
+    "delete_last_outgoing_message": {
+      "service": "mdi:delete-clock"
+    },
+    "edit_message": {
+      "service": "mdi:pencil"
+    }
+  }
+}
