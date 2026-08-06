@@ -104,6 +104,7 @@ class MaxNotifyConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Мастер первичной настройки MaxNotify."""
 
     VERSION = 1
+    MINOR_VERSION = 3
 
     def __getattr__(self, name: str) -> Any:
         try:

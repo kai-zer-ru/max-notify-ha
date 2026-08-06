@@ -144,6 +144,8 @@
 
 Кратко: скачайте [корневой](https://gu-st.ru/content/lending/russian_trusted_root_ca_pem.crt) и [выпускающий](https://gu-st.ru/content/lending/russian_trusted_sub_ca_pem.crt) сертификаты; для HAOS и Docker удобнее всего интеграция **[Additional CA](https://github.com/Athozs/hass-additional-ca)** — настройте её **до** обновления MaxNotify.
 
+> **После любого обновления Home Assistant Core** (с любой версии на любую) интеграция **Additional CA** снова копирует CA в контейнер. Пока SSL Context ещё без этих сертификатов, MaxNotify к официальному API не подключится (`CERTIFICATE_VERIFY_FAILED`). Additional CA при этом пишет в лог / показывает уведомление вида: *CA `russian_trusted_root_ca_pem.crt` / `russian_trusted_sub_ca_pem.crt` … is missing in SSL Context. Home Assistant needs to be restarted.* Сделайте **ещё одну** перезагрузку (**Настройки → Система → Перезагрузка**) — и только после неё проверяйте отправку в Max.
+
 ---
 
 ## Первичная настройка

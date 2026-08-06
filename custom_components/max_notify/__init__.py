@@ -25,6 +25,10 @@ from .const import (
     RECEIVE_MODE_POLLING,
     RECEIVE_MODE_WEBHOOK,
 )
+from .device_helpers import (
+    async_ensure_integration_device,
+    async_migrate_devices_per_subentry,
+)
 from .message_state import async_load_integration_store
 from .providers.notify_outbound import recipient_dict_from_subentry
 from .providers.registry import get_provider
@@ -98,6 +102,21 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     return True
 
 
+async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """Миграция записи: device на каждый recipient-subentry."""
+    if entry.version > 1:
+        return False
+    if entry.minor_version < 3:
+        _LOGGER.info(
+            "Миграция MaxNotify %s: device на каждый чат (1.%s → 1.3)",
+            entry.entry_id,
+            entry.minor_version,
+        )
+        async_migrate_devices_per_subentry(hass, entry)
+        hass.config_entries.async_update_entry(entry, minor_version=3)
+    return True
+
+
 def _ensure_webhook_view_registered(hass: HomeAssistant) -> None:
     """Зарегистрировать представление WebHook один раз (идемпотентно)."""
     if getattr(_ensure_webhook_view_registered, "_registered", False):
@@ -148,6 +167,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if DOMAIN not in hass.data:
         hass.data[DOMAIN] = {}
     await async_load_integration_store(hass)
+    # Родительский device + идемпотентный repair раскладки (без дублей на HA 2026.7).
+    async_ensure_integration_device(hass, entry)
+    async_migrate_devices_per_subentry(hass, entry)
     _hydrate_recipient_ids_from_subentries(hass, entry)
     debouncers = hass.data[DOMAIN]
     entry_id = entry.entry_id

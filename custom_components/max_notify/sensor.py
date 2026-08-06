@@ -11,7 +11,8 @@ from homeassistant.const import EntityCategory
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import CONF_RECIPIENT_ID, CONF_RECEIVE_MODE, DOMAIN, RECEIVE_MODE_SEND_ONLY
+from .const import CONF_RECIPIENT_ID, CONF_RECEIVE_MODE, RECEIVE_MODE_SEND_ONLY
+from .device_helpers import integration_device_info, recipient_device_info
 from .message_state import (
     SIGNAL_MESSAGE_STATE_UPDATED,
     get_last_incoming_message_id,
@@ -89,10 +90,7 @@ class _BaseMessageIdSensor(RestoreSensor):
         self._recipient_id = recipient_id
         self._subentry = subentry
         self._scope_key = message_state_scope_key(entry.entry_id, recipient_id)
-        self._attr_device_info = {
-            "identifiers": {(DOMAIN, entry.entry_id)},
-            "name": entry.title,
-        }
+        self._attr_device_info = recipient_device_info(hass, entry, subentry)
 
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
@@ -297,10 +295,7 @@ class _BaseLegacyMessageIdSensor(RestoreSensor):
         self.hass = hass
         self._entry = entry
         self._scope_key = message_state_scope_key(entry.entry_id, None)
-        self._attr_device_info = {
-            "identifiers": {(DOMAIN, entry.entry_id)},
-            "name": entry.title,
-        }
+        self._attr_device_info = integration_device_info(entry)
         self._attr_extra_state_attributes = {
             "deprecated": True,
             "deprecation_note": "Устаревший сенсор, используйте сенсоры по чатам.",

@@ -10,7 +10,6 @@ from homeassistant.components.notify import NotifyEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 try:
@@ -19,7 +18,7 @@ except ImportError:
     class ConfigSubentry:  # type: ignore[too-many-ancestors]
         """Заглушка для старых версий Home Assistant без ConfigSubentry."""
 
-from .const import DOMAIN
+from .device_helpers import recipient_device_info
 from .providers.registry import (
     get_provider,
 )
@@ -330,6 +329,7 @@ async def async_setup_entry(
             subentry, hass=hass, entry_id=entry.entry_id
         )
         entity = MaxNotifyEntity(
+            hass,
             entry,
             recipient=recipient,
             subentry=subentry,
@@ -353,6 +353,7 @@ class MaxNotifyEntity(NotifyEntity):
 
     def __init__(
         self,
+        hass: HomeAssistant,
         entry: ConfigEntry,
         recipient: dict[str, Any],
         subentry: ConfigSubentry,
@@ -363,11 +364,9 @@ class MaxNotifyEntity(NotifyEntity):
         self.subentry = subentry
         self._recipient_meta = dict(recipient_meta or {})
         self._attr_unique_id = f"{entry.entry_id}_{subentry.subentry_id}"
-        self._attr_name = subentry.title
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, entry.entry_id)},
-            name=entry.title,
-        )
+        # Имя сущности = имя device чата (как telegram_bot notify).
+        self._attr_name = None
+        self._attr_device_info = recipient_device_info(hass, entry, subentry)
         rid_raw = recipient.get("recipient_id")
         rid: int | None = None
         try:

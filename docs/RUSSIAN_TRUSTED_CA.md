@@ -64,7 +64,7 @@
 | **Container** | Home Assistant запущен в Docker / Docker Compose на Linux, macOS или Windows |
 | **Core** | Python-окружение (venv) на хосте, без контейнера HA |
 
-Если сомневаетесь — для HAOS, Supervised и Container **рекомендуется** способ через интеграцию [Additional CA](https://github.com/Athozs/hass-additional-ca) (см. ниже): она переживает обновления ядра Home Assistant.
+Если сомневаетесь — для HAOS, Supervised и Container **рекомендуется** способ через интеграцию [Additional CA](https://github.com/Athozs/hass-additional-ca) (см. ниже): файлы CA в `/config` сохраняются, но **после каждого обновления Core** нужна ещё одна перезагрузка HA (см. предупреждение в способе A).
 
 ---
 
@@ -74,7 +74,7 @@ HAOS запускает Home Assistant **внутри Docker-контейнер�
 
 ### Способ A — Additional CA (рекомендуется)
 
-Подходит для HAOS, Supervised и Container; изменения сохраняются после обновлений Home Assistant.
+Подходит для HAOS, Supervised и Container. Файлы сертификатов в `/config/additional_ca/` и блок в `configuration.yaml` сохраняются, но **после каждого обновления Home Assistant Core** Additional CA заново копирует CA в контейнер — нужна **ещё одна перезагрузка** HA (часто по уведомлению от Additional CA), иначе официальный API Max может временно не работать из‑за SSL.
 
 **Сначала сертификаты — потом MaxNotify.** Ниже описана только настройка доверия к CA. Обновление MaxNotify до **2.1.0+** (переход на `platform-api2.max.ru`) выполняйте **после** шагов 1–5 и успешной [проверки SSL](#1-из-контейнера-или-хоста-где-работает-ha).
 
@@ -96,6 +96,13 @@ additional_ca:
 6. **Перезагрузите** Home Assistant (**Настройки → Система → Перезагрузка**).
 7. Убедитесь, что SSL к новому API работает — см. [Проверка после установки → п. 1](#1-из-контейнера-или-хоста-где-работает-ha).
 8. **Затем** обновите MaxNotify (HACS или вручную) до версии **2.1.0** и выше и при необходимости перенастройте запись с официальным API.
+
+**После обновления Home Assistant Core** (с любой версии на любую) Additional CA снова копирует CA в контейнер. В логе / уведомлениях типично:
+
+`CA 'russian_trusted_root_ca_pem.crt' … is missing in SSL Context. Home Assistant needs to be restarted.`  
+`CA 'russian_trusted_sub_ca_pem.crt' … is missing in SSL Context. Home Assistant needs to be restarted.`
+
+Сделайте **ещё одну** перезагрузку HA. **Без неё** MaxNotify к официальному API может не подключиться (`CERTIFICATE_VERIFY_FAILED`), хотя файлы в `/config/additional_ca/` на месте.
 
 Документация интеграции Additional CA: https://github.com/Athozs/hass-additional-ca
 

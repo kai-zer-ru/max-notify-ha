@@ -662,6 +662,7 @@ class TestUploadDispatch:
             subentry.subentry_id = "sub-1"
             subentry.title = "Recipient"
             entity = MaxNotifyEntity(
+                hass,
                 mock_config_entry,
                 recipient={"recipient_id": -100},
                 subentry=subentry,
