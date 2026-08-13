@@ -1,5 +1,431 @@
 {
   "title": "MaxNotify",
+  "config": {
+    "step": {
+      "integration_type": {
+        "title": "Выберите тип интеграции",
+        "description": "Выберите способ подключения.",
+        "data": {
+          "integration_type": "Тип интеграции"
+        }
+      },
+      "user": {
+        "title": "MaxNotify: токен бота",
+        "description": "Введите токен доступа бота, формат сообщений и режим приёма. При «Только отправка» дополнительные поля не нужны.\n\nЧтобы режим WebHook стал доступен в списке выбора, настройте внешний HTTPS-URL Home Assistant (Настройки → Система → Сеть). См. {docs_ha_network}\n\nПока в Max активна подписка WebHook, Long Polling недоступен, и наоборот — см. {docs_max_subscriptions}",
+        "data": {
+          "access_token": "Токен доступа",
+          "message_format": "Формат сообщений",
+          "receive_mode": "Режим приёма"
+        },
+        "data_description": {
+          "access_token": "Токен бота из раздела «Для разработчиков» в MAX.",
+          "message_format": "Текст, Markdown или HTML (параметр format в API).",
+          "receive_mode": "{receive_mode_hint}"
+        }
+      },
+      "webhook_secret": {
+        "title": "Секрет WebHook",
+        "description": "Режим: {receive_mode}. Укажите секрет WebHook при необходимости. Для WebHook в Home Assistant должен быть настроен внешний URL по HTTPS (Настройки → Система → Сеть). См. {docs_ha_network} Далее можно добавить или удалить кнопки клавиатуры.",
+        "data": {
+          "webhook_secret": "Секрет WebHook (необязательно)"
+        },
+        "data_description": {
+          "webhook_secret": "5–256 символов; Max пришлёт в заголовке X-Max-Bot-Api-Secret."
+        }
+      },
+      "receive_options_menu": {
+        "title": "Кнопки клавиатуры",
+        "description": "{buttons_intro}Выберите действие и нажмите «Отправить».",
+        "data": {
+          "action": "Действие"
+        },
+        "menu_options": {
+          "add_button": "Добавить кнопку",
+          "remove_button": "Удалить кнопку",
+          "next": "Продолжить"
+        }
+      },
+      "add_button": {
+        "title": "Добавить кнопку",
+        "description": "Тип, подпись, для callback — payload, для link — URL http(s). Текущие: {buttons_list}",
+        "data": {
+          "button_row": "Ряд",
+          "button_type": "Тип",
+          "button_text": "Подпись на кнопке",
+          "button_payload": "Payload (только callback)",
+          "button_url": "URL (только link)"
+        },
+        "data_description": {
+          "button_row": "Ряд для добавления кнопки",
+          "button_type": "callback, message или link (открывает сайт)",
+          "button_text": "Текст на кнопке",
+          "button_payload": "Для кнопок callback: это значение приходит в событии max_notify_received в поле callback_data. Используйте его в триггерах автоматизаций для идентификации кнопки (например: light_on, light_off, scene_kitchen).",
+          "button_url": "Для link: только адрес с http:// или https://"
+        },
+        "menu_options": {
+          "0": "Ряд 1",
+          "1": "Ряд 2",
+          "2": "Ряд 3",
+          "3": "Ряд 4",
+          "4": "Ряд 5",
+          "5": "Ряд 6",
+          "6": "Ряд 7",
+          "7": "Ряд 8",
+          "8": "Ряд 9",
+          "9": "Ряд 10",
+          "new": "Новый ряд"
+        }
+      },
+      "remove_button": {
+        "title": "Удалить кнопку",
+        "description": "Выберите кнопку для удаления. Текущие: {buttons_list}",
+        "data": {
+          "button_to_remove": "Кнопка для удаления"
+        },
+        "data_description": {
+          "button_to_remove": "—"
+        }
+      },
+      "commands_menu": {
+        "title": "Слеш-команды",
+        "description": "Текущие команды: {commands_list}. Добавьте или удалите команды, затем продолжайте.",
+        "data": {
+          "action": "Действие"
+        },
+        "menu_options": {
+          "add_command": "Добавить команду",
+          "remove_command": "Удалить команду",
+          "next": "Продолжить"
+        }
+      },
+      "add_command": {
+        "title": "Добавить слеш-команду",
+        "description": "Добавьте команду в меню бота. Текущие: {commands_list}",
+        "data": {
+          "command_name": "Имя команды",
+          "command_description": "Описание"
+        },
+        "data_description": {
+          "command_name": "Без слэша, например: start",
+          "command_description": "Необязательно, 1-128 символов"
+        }
+      },
+      "remove_command": {
+        "title": "Удалить слеш-команду",
+        "description": "Выберите команду для удаления. Текущие: {commands_list}",
+        "data": {
+          "command_to_remove": "Команда для удаления"
+        }
+      },
+      "recipient": {
+        "title": "Добавить чат",
+        "description": "Укажите один ID. Положительное — личный чат, отрицательное — группа.",
+        "data": {
+          "recipient_id": "ID получателя"
+        },
+        "data_description": {
+          "recipient_id": "Положительное число — личный чат (User ID), отрицательное — группа (Chat ID)."
+        }
+      },
+      "reconfigure": {
+        "title": "Изменить настройки MaxNotify",
+        "description": "Новый API-ключ (оставьте пустым, чтобы оставить текущий) и формат сообщений.",
+        "data": {
+          "access_token": "Новый API-ключ (необязательно)",
+          "message_format": "Формат сообщений"
+        },
+        "data_description": {
+          "access_token": "Оставьте пустым, чтобы не менять токен",
+          "message_format": "Текст, Markdown или HTML."
+        }
+      },
+      "notify_a161_notify_info": {
+        "title": "{provider_label}",
+        "description": "Перед продолжением: откройте {provider_site_url}, отправьте боту сервиса сообщение \"Хочу подключиться\" и сохраните user_id и токен. Затем нажмите «Отправить» и введите данные в Home Assistant. user_id привязан к токену и позже не меняется в настройках интеграции."
+      },
+      "notify_a161_notify_user": {
+        "title": "{provider_label} — токен",
+        "description": "Введите токен, формат сообщений и режим приёма, затем user_id.\n\nРежим приёма: только отправка или очередь Polling updates.",
+        "data": {
+          "access_token": "Токен доступа",
+          "message_format": "Формат сообщений",
+          "receive_mode": "Режим приёма"
+        },
+        "data_description": {
+          "access_token": "Токен бота {provider_label} ({token_length} символов).",
+          "message_format": "Текст, Markdown или HTML."
+        }
+      },
+      "notify_a161_notify_recipient": {
+        "title": "{provider_label} — user_id",
+        "description": "Укажите ваш user_id (положительное число). Он привязан к токену и позже не меняется в настройках интеграции.",
+        "data": {
+          "recipient_id": "User ID"
+        },
+        "data_description": {
+          "recipient_id": "Используйте только положительный user_id из ответа бота {provider_label}."
+        }
+      },
+      "notify_a161_updates_interval": {
+        "title": "{provider_label} — интервал опроса",
+        "description": "Укажите интервал опроса очереди /updates в секундах. По умолчанию: {default_seconds} с.",
+        "data": {
+          "updates_interval": "—"
+        }
+      },
+      "notify_a161_a161_inactivity_period": {
+        "title": "{provider_label}: период неактивности",
+        "description": "Выберите, через сколько суток без входящих сообщений и без отправок с кнопками режим приёма переключается на «Только отправка» (ограничение сервиса).",
+        "data": {
+          "a161_inactivity_period_days": "Период"
+        }
+      }
+    },
+    "error": {
+      "invalid_token": "Токен не может быть пустым",
+      "invalid_auth": "Неверный токен. Проверьте токен в разделе Интеграция платформы MAX.",
+      "cannot_connect": "Не удалось подключиться к API Max. Проверьте сеть и повторите.",
+      "polling_subscription_list_failed": "Не удалось получить список WebHook-подписок в Max API. Проверьте сеть и повторите.",
+      "polling_webhook_subscriptions_remain": "Long Polling недоступен, пока для бота активна подписка WebHook в Max. Удалите подписки WebHook (или выберите «Только отправка» / WebHook в настройках) и повторите. См. {docs_max_subscriptions}",
+      "polling_blocked_by_webhook_other_entry": "Другая интеграция MaxNotify уже использует WebHook с этим токеном бота. Сначала отключите WebHook там или используйте другой токен.",
+      "webhook_blocked_by_polling_other_entry": "Другая интеграция MaxNotify уже использует Long Polling с этим токеном бота. Сначала отключите Long Polling там или используйте другой токен.",
+      "webhook_requires_external_https_url": "Для WebHook нужен внешний HTTPS-адрес Home Assistant (Настройки → Система → Сеть или Nabu Casa). Сначала настройте URL, затем снова выберите WebHook.",
+      "unknown": "Произошла неизвестная ошибка",
+      "invalid_id_format": "Введите целое число (положительное — личный чат, отрицательное — группа).",
+      "group_chats_not_supported": "Групповые чаты не поддерживаются выбранным провайдером.",
+      "invalid_command_name": "Введите имя команды (без слэша).",
+      "invalid_button_text": "Введите подпись на кнопке.",
+      "invalid_button_url": "Для кнопки-ссылки укажите URL с http:// или https://.",
+      "notify_a161_invalid_notify_token_length": "Токен доступа должен содержать {token_length} символов.",
+      "notify_a161_invalid_updates_interval": "Введите интервал опроса от 2 до 30 секунд.",
+      "notify_a161_invalid_a161_inactivity_period": "Выберите 1, 2 или 3 суток.",
+      "notify_a161_polling_requires_buttons_switched_send_only": "Кнопки не настроены. Режим приёма автоматически переключен на «Только отправка». Добавьте хотя бы одну кнопку, чтобы использовать Polling.",
+      "notify_a161_duplicate_token_not_allowed": "Интеграция MaxNotify с этим токеном уже есть. Для {provider_label} один токен — одна запись: удалите существующую или укажите другой токен."
+    },
+    "abort": {
+      "already_configured": "Эта конфигурация уже добавлена",
+      "reconfigure_successful": "Настройки обновлены",
+      "unsupported_ha_version": "Для этой интеграции нужен Home Assistant Core {minimum_ha_version} или новее. Обновите Home Assistant и повторите попытку."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Настройки MaxNotify",
+        "description": "Токен (необязательно), формат сообщений, режим приёма.{webhook_url_paragraph}",
+        "data": {
+          "access_token": "Новый API-ключ (необязательно)",
+          "message_format": "Формат сообщений",
+          "receive_mode": "Режим приёма"
+        },
+        "data_description": {
+          "access_token": "Оставьте пустым, чтобы не менять токен",
+          "message_format": "Текст, Markdown или HTML",
+          "receive_mode": "{receive_mode_hint}"
+        }
+      },
+      "webhook_secret": {
+        "title": "Секрет WebHook",
+        "description": "URL WebHook в Max: {webhook_url}.\n\nНеобязательный секрет для заголовка X-Max-Bot-Api-Secret.",
+        "data": {
+          "webhook_secret": "Секрет WebHook (необязательно)"
+        },
+        "data_description": {
+          "webhook_secret": "5–256 символов; Max пришлёт в заголовке X-Max-Bot-Api-Secret"
+        }
+      },
+      "buttons_menu": {
+        "title": "Кнопки клавиатуры",
+        "description": "{buttons_intro}Добавляйте, редактируйте или удаляйте кнопки, затем нажмите «Завершить».",
+        "data": {
+          "action": "Действие"
+        },
+        "menu_options": {
+          "opt_add_button": "Добавить кнопку",
+          "opt_edit_button": "Редактировать кнопку",
+          "opt_remove_button": "Удалить кнопку",
+          "opt_next": "Завершить"
+        }
+      },
+      "opt_add_button": {
+        "title": "Добавить кнопку",
+        "description": "Тип, подпись, для callback — payload, для link — URL http(s). Текущие: {buttons_list}",
+        "data": {
+          "button_row": "Ряд",
+          "button_type": "Тип",
+          "button_text": "Подпись на кнопке",
+          "button_payload": "Payload (только callback)",
+          "button_url": "URL (только link)"
+        },
+        "data_description": {
+          "button_row": "Ряд для добавления кнопки",
+          "button_type": "callback, message или link (открывает сайт)",
+          "button_text": "Текст на кнопке",
+          "button_payload": "Для кнопок callback: это значение приходит в событии max_notify_received в поле callback_data. Используйте его в триггерах автоматизаций для идентификации кнопки (например: light_on, light_off, scene_kitchen).",
+          "button_url": "Для link: только адрес с http:// или https://"
+        },
+        "menu_options": {
+          "0": "Ряд 1",
+          "1": "Ряд 2",
+          "2": "Ряд 3",
+          "3": "Ряд 4",
+          "4": "Ряд 5",
+          "5": "Ряд 6",
+          "6": "Ряд 7",
+          "7": "Ряд 8",
+          "8": "Ряд 9",
+          "9": "Ряд 10",
+          "new": "Новый ряд"
+        }
+      },
+      "opt_edit_button": {
+        "title": "Редактировать кнопку",
+        "description": "Выберите кнопку для редактирования. Текущие: {buttons_list}",
+        "data": {
+          "button_to_edit": "Кнопка для редактирования"
+        },
+        "data_description": {
+          "button_to_edit": "Выберите кнопку, которую хотите изменить"
+        }
+      },
+      "opt_edit_button_edit": {
+        "title": "Редактировать кнопку",
+        "description": "Измените ряд, тип, подпись, payload или URL ссылки. Текущие: {buttons_list}",
+        "data": {
+          "button_row": "Ряд",
+          "button_type": "Тип",
+          "button_text": "Подпись на кнопке",
+          "button_payload": "Payload (только callback)",
+          "button_url": "URL (только link)"
+        },
+        "data_description": {
+          "button_row": "Ряд для размещения кнопки",
+          "button_type": "callback, message или link (открывает сайт)",
+          "button_text": "Текст на кнопке",
+          "button_payload": "Для кнопок callback: это значение приходит в событии max_notify_received в поле callback_data. Используйте его в триггерах автоматизаций для идентификации кнопки (например: light_on, light_off, scene_kitchen).",
+          "button_url": "Для link: только адрес с http:// или https://"
+        }
+      },
+      "opt_remove_button": {
+        "title": "Удалить кнопку",
+        "description": "Выберите кнопку для удаления. Текущие: {buttons_list}",
+        "data": {
+          "button_to_remove": "Кнопка для удаления"
+        },
+        "data_description": {
+          "button_to_remove": "—"
+        }
+      },
+      "commands_menu": {
+        "title": "Слеш-команды",
+        "description": "Текущие команды: {commands_list}. Добавьте или удалите команды, затем завершите.",
+        "data": {
+          "action": "Действие"
+        },
+        "menu_options": {
+          "opt_add_command": "Добавить команду",
+          "opt_remove_command": "Удалить команду",
+          "opt_next": "Завершить"
+        }
+      },
+      "opt_add_command": {
+        "title": "Добавить слеш-команду",
+        "description": "Добавьте команду в меню бота. Текущие: {commands_list}",
+        "data": {
+          "command_name": "Имя команды",
+          "command_description": "Описание"
+        },
+        "data_description": {
+          "command_name": "Без слэша, например: start",
+          "command_description": "Необязательно, 1-128 символов"
+        }
+      },
+      "opt_remove_command": {
+        "title": "Удалить слеш-команду",
+        "description": "Выберите команду для удаления. Текущие: {commands_list}",
+        "data": {
+          "command_to_remove": "Команда для удаления"
+        }
+      },
+      "notify_a161_init_notify": {
+        "title": "{provider_label} — настройки",
+        "description": "Формат сообщений и режим приёма.\n\nРежим приёма: только отправка или очередь Polling updates.\n\nЧтобы сменить API-ключ, удалите интеграцию и добавьте заново. user_id задаётся только при первой настройке.",
+        "data": {
+          "message_format": "Формат сообщений",
+          "receive_mode": "Режим приёма"
+        },
+        "data_description": {
+          "message_format": "Текст, Markdown или HTML"
+        }
+      },
+      "notify_a161_updates_interval": {
+        "title": "{provider_label} — интервал опроса",
+        "description": "Укажите интервал опроса очереди /updates в секундах. По умолчанию: {default_seconds} с.",
+        "data": {
+          "updates_interval": "—"
+        }
+      },
+      "notify_a161_a161_inactivity_period": {
+        "title": "{provider_label}: период неактивности",
+        "description": "Выберите, через сколько суток без входящих сообщений и без отправок с кнопками режим приёма переключается на «Только отправка» (ограничение сервиса).",
+        "data": {
+          "a161_inactivity_period_days": "Период"
+        }
+      }
+    },
+    "error": {
+      "polling_subscription_list_failed": "Не удалось получить список WebHook-подписок в Max API. Проверьте сеть и повторите.",
+      "polling_webhook_subscriptions_remain": "Long Polling недоступен, пока для бота активна подписка WebHook в Max. Удалите подписки WebHook (или выберите «Только отправка» / WebHook в настройках) и повторите. См. {docs_max_subscriptions}",
+      "polling_blocked_by_webhook_other_entry": "Другая интеграция MaxNotify уже использует WebHook с этим токеном бота. Сначала отключите WebHook там или используйте другой токен.",
+      "webhook_blocked_by_polling_other_entry": "Другая интеграция MaxNotify уже использует Long Polling с этим токеном бота. Сначала отключите Long Polling там или используйте другой токен.",
+      "webhook_requires_external_https_url": "Для WebHook нужен внешний HTTPS-адрес Home Assistant (Настройки → Система → Сеть или Nabu Casa). Сначала настройте URL, затем снова выберите WebHook.",
+      "notify_a161_invalid_updates_interval": "Введите интервал опроса от 2 до 30 секунд.",
+      "notify_a161_invalid_a161_inactivity_period": "Выберите 1, 2 или 3 суток.",
+      "notify_a161_polling_requires_buttons_switched_send_only": "Кнопки не настроены. Режим приёма автоматически переключен на «Только отправка». Добавьте хотя бы одну кнопку, чтобы использовать Polling."
+    }
+  },
+  "config_subentries": {
+    "recipient": {
+      "abort": {
+        "already_configured": "Этот ID уже добавлен",
+        "notify_user_locked": "В этой записи интеграции нельзя добавлять чаты. Добавьте новую интеграцию MaxNotify для другого получателя."
+      },
+      "entry_type": "ID чата",
+      "error": {
+        "invalid_id_format": "Введите целое число (положительное — личный чат, отрицательное — группа)",
+        "already_configured": "Этот ID уже добавлен"
+      },
+      "initiate_flow": {
+        "user": "Добавить чат"
+      },
+      "step": {
+        "user": {
+          "data": {
+            "recipient_id": "ID получателя"
+          },
+          "data_description": {
+            "recipient_id": "Положительное число — личный чат (User ID), отрицательное — группа (Chat ID)."
+          },
+          "description": "Укажите один ID. Положительное — личный чат, отрицательное — группа.",
+          "title": "Добавить чат"
+        }
+      }
+    }
+  },
+  "issues": {
+    "webhook_disabled_no_https": {
+      "title": "MaxNotify: WebHook отключён (нет HTTPS)",
+      "description": "Интеграция {entry_title} была в режиме WebHook, но у Home Assistant нет внешнего HTTPS base URL. Режим сменён на «Только отправка». Настройте Настройки → Система → Сеть (или Nabu Casa), затем при необходимости снова выберите WebHook в настройках интеграции."
+    },
+    "unsupported_ha_version_runtime": {
+      "title": "MaxNotify: требуется обновление Home Assistant",
+      "description": "Интеграция {entry_title} не загружена, потому что Home Assistant Core {current_ha_version} не поддерживается. Для этой интеграции нужен Core {minimum_ha_version} или новее. Обновите Home Assistant и перезагрузите интеграцию."
+    },
+    "updates_polling_unavailable": {
+      "title": "MaxNotify: не удаётся получать сообщения (polling)",
+      "description": "При опросе входящих обновлений запрос к API Max для «{entry_title}» завершился ошибкой: {error_detail}. HTTP 500 с кодом internal.error чаще всего означает временный сбой на стороне серверов Max — попробуйте позже. Если ошибка повторяется, проверьте сеть и токен доступа. Включите отладочные логи (custom_components.max_notify: debug) — в лог попадёт готовая команда curl (с токеном) для проверки API вручную."
+    }
+  },
   "services": {
     "send_message": {
       "name": "Отправить сообщение",
@@ -418,55 +844,6 @@
       }
     }
   },
-  "invalid_notify_entity": "Недопустимая сущность MaxNotify: {entity_id}",
-  "invalid_message_id": "ID сообщения не может быть пустым.",
-  "delete_from_to_both_required": "Заполните оба поля — «Начало периода для поиска» и «Конец периода для поиска», либо очистите оба, если используете message_id, message_ids или поле «Дата».",
-  "delete_requires_id_date_or_period": "Чтобы удалять по чату, укажите способ поиска сообщений: message_id, message_ids, поле «Дата» или оба поля периода («Начало» и «Конец»). Одной только сущности уведомления недостаточно.",
-  "provider_delete_by_period_not_supported": "Провайдер {provider} не поддерживает удаление сообщений по дате или интервалу. Используйте message_id или message_ids.",
-  "provider_delete_last_outgoing_not_supported": "Провайдер {provider} не поддерживает удаление последнего исходящего сообщения.",
-  "missing_target": "Укажите, куда отправлять: в «Цель» выберите сущность notify MaxNotify (например notify.maxnotify_…), либо при нескольких интеграциях MaxNotify укажите нужную в поле «Интеграция» (config_entry_id).",
-  "invalid_config_entry": "Неверный идентификатор в поле «Интеграция» (config_entry_id): {config_entry_id}. Откройте Настройки → Устройства и службы → MaxNotify и скопируйте id с карточки интеграции.",
-  "missing_config_entry_id": "У вас несколько интеграций MaxNotify — укажите, какую использовать: поле «Интеграция» (config_entry_id) в действии или сущность notify, чтобы Home Assistant знал чат.",
-  "config_entry_entity_mismatch": "Идентификатор интеграции ({config_entry_id}) не относится к выбранной сущности notify. Уберите «Интеграцию» и оставьте только сущность или укажите интеграцию {resolved_entry_id}.",
-  "no_matching_entities": "Для этого id интеграции ({config_entry_id}) нет сущностей notify. Добавьте чат в MaxNotify или проверьте, что id совпадает с Настройки → Устройства и службы.",
-  "recipient_id_no_notify_entity": "Нет сущности notify для записи {config_entry_id} с recipient_id {recipient_id}. Проверьте ID чата или выберите цель (сущность notify) в действии.",
-  "plain_recipient_not_resolved": "Не удалось определить получателя. Проверьте сущность notify и настройки интеграции.",
-  "unsupported_for_notify_a161": "Операция {operation} не поддерживается для {provider_label}.",
-  "delete_last_outgoing_group_only": "Это действие работает только для групповых чатов (recipient_id < 0). Для личных чатов удаляйте сообщение по явному message_id (например, сохраните его сразу после отправки).",
-  "delete_message_permission_denied": "Нет прав на удаление сообщений. В групповом чате назначьте бота администратором и выдайте право удалять сообщения.",
-  "delete_message_no_access_token": "У этой интеграции не настроен токен доступа.",
-  "delete_message_unauthorized": "Токен бота отклонён (нет авторизации). Проверьте токен в кабинете разработчика Max.",
-  "delete_message_not_found": "Сообщение не найдено или его нельзя удалить: {detail}.",
-  "delete_message_api_error": "Не удалось удалить сообщение (HTTP {status}): {detail}.",
-  "delete_message_network_error": "Ошибка сети при удалении сообщения: {error}.",
-  "provider_feature_not_supported": "Для {provider} не поддерживается: {feature}.",
-  "third_party_attachment_too_large": "У провайдера {provider} максимальный размер фото и документов — {max_mib} МБ; этот файл — около {size_mib} МБ.",
-  "third_party_video_too_large": "У провайдера {provider} максимальный размер видео — {max_mib} МБ; этот файл — около {size_mib} МБ.",
-  "third_party_upload_no_url": "{provider}: шаг загрузки не вернул URL.",
-  "third_party_video_upload_incomplete": "{provider}: в ответе загрузки видео должны быть url и token.",
-  "attachments_count_limit_exceeded": "Для {provider} действует лимит {max_count} вложений на сообщение (файлы + inline-клавиатура); запрошено: {actual_count}.",
-  "send_message_failed_after_retries": "Не удалось отправить сообщение после {attempts} попыток. Ошибка: {error}.",
-  "link_button_url_http_https_only": "URL кнопки-ссылки должен быть только http или https (получено: {url}).",
-  "service_datetime_empty": "Дата или время пустые. Введите значение или исправьте шаблон.",
-  "service_invalid_calendar_date": "Некорректная календарная дата в поле «{field_name}». Проверьте день, месяц и год (например, 31 февраля быть не может).",
-  "service_invalid_date_format_expected": "Неверный формат даты в поле «{field_name}». Используйте ГГГГ-ММ-ДД, ДД-ММ-ГГГГ или Unix-время в миллисекундах; примеры: 2026-10-23, 23.10.2026.",
-  "service_date_without_time_only": "Поле «{field_name}» должно содержать только дату без времени (удаление за один день). Уберите часть со временем.",
-  "service_invalid_time_format": "Неверное время: используйте ЧЧ:ММ:СС или ЧЧ-ММ-СС (24 часа).",
-  "service_invalid_clock_values": "Неверное время: час — от 0 до 23, минуты и секунды — от 0 до 59.",
-  "service_invalid_datetime_value": "Некорректные дата и время в поле «{field_name}». Проверьте дату, время и часовой пояс.",
-  "service_field_cannot_be_null": "Поле «{field_name}» не задано. Укажите значение или исправьте автоматизацию.",
-  "service_field_cannot_be_empty": "Поле «{field_name}» пустое. Заполните его или исправьте шаблон.",
-  "service_delete_date_bad_type": "Поле «{field_name}»: укажите дату текстом или Unix-метку времени (число). Другие типы не поддерживаются.",
-  "service_url_auth_need_type": "Заданы логин/пароль или токен для URL — также укажите «Тип авторизации URL» (url_auth_type): basic, digest или bearer.",
-  "service_url_auth_bearer_need_token": "При url_auth_type «bearer» нужно задать url_auth_token.",
-  "service_url_auth_token_bearer_only": "url_auth_token используется только с url_auth_type «bearer». Для basic/digest укажите логин и пароль.",
-  "service_url_auth_login_password_pairs": "Для basic или digest задайте оба поля: url_auth_login и url_auth_password.",
-  "service_url_auth_basic_digest_only_login_password": "Логин и пароль используются только с url_auth_type «basic» или «digest».",
-  "service_files_not_list": "Параметр «files» должен быть списком YAML с путями или URL, например files: [\"/config/file.jpg\"].",
-  "service_files_items_not_strings": "Каждый элемент в «files» должен быть текстовым путём или URL.",
-  "service_files_none_given": "Не указаны файлы: задайте «file» или непустой список «files».",
-  "service_send_document_use_file_not_files": "send_document принимает только один файл — используйте поле «file», а не «files».",
-  "service_send_document_one_file_only": "send_document: прикрепите ровно один файл (путь или URL).",
   "exceptions": {
     "invalid_notify_entity": {
       "message": "Недопустимая сущность MaxNotify: {entity_id}"
@@ -616,532 +993,54 @@
       "message": "Ошибка сети при удалении сообщения: {error}."
     }
   },
-  "config": {
+  "selector": {
+    "message_format": {
+      "options": {
+        "text": "Текст",
+        "markdown": "Markdown",
+        "html": "HTML"
+      }
+    },
+    "receive_mode": {
+      "options": {
+        "send_only": "Только отправка",
+        "long_polling": "Long Polling",
+        "webhook": "WebHook",
+        "polling": "Очередь Polling updates"
+      }
+    },
+    "button_type": {
+      "options": {
+        "callback": "Callback",
+        "message": "Сообщение",
+        "link": "Ссылка"
+      }
+    },
+    "period_days": {
+      "options": {
+        "1": "1 сутки",
+        "2": "2 суток",
+        "3": "3 суток"
+      }
+    },
     "receive_mode_title": {
-      "send_only": "отправка",
-      "long_polling": "Long Polling",
-      "polling": "Очередь Polling updates",
-      "webhook": "WebHook"
-    },
-    "step": {
-      "integration_type": {
-        "title": "Выберите тип интеграции",
-        "description": "Выберите способ подключения.",
-        "data": {
-          "integration_type": "Тип интеграции"
-        }
-      },
-      "user": {
-        "title": "MaxNotify: токен бота",
-        "description": "Введите токен доступа бота, формат сообщений и режим приёма. При «Только отправка» дополнительные поля не нужны.\n\nЧтобы режим WebHook стал доступен в списке выбора, настройте внешний HTTPS-URL Home Assistant (Настройки → Система → Сеть). См. https://www.home-assistant.io/docs/configuration/basic/\n\nПока в Max активна подписка WebHook, Long Polling недоступен, и наоборот — см. https://dev.max.ru/docs-api/methods/POST/subscriptions",
-        "data": {
-          "access_token": "Токен доступа",
-          "message_format": "Формат сообщений",
-          "receive_mode": "Режим приёма"
-        },
-        "data_description": {
-          "access_token": "Токен бота из раздела «Для разработчиков» в MAX.",
-          "message_format": "Текст, Markdown или HTML (параметр format в API).",
-          "receive_mode": "{receive_mode_hint}"
-        },
-        "hints": {
-          "receive_mode_with_https": "Только отправка — без приёма. Long Polling — приём без отдельного публичного URL. WebHook — через HTTPS Home Assistant (Настройки → Система → Сеть). По API Max для одного бота не могут одновременно работать Long Polling и WebHook. В настройках интеграции: пока выбран WebHook, в списке скрыт Long Polling; пока выбран Long Polling — скрыт WebHook. Чтобы сменить режим приёма, сначала переключитесь на «Только отправка».",
-          "receive_mode_no_https": "Только отправка — без приёма. Long Polling — приём команд и нажатий кнопок без публичного HTTPS."
-        },
-        "options": {
-          "message_format": {
-            "text": "Текст",
-            "markdown": "Markdown",
-            "html": "HTML"
-          },
-          "receive_mode": {
-            "send_only": "Только отправка",
-            "long_polling": "Long Polling",
-            "webhook": "WebHook"
-          }
-        }
-      },
-      "webhook_secret": {
-        "title": "Секрет WebHook",
-        "description": "Режим: {receive_mode}. Укажите секрет WebHook при необходимости. Для WebHook в Home Assistant должен быть настроен внешний URL по HTTPS (Настройки → Система → Сеть). См. https://www.home-assistant.io/docs/configuration/basic/ Далее можно добавить или удалить кнопки клавиатуры.",
-        "data": {
-          "webhook_secret": "Секрет WebHook (необязательно)"
-        },
-        "data_description": {
-          "webhook_secret": "5–256 символов; Max пришлёт в заголовке X-Max-Bot-Api-Secret."
-        }
-      },
-      "receive_options_menu": {
-        "title": "Кнопки клавиатуры",
-        "intro_no_buttons": "Кнопки ещё не настроены. ",
-        "intro_with_buttons": "Текущие кнопки: {buttons_list}. ",
-        "description": "{buttons_intro}Выберите действие и нажмите «Отправить».",
-        "data": {
-          "action": "Действие"
-        },
-        "menu_options": {
-          "add_button": "Добавить кнопку",
-          "remove_button": "Удалить кнопку",
-          "next": "Продолжить"
-        }
-      },
-      "add_button": {
-        "title": "Добавить кнопку",
-        "description": "Тип, подпись, для callback — payload, для link — URL http(s). Текущие: {buttons_list}",
-        "data": {
-          "button_row": "Ряд",
-          "button_type": "Тип",
-          "button_text": "Подпись на кнопке",
-          "button_payload": "Payload (только callback)",
-          "button_url": "URL (только link)"
-        },
-        "data_description": {
-          "button_row": "Ряд для добавления кнопки",
-          "button_type": "callback, message или link (открывает сайт)",
-          "button_text": "Текст на кнопке",
-          "button_payload": "Для кнопок callback: это значение приходит в событии max_notify_received в поле callback_data. Используйте его в триггерах автоматизаций для идентификации кнопки (например: light_on, light_off, scene_kitchen).",
-          "button_url": "Для link: только адрес с http:// или https://"
-        },
-        "options": {
-          "button_type": {
-            "callback": "Callback",
-            "message": "Сообщение",
-            "link": "Ссылка"
-          }
-        },
-        "menu_options": {
-          "0": "Ряд 1",
-          "1": "Ряд 2",
-          "2": "Ряд 3",
-          "3": "Ряд 4",
-          "4": "Ряд 5",
-          "5": "Ряд 6",
-          "6": "Ряд 7",
-          "7": "Ряд 8",
-          "8": "Ряд 9",
-          "9": "Ряд 10",
-          "new": "Новый ряд"
-        }
-      },
-      "remove_button": {
-        "title": "Удалить кнопку",
-        "description": "Выберите кнопку для удаления. Текущие: {buttons_list}",
-        "data": {
-          "button_to_remove": "Кнопка для удаления"
-        },
-        "data_description": {
-          "button_to_remove": ""
-        }
-      },
-      "commands_menu": {
-        "title": "Слеш-команды",
-        "description": "Текущие команды: {commands_list}. Добавьте или удалите команды, затем продолжайте.",
-        "data": {
-          "action": "Действие"
-        },
-        "menu_options": {
-          "add_command": "Добавить команду",
-          "remove_command": "Удалить команду",
-          "next": "Продолжить"
-        }
-      },
-      "add_command": {
-        "title": "Добавить слеш-команду",
-        "description": "Добавьте команду в меню бота. Текущие: {commands_list}",
-        "data": {
-          "command_name": "Имя команды",
-          "command_description": "Описание"
-        },
-        "data_description": {
-          "command_name": "Без слэша, например: start",
-          "command_description": "Необязательно, 1-128 символов"
-        }
-      },
-      "remove_command": {
-        "title": "Удалить слеш-команду",
-        "description": "Выберите команду для удаления. Текущие: {commands_list}",
-        "data": {
-          "command_to_remove": "Команда для удаления"
-        }
-      },
-      "recipient": {
-        "title": "Добавить чат",
-        "description": "Укажите один ID. Положительное — личный чат, отрицательное — группа.",
-        "data": {
-          "recipient_id": "ID получателя"
-        },
-        "data_description": {
-          "recipient_id": "Положительное число — личный чат (User ID), отрицательное — группа (Chat ID)."
-        }
-      },
-      "reconfigure": {
-        "title": "Изменить настройки MaxNotify",
-        "description": "Новый API-ключ (оставьте пустым, чтобы оставить текущий) и формат сообщений.",
-        "data": {
-          "access_token": "Новый API-ключ (необязательно)",
-          "message_format": "Формат сообщений"
-        },
-        "data_description": {
-          "access_token": "Оставьте пустым, чтобы не менять токен",
-          "message_format": "Текст, Markdown или HTML."
-        }
-      },
-      "notify_a161_notify_info": {
-        "title": "{provider_label}",
-        "description": "Перед продолжением: откройте {provider_site_url}, отправьте боту сервиса сообщение \"Хочу подключиться\" и сохраните user_id и токен. Затем нажмите «Отправить» и введите данные в Home Assistant. user_id привязан к токену и позже не меняется в настройках интеграции."
-      },
-      "notify_a161_notify_user": {
-        "title": "{provider_label} — токен",
-        "description": "Введите токен, формат сообщений и режим приёма, затем user_id.\n\nРежим приёма: только отправка или очередь Polling updates.",
-        "data": {
-          "access_token": "Токен доступа",
-          "message_format": "Формат сообщений",
-          "receive_mode": "Режим приёма"
-        },
-        "data_description": {
-          "access_token": "Токен бота {provider_label} ({token_length} символов).",
-          "message_format": "Текст, Markdown или HTML."
-        },
-        "options": {
-          "message_format": {
-            "text": "Текст",
-            "markdown": "Markdown",
-            "html": "HTML"
-          },
-          "receive_mode": {
-            "send_only": "Только отправка",
-            "polling": "Очередь Polling updates"
-          }
-        }
-      },
-      "notify_a161_notify_recipient": {
-        "title": "{provider_label} — user_id",
-        "description": "Укажите ваш user_id (положительное число). Он привязан к токену и позже не меняется в настройках интеграции.",
-        "data": {
-          "recipient_id": "User ID"
-        },
-        "data_description": {
-          "recipient_id": "Используйте только положительный user_id из ответа бота {provider_label}."
-        }
-      },
-      "notify_a161_updates_interval": {
-        "title": "{provider_label} — интервал опроса",
-        "description": "Укажите интервал опроса очереди /updates в секундах. По умолчанию: {default_seconds} с.",
-        "data": {
-          "updates_interval": " "
-        }
-      },
-      "notify_a161_a161_inactivity_period": {
-        "title": "{provider_label}: период неактивности",
-        "description": "Выберите, через сколько суток без входящих сообщений и без отправок с кнопками режим приёма переключается на «Только отправка» (ограничение сервиса).",
-        "data": {
-          "a161_inactivity_period_days": "Период"
-        },
-        "options": {
-          "period_days": {
-            "1": "1 сутки",
-            "2": "2 суток",
-            "3": "3 суток"
-          }
-        }
-      }
-    },
-    "error": {
-      "invalid_token": "Токен не может быть пустым",
-      "invalid_auth": "Неверный токен. Проверьте токен в разделе Интеграция платформы MAX.",
-      "cannot_connect": "Не удалось подключиться к API Max. Проверьте сеть и повторите.",
-      "polling_subscription_list_failed": "Не удалось получить список WebHook-подписок в Max API. Проверьте сеть и повторите.",
-      "polling_webhook_subscriptions_remain": "Long Polling недоступен, пока для бота активна подписка WebHook в Max. Удалите подписки WebHook (или выберите «Только отправка» / WebHook в настройках) и повторите. См. https://dev.max.ru/docs-api/methods/POST/subscriptions",
-      "polling_blocked_by_webhook_other_entry": "Другая интеграция MaxNotify уже использует WebHook с этим токеном бота. Сначала отключите WebHook там или используйте другой токен.",
-      "webhook_blocked_by_polling_other_entry": "Другая интеграция MaxNotify уже использует Long Polling с этим токеном бота. Сначала отключите Long Polling там или используйте другой токен.",
-      "webhook_requires_external_https_url": "Для WebHook нужен внешний HTTPS-адрес Home Assistant (Настройки → Система → Сеть или Nabu Casa). Сначала настройте URL, затем снова выберите WebHook.",
-      "unknown": "Произошла неизвестная ошибка",
-      "invalid_id_format": "Введите целое число (положительное — личный чат, отрицательное — группа).",
-      "group_chats_not_supported": "Групповые чаты не поддерживаются выбранным провайдером.",
-      "invalid_command_name": "Введите имя команды (без слэша).",
-      "invalid_button_text": "Введите подпись на кнопке.",
-      "invalid_button_url": "Для кнопки-ссылки укажите URL с http:// или https://.",
-      "notify_a161_invalid_notify_token_length": "Токен доступа должен содержать {token_length} символов.",
-      "notify_a161_invalid_updates_interval": "Введите интервал опроса от 2 до 30 секунд.",
-      "notify_a161_invalid_a161_inactivity_period": "Выберите 1, 2 или 3 суток.",
-      "notify_a161_polling_requires_buttons_switched_send_only": "Кнопки не настроены. Режим приёма автоматически переключен на «Только отправка». Добавьте хотя бы одну кнопку, чтобы использовать Polling.",
-      "notify_a161_duplicate_token_not_allowed": "Интеграция MaxNotify с этим токеном уже есть. Для {provider_label} один токен — одна запись: удалите существующую или укажите другой токен."
-    },
-    "abort": {
-      "already_configured": "Эта конфигурация уже добавлена",
-      "reconfigure_successful": "Настройки обновлены",
-      "unsupported_ha_version": "Для этой интеграции нужен Home Assistant Core {minimum_ha_version} или новее. Обновите Home Assistant и повторите попытку."
-    }
-  },
-  "options": {
-    "step": {
-      "init": {
-        "title": "Настройки MaxNotify",
-        "description": "Токен (необязательно), формат сообщений, режим приёма.{webhook_url_paragraph}",
-        "webhook_url_paragraph": "URL WebHook в Max: {webhook_url}.",
-        "data": {
-          "access_token": "Новый API-ключ (необязательно)",
-          "message_format": "Формат сообщений",
-          "receive_mode": "Режим приёма"
-        },
-        "data_description": {
-          "access_token": "Оставьте пустым, чтобы не менять токен",
-          "message_format": "Текст, Markdown или HTML",
-          "receive_mode": "{receive_mode_hint}"
-        },
-        "hints": {
-          "receive_mode_send_only": "Только исходящие сообщения. Для приёма команд и кнопок выберите Long Polling или WebHook (для одного бота в Max — один режим приёма).",
-          "receive_mode_polling_https": "Long Polling работает без отдельного публичного URL. WebHook доступен, так как у Home Assistant есть HTTPS — выберите один режим; если в этой интеграции включён WebHook, Long Polling здесь скрыт, пока не переключитесь на «Только отправка» (снимается регистрация WebHook).",
-          "receive_mode_polling_no_https": "Long Polling работает без внешнего HTTPS. Пункт «WebHook» появится после настройки внешнего URL Home Assistant. WebHook и Long Polling не могут быть активны одновременно в Max для одного бота.",
-          "receive_mode_webhook_active": "Активен WebHook; Long Polling не показывается, пока не переключитесь на «Только отправка» (снимается регистрация WebHook). Выше — URL, зарегистрированный в Max."
-        },
-        "options": {
-          "message_format": {
-            "text": "Текст",
-            "markdown": "Markdown",
-            "html": "HTML"
-          },
-          "receive_mode": {
-            "send_only": "Только отправка",
-            "long_polling": "Long Polling",
-            "webhook": "WebHook"
-          }
-        }
-      },
-      "webhook_secret": {
-        "title": "Секрет WebHook",
-        "description": "URL WebHook в Max: {webhook_url}.\n\nНеобязательный секрет для заголовка X-Max-Bot-Api-Secret.",
-        "data": {
-          "webhook_secret": "Секрет WebHook (необязательно)"
-        },
-        "data_description": {
-          "webhook_secret": "5–256 символов; Max пришлёт в заголовке X-Max-Bot-Api-Secret"
-        }
-      },
-      "buttons_menu": {
-        "title": "Кнопки клавиатуры",
-        "intro_no_buttons": "Кнопки ещё не настроены. ",
-        "intro_with_buttons": "Текущие кнопки: {buttons_list}. ",
-        "description": "{buttons_intro}Добавляйте, редактируйте или удаляйте кнопки, затем нажмите «Завершить».",
-        "data": {
-          "action": "Действие"
-        },
-        "menu_options": {
-          "opt_add_button": "Добавить кнопку",
-          "opt_edit_button": "Редактировать кнопку",
-          "opt_remove_button": "Удалить кнопку",
-          "opt_next": "Завершить"
-        }
-      },
-      "opt_add_button": {
-        "title": "Добавить кнопку",
-        "description": "Тип, подпись, для callback — payload, для link — URL http(s). Текущие: {buttons_list}",
-        "data": {
-          "button_row": "Ряд",
-          "button_type": "Тип",
-          "button_text": "Подпись на кнопке",
-          "button_payload": "Payload (только callback)",
-          "button_url": "URL (только link)"
-        },
-        "data_description": {
-          "button_row": "Ряд для добавления кнопки",
-          "button_type": "callback, message или link (открывает сайт)",
-          "button_text": "Текст на кнопке",
-          "button_payload": "Для кнопок callback: это значение приходит в событии max_notify_received в поле callback_data. Используйте его в триггерах автоматизаций для идентификации кнопки (например: light_on, light_off, scene_kitchen).",
-          "button_url": "Для link: только адрес с http:// или https://"
-        },
-        "options": {
-          "button_type": {
-            "callback": "Callback",
-            "message": "Сообщение",
-            "link": "Ссылка"
-          }
-        },
-        "menu_options": {
-          "0": "Ряд 1",
-          "1": "Ряд 2",
-          "2": "Ряд 3",
-          "3": "Ряд 4",
-          "4": "Ряд 5",
-          "5": "Ряд 6",
-          "6": "Ряд 7",
-          "7": "Ряд 8",
-          "8": "Ряд 9",
-          "9": "Ряд 10",
-          "new": "Новый ряд"
-        }
-      },
-      "opt_edit_button": {
-        "title": "Редактировать кнопку",
-        "description": "Выберите кнопку для редактирования. Текущие: {buttons_list}",
-        "data": {
-          "button_to_edit": "Кнопка для редактирования"
-        },
-        "data_description": {
-          "button_to_edit": "Выберите кнопку, которую хотите изменить"
-        }
-      },
-      "opt_edit_button_edit": {
-        "title": "Редактировать кнопку",
-        "description": "Измените ряд, тип, подпись, payload или URL ссылки. Текущие: {buttons_list}",
-        "data": {
-          "button_row": "Ряд",
-          "button_type": "Тип",
-          "button_text": "Подпись на кнопке",
-          "button_payload": "Payload (только callback)",
-          "button_url": "URL (только link)"
-        },
-        "data_description": {
-          "button_row": "Ряд для размещения кнопки",
-          "button_type": "callback, message или link (открывает сайт)",
-          "button_text": "Текст на кнопке",
-          "button_payload": "Для кнопок callback: это значение приходит в событии max_notify_received в поле callback_data. Используйте его в триггерах автоматизаций для идентификации кнопки (например: light_on, light_off, scene_kitchen).",
-          "button_url": "Для link: только адрес с http:// или https://"
-        },
-        "options": {
-          "button_type": {
-            "callback": "Callback",
-            "message": "Сообщение",
-            "link": "Ссылка"
-          }
-        }
-      },
-      "opt_remove_button": {
-        "title": "Удалить кнопку",
-        "description": "Выберите кнопку для удаления. Текущие: {buttons_list}",
-        "data": {
-          "button_to_remove": "Кнопка для удаления"
-        },
-        "data_description": {
-          "button_to_remove": ""
-        }
-      },
-      "commands_menu": {
-        "title": "Слеш-команды",
-        "description": "Текущие команды: {commands_list}. Добавьте или удалите команды, затем завершите.",
-        "data": {
-          "action": "Действие"
-        },
-        "menu_options": {
-          "opt_add_command": "Добавить команду",
-          "opt_remove_command": "Удалить команду",
-          "opt_next": "Завершить"
-        }
-      },
-      "opt_add_command": {
-        "title": "Добавить слеш-команду",
-        "description": "Добавьте команду в меню бота. Текущие: {commands_list}",
-        "data": {
-          "command_name": "Имя команды",
-          "command_description": "Описание"
-        },
-        "data_description": {
-          "command_name": "Без слэша, например: start",
-          "command_description": "Необязательно, 1-128 символов"
-        }
-      },
-      "opt_remove_command": {
-        "title": "Удалить слеш-команду",
-        "description": "Выберите команду для удаления. Текущие: {commands_list}",
-        "data": {
-          "command_to_remove": "Команда для удаления"
-        }
-      },
-      "notify_a161_init_notify": {
-        "title": "{provider_label} — настройки",
-        "description": "Формат сообщений и режим приёма.\n\nРежим приёма: только отправка или очередь Polling updates.\n\nЧтобы сменить API-ключ, удалите интеграцию и добавьте заново. user_id задаётся только при первой настройке.",
-        "data": {
-          "message_format": "Формат сообщений",
-          "receive_mode": "Режим приёма"
-        },
-        "data_description": {
-          "message_format": "Текст, Markdown или HTML"
-        },
-        "options": {
-          "message_format": {
-            "text": "Текст",
-            "markdown": "Markdown",
-            "html": "HTML"
-          },
-          "receive_mode": {
-            "send_only": "Только отправка",
-            "polling": "Очередь Polling updates"
-          }
-        }
-      },
-      "notify_a161_updates_interval": {
-        "title": "{provider_label} — интервал опроса",
-        "description": "Укажите интервал опроса очереди /updates в секундах. По умолчанию: {default_seconds} с.",
-        "data": {
-          "updates_interval": " "
-        }
-      },
-      "notify_a161_a161_inactivity_period": {
-        "title": "{provider_label}: период неактивности",
-        "description": "Выберите, через сколько суток без входящих сообщений и без отправок с кнопками режим приёма переключается на «Только отправка» (ограничение сервиса).",
-        "data": {
-          "a161_inactivity_period_days": "Период"
-        },
-        "options": {
-          "period_days": {
-            "1": "1 сутки",
-            "2": "2 суток",
-            "3": "3 суток"
-          }
-        }
-      }
-    },
-    "error": {
-      "polling_subscription_list_failed": "Не удалось получить список WebHook-подписок в Max API. Проверьте сеть и повторите.",
-      "polling_webhook_subscriptions_remain": "Long Polling недоступен, пока для бота активна подписка WebHook в Max. Удалите подписки WebHook (или выберите «Только отправка» / WebHook в настройках) и повторите. См. https://dev.max.ru/docs-api/methods/POST/subscriptions",
-      "polling_blocked_by_webhook_other_entry": "Другая интеграция MaxNotify уже использует WebHook с этим токеном бота. Сначала отключите WebHook там или используйте другой токен.",
-      "webhook_blocked_by_polling_other_entry": "Другая интеграция MaxNotify уже использует Long Polling с этим токеном бота. Сначала отключите Long Polling там или используйте другой токен.",
-      "webhook_requires_external_https_url": "Для WebHook нужен внешний HTTPS-адрес Home Assistant (Настройки → Система → Сеть или Nabu Casa). Сначала настройте URL, затем снова выберите WebHook.",
-      "notify_a161_invalid_updates_interval": "Введите интервал опроса от 2 до 30 секунд.",
-      "notify_a161_invalid_a161_inactivity_period": "Выберите 1, 2 или 3 суток.",
-      "notify_a161_polling_requires_buttons_switched_send_only": "Кнопки не настроены. Режим приёма автоматически переключен на «Только отправка». Добавьте хотя бы одну кнопку, чтобы использовать Polling."
-    }
-  },
-  "issues": {
-    "webhook_disabled_no_https": {
-      "title": "MaxNotify: WebHook отключён (нет HTTPS)",
-      "description": "Интеграция {entry_title} была в режиме WebHook, но у Home Assistant нет внешнего HTTPS base URL. Режим сменён на «Только отправка». Настройте Настройки → Система → Сеть (или Nabu Casa), затем при необходимости снова выберите WebHook в настройках интеграции."
-    },
-    "unsupported_ha_version_runtime": {
-      "title": "MaxNotify: требуется обновление Home Assistant",
-      "description": "Интеграция {entry_title} не загружена, потому что Home Assistant Core {current_ha_version} не поддерживается. Для этой интеграции нужен Core {minimum_ha_version} или новее. Обновите Home Assistant и перезагрузите интеграцию."
-    },
-    "updates_polling_unavailable": {
-      "title": "MaxNotify: не удаётся получать сообщения (polling)",
-      "description": "При опросе входящих обновлений запрос к API Max для «{entry_title}» завершился ошибкой: {error_detail}. HTTP 500 с кодом internal.error чаще всего означает временный сбой на стороне серверов Max — попробуйте позже. Если ошибка повторяется, проверьте сеть и токен доступа. Включите отладочные логи (custom_components.max_notify: debug) — в лог попадёт готовая команда curl (с токеном) для проверки API вручную."
-    }
-  },
-  "config_subentries": {
-    "recipient": {
-      "abort": {
-        "already_configured": "Этот ID уже добавлен",
-        "notify_user_locked": "В этой записи интеграции нельзя добавлять чаты. Добавьте новую интеграцию MaxNotify для другого получателя."
-      },
-      "entry_type": "ID чата",
-      "error": {
-        "invalid_id_format": "Введите целое число (положительное — личный чат, отрицательное — группа)",
-        "already_configured": "Этот ID уже добавлен"
-      },
-      "initiate_flow": {
-        "user": "Добавить чат"
-      },
-      "step": {
-        "user": {
-          "data": {
-            "recipient_id": "ID получателя"
-          },
-          "data_description": {
-            "recipient_id": "Положительное число — личный чат (User ID), отрицательное — группа (Chat ID)."
-          },
-          "description": "Укажите один ID. Положительное — личный чат, отрицательное — группа.",
-          "title": "Добавить чат"
-        }
+      "options": {
+        "send_only": "отправка",
+        "long_polling": "Long Polling",
+        "polling": "Очередь Polling updates",
+        "webhook": "WebHook"
       }
     }
+  },
+  "common": {
+    "receive_mode_with_https": "Только отправка — без приёма. Long Polling — приём без отдельного публичного URL. WebHook — через HTTPS Home Assistant (Настройки → Система → Сеть). По API Max для одного бота не могут одновременно работать Long Polling и WebHook. В настройках интеграции: пока выбран WebHook, в списке скрыт Long Polling; пока выбран Long Polling — скрыт WebHook. Чтобы сменить режим приёма, сначала переключитесь на «Только отправка».",
+    "receive_mode_no_https": "Только отправка — без приёма. Long Polling — приём команд и нажатий кнопок без публичного HTTPS.",
+    "intro_no_buttons": "Кнопки ещё не настроены.",
+    "intro_with_buttons": "Текущие кнопки: {buttons_list}.",
+    "receive_mode_send_only": "Только исходящие сообщения. Для приёма команд и кнопок выберите Long Polling или WebHook (для одного бота в Max — один режим приёма).",
+    "receive_mode_polling_https": "Long Polling работает без отдельного публичного URL. WebHook доступен, так как у Home Assistant есть HTTPS — выберите один режим; если в этой интеграции включён WebHook, Long Polling здесь скрыт, пока не переключитесь на «Только отправка» (снимается регистрация WebHook).",
+    "receive_mode_polling_no_https": "Long Polling работает без внешнего HTTPS. Пункт «WebHook» появится после настройки внешнего URL Home Assistant. WebHook и Long Polling не могут быть активны одновременно в Max для одного бота.",
+    "receive_mode_webhook_active": "Активен WebHook; Long Polling не показывается, пока не переключитесь на «Только отправка» (снимается регистрация WebHook). Выше — URL, зарегистрированный в Max.",
+    "webhook_url_paragraph": "URL WebHook в Max: {webhook_url}."
   }
 }

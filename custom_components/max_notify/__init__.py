@@ -3,10 +3,7 @@
 from __future__ import annotations
 
 from .log import get_logger
-import json
-import logging
 import re
-from pathlib import Path
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import __version__ as HA_VERSION
@@ -21,6 +18,7 @@ from .api import sync_bot_commands_to_max
 from .const import (
     CONF_RECEIVE_MODE,
     DOMAIN,
+    MINIMUM_HA_VERSION,
     RECEIVE_MODE_LONG_POLLING,
     RECEIVE_MODE_POLLING,
     RECEIVE_MODE_WEBHOOK,
@@ -49,19 +47,6 @@ PLATFORMS: list[Platform] = [Platform.NOTIFY, Platform.SENSOR]
 _ISSUE_UNSUPPORTED_HA_PREFIX = "unsupported_ha_version_"
 
 
-def _minimum_ha_version_from_manifest() -> str:
-    """Минимальная версия HA из manifest интеграции."""
-    try:
-        manifest_path = Path(__file__).with_name("manifest.json")
-        manifest_data = json.loads(manifest_path.read_text(encoding="utf-8"))
-        return str(manifest_data.get("minimum_ha_version", "unknown"))
-    except Exception:
-        return "unknown"
-
-
-MINIMUM_HA_VERSION = _minimum_ha_version_from_manifest()
-
-
 def _version_key(version: str) -> tuple[int, int, int]:
     """Строка версии HA в сравнимый числовой кортеж."""
     match = re.search(r"(\d+)\.(\d+)(?:\.(\d+))?", version or "")
@@ -75,9 +60,7 @@ def _version_key(version: str) -> tuple[int, int, int]:
 
 
 def _is_ha_version_compatible() -> bool:
-    """True, если текущая версия HA Core не ниже минимальной из manifest."""
-    if MINIMUM_HA_VERSION == "unknown":
-        return True
+    """True, если текущая версия HA Core не ниже MINIMUM_HA_VERSION."""
     return _version_key(HA_VERSION) >= _version_key(MINIMUM_HA_VERSION)
 
 

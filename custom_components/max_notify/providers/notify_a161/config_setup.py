@@ -27,6 +27,7 @@ from ...const import (
 )
 from ...services import register_send_message_service
 from ...translations import (
+    async_selector_translations,
     get_option_labels,
     get_receive_mode_title,
     merge_description_placeholders,
@@ -73,12 +74,7 @@ async def async_step_notify_user(
     step_user = prefixed_step_id(flow, "notify_user")
     if user_input is not None:
         flow._token = user_input[CONF_ACCESS_TOKEN].strip()
-        try:
-            trans = await async_get_translations(
-                flow.hass, flow.hass.config.language, "config", [DOMAIN]
-            )
-        except Exception:
-            trans = {}
+        trans = await async_selector_translations(flow.hass)
         msg_fmt_key_to_label = get_option_labels(
             trans,
             "config",

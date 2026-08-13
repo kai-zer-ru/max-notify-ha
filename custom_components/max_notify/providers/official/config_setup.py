@@ -34,7 +34,12 @@ from ...const import (
 )
 from ...helpers import commands_display_str, normalize_commands, other_entry_has_receive_mode
 from ...services import register_send_message_service
-from ...translations import get_menu_labels, get_option_labels, get_receive_mode_title
+from ...translations import (
+    async_selector_translations,
+    get_menu_labels,
+    get_option_labels,
+    get_receive_mode_title,
+)
 from ...unique_title import get_unique_entry_title
 from ...webhook import (
     async_clear_subscriptions_for_long_polling,
@@ -74,12 +79,7 @@ async def async_step_user_official(
             pass
     if user_input is not None:
         flow._token = user_input[CONF_ACCESS_TOKEN].strip()
-        try:
-            trans = await async_get_translations(
-                flow.hass, flow.hass.config.language, "config", [DOMAIN]
-            )
-        except Exception:
-            trans = {}
+        trans = await async_selector_translations(flow.hass)
         msg_fmt_key_to_label = get_option_labels(
             trans,
             "config",

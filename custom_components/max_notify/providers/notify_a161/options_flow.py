@@ -19,6 +19,7 @@ from ...const import (
 )
 from ...helpers import normalize_buttons
 from ...translations import (
+    async_selector_translations,
     get_option_labels,
     get_receive_mode_title,
     merge_description_placeholders,
@@ -53,12 +54,7 @@ async def async_step_init_notify(
         except Exception:
             pass
     if user_input is not None:
-        try:
-            trans = await async_get_translations(
-                flow.hass, flow.hass.config.language, "options", [DOMAIN]
-            )
-        except Exception:
-            trans = {}
+        trans = await async_selector_translations(flow.hass)
         msg_fmt_key_to_label = get_option_labels(
             trans,
             "options",

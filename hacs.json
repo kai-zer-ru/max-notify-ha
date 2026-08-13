@@ -1,3 +1,4 @@
 {
-  "name": "MaxNotify"
+  "name": "MaxNotify",
+  "homeassistant": "2026.2.0"
 }

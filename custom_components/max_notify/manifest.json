@@ -5,12 +5,13 @@
     "@kai-zer-ru"
   ],
   "config_flow": true,
-  "dependencies": [],
+  "dependencies": [
+    "http"
+  ],
   "documentation": "https://github.com/kai-zer-ru/max-notify-ha",
   "integration_type": "service",
   "iot_class": "cloud_polling",
+  "issue_tracker": "https://github.com/kai-zer-ru/max-notify-ha/issues",
   "requirements": [],
-  "version": "2.2.0",
-  "minimum_ha_version": "2026.2.0",
-  "issue_tracker": "https://github.com/kai-zer-ru/max-notify-ha/issues"
+  "version": "2.2.1"
 }

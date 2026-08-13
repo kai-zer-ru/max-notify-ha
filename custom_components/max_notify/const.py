@@ -2,6 +2,19 @@
 
 DOMAIN = "max_notify"
 
+# Минимальная версия Home Assistant Core (дублируется в hacs.json → homeassistant).
+MINIMUM_HA_VERSION = "2026.2.0"
+
+# Плейсхолдеры для строк config/options (hassfest запрещает сырые URL в переводах).
+DOCS_HA_NETWORK_URL = "https://www.home-assistant.io/docs/configuration/basic/"
+DOCS_MAX_SUBSCRIPTIONS_URL = (
+    "https://dev.max.ru/docs-api/methods/POST/subscriptions"
+)
+TRANSLATION_DOC_PLACEHOLDERS = {
+    "docs_ha_network": DOCS_HA_NETWORK_URL,
+    "docs_max_subscriptions": DOCS_MAX_SUBSCRIPTIONS_URL,
+}
+
 SERVICE_SEND_MESSAGE = "send_message"
 SERVICE_SEND_TEXT_TO_ALL = "send_text_to_all"
 SERVICE_SEND_PHOTO = "send_photo"
@@ -41,6 +54,7 @@ CONF_UPDATES_INTERVAL = "updates_interval"
 SUBENTRY_TYPE_RECIPIENT = "recipient"
 
 API_PATH_ME = "/me"
+API_PATH_ME_COMMANDS = "/me/commands"
 API_PATH_MESSAGES = "/messages"
 API_PATH_UPLOADS = "/uploads"
 API_PATH_UPDATES = "/updates"

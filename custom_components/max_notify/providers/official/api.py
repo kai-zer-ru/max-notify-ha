@@ -12,12 +12,14 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
-from ...const import API_PATH_ME, CONF_COMMANDS
+from ...const import API_PATH_ME, API_PATH_ME_COMMANDS, CONF_COMMANDS
 from ...outbound_rate import async_acquire_outbound_api_slot
 from .const import API_BASE_URL, API_VERSION
 
 _LOGGER = get_logger()
 _SYNC_COMMANDS_RETRY_DELAYS_SECONDS: tuple[float, ...] = (1.0, 2.0, 4.0)
+# Max API: commands array max length (PATCH /me/commands).
+_MAX_BOT_COMMANDS = 32
 
 
 async def validate_token(hass: HomeAssistant, token: str) -> str | None:
@@ -41,7 +43,7 @@ async def validate_token(hass: HomeAssistant, token: str) -> str | None:
 
 
 async def sync_bot_commands(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Синхронизировать команды из настроек через PATCH /me (официальный API)."""
+    """Синхронизировать команды из настроек через PATCH /me/commands (официальный API)."""
     token = entry.data.get("access_token")
     if not token:
         return False
@@ -60,8 +62,11 @@ async def sync_bot_commands(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         elif isinstance(item, str) and item.strip():
             name = item.strip().lower().replace("/", "")
             body_commands.append({"name": name, "description": name})
+        if len(body_commands) >= _MAX_BOT_COMMANDS:
+            break
 
-    url = f"{API_BASE_URL}{API_PATH_ME}?v={API_VERSION}"
+    # Empty commands[] clears bot commands (per Max API docs).
+    url = f"{API_BASE_URL}{API_PATH_ME_COMMANDS}?v={API_VERSION}"
     payload: dict[str, Any] = {"commands": body_commands}
     headers = {"Authorization": token, "Content-Type": "application/json"}
     session = async_get_clientsession(hass)

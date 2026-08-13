@@ -28,7 +28,7 @@ class IntegrationCapabilities:
     supports_send_photo: bool = False
     supports_send_document: bool = False
     supports_send_video: bool = False
-    # PATCH /me, синхронизация списка slash-команд с платформой Max (только официальный API).
+    # PATCH /me/commands, синхронизация списка slash-команд с платформой Max (только официальный API).
     supports_bot_command_registration: bool = False
     # Мастер/опции: настройка allowlist slash-команд (без регистрации в Max; a161 тоже).
     supports_slash_command_allowlist_ui: bool = True

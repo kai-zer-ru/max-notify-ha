@@ -453,7 +453,7 @@ class MaxNotifyIntegrationProvider:
     def config_flow_receive_mode_hint_translation_key(
         self, hass: HomeAssistant
     ) -> str:
-        """Ключ в ``config.step.user.hints`` для подсказки режима приёма."""
+        """Ключ в ``common`` для подсказки режима приёма (config flow)."""
         return "receive_mode_no_https"
 
     def config_flow_receive_mode_keys_options_compact(self) -> list[str]:

@@ -8,13 +8,13 @@ import voluptuous as vol
 
 from ...const import CONF_UPDATES_INTERVAL
 from ...translations import (
+    async_selector_translations,
     merge_description_placeholders,
     get_option_labels,
     prefixed_error_key,
     prefixed_step_id,
 )
 from ...const import DOMAIN
-from homeassistant.helpers.translation import async_get_translations
 from .const import (
     CONF_A161_INACTIVITY_PERIOD_DAYS,
     NOTIFY_A161_INACTIVITY_PERIOD_DAYS_DEFAULT,
@@ -95,12 +95,7 @@ async def async_run_inactivity_period_step(
     """Общая форма шага «период неактивности» для notify.a161 polling."""
     step_id = prefixed_step_id(flow, "a161_inactivity_period")
     errors: dict[str, str] = {}
-    try:
-        trans = await async_get_translations(
-            flow.hass, flow.hass.config.language, "options", [DOMAIN]
-        )
-    except Exception:
-        trans = {}
+    trans = await async_selector_translations(flow.hass)
     day_keys = [
         str(d)
         for d in range(

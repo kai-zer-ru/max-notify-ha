@@ -7,7 +7,7 @@ from typing import Any
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.translation import async_get_translations
 
-from .const import DOMAIN, INTEGRATION_TYPE_OFFICIAL
+from .const import DOMAIN, INTEGRATION_TYPE_OFFICIAL, TRANSLATION_DOC_PLACEHOLDERS
 
 
 def tr_key(domain: str, category: str, *path: str) -> str:
@@ -40,6 +40,7 @@ def provider_step_placeholders(flow: Any) -> dict[str, str]:
         "provider_label": prov.label,
         "provider_api_base_url": base,
         "provider_site_url": f"{base}/",
+        **TRANSLATION_DOC_PLACEHOLDERS,
     }
 
 
@@ -85,11 +86,11 @@ async def get_receive_mode_title(hass: HomeAssistant, mode: str) -> str:
     """Читаемая подпись режима приёма (для заголовка записи). Загрузка из переводов."""
     try:
         trans = await async_get_translations(
-            hass, hass.config.language, "config", [DOMAIN]
+            hass, hass.config.language, "selector", [DOMAIN]
         )
     except Exception:
         trans = {}
-    key = tr_key(DOMAIN, "config", "receive_mode_title", mode)
+    key = tr_key(DOMAIN, "selector", "receive_mode_title", "options", mode)
     return trans.get(key) or mode
 
 
@@ -116,6 +117,26 @@ async def get_menu_labels(
     return result
 
 
+async def async_selector_translations(hass: HomeAssistant) -> dict[str, str]:
+    """Плоские переводы категории selector."""
+    try:
+        return await async_get_translations(
+            hass, hass.config.language, "selector", [DOMAIN]
+        )
+    except Exception:
+        return {}
+
+
+async def async_common_translations(hass: HomeAssistant) -> dict[str, str]:
+    """Плоские переводы категории common."""
+    try:
+        return await async_get_translations(
+            hass, hass.config.language, "common", [DOMAIN]
+        )
+    except Exception:
+        return {}
+
+
 def get_option_labels(
     trans: dict[str, str],
     category: str,
@@ -125,10 +146,24 @@ def get_option_labels(
     *,
     flow: Any | None = None,
 ) -> dict[str, str]:
-    """option_key → подпись из плоского словаря переводов. Путь: step.<step_id>.options.<option_group>.<key>."""
-    sid = prefixed_step_id(flow, step_id)
+    """option_key → подпись из selector.<option_group>.options.<key>.
+
+    ``trans`` должен быть из категории ``selector`` (см. ``async_selector_translations``).
+    ``category``/``step_id``/``flow`` — совместимость старых вызовов.
+    """
+    del category, step_id, flow
     result: dict[str, str] = {}
     for k in keys:
-        tkey = tr_key(DOMAIN, category, "step", sid, "options", option_group, k)
+        tkey = tr_key(DOMAIN, "selector", option_group, "options", k)
         result[k] = trans.get(tkey) or k
     return result
+
+
+async def async_get_option_labels(
+    hass: HomeAssistant,
+    option_group: str,
+    keys: list[str],
+) -> dict[str, str]:
+    """Загрузить selector-переводы и вернуть подписи для группы опций."""
+    trans = await async_selector_translations(hass)
+    return get_option_labels(trans, "selector", "", option_group, keys)

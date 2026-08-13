@@ -16,5 +16,5 @@ async def validate_token(hass: HomeAssistant, token: str) -> str | None:
 
 
 async def sync_bot_commands(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """notify.a161.ru не поддерживает синхронизацию команд через PATCH /me."""
+    """notify.a161.ru не поддерживает синхронизацию команд через PATCH /me/commands."""
     return False

@@ -3,9 +3,6 @@
 from __future__ import annotations
 
 from .log import get_logger
-import json
-import logging
-from pathlib import Path
 from typing import Any
 
 import voluptuous as vol
@@ -14,7 +11,6 @@ from homeassistant.config_entries import ConfigEntry, OptionsFlow
 from homeassistant.core import callback
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers import selector
-from homeassistant.helpers.translation import async_get_translations
 
 try:
     from homeassistant.config_entries import ConfigSubentryData, ConfigSubentryFlow
@@ -36,10 +32,12 @@ from .const import (
     CONF_UPDATES_INTERVAL,
     DOMAIN,
     INTEGRATION_TYPE_OFFICIAL,
+    MINIMUM_HA_VERSION,
     RECEIVE_MODE_LONG_POLLING,
     RECEIVE_MODE_POLLING,
     RECEIVE_MODE_SEND_ONLY,
     RECEIVE_MODE_WEBHOOK,
+    TRANSLATION_DOC_PLACEHOLDERS,
 )
 from .helpers import (
     single_token_pool_long_polling_receive_entry,
@@ -52,6 +50,8 @@ from .providers.registry import (
     resolve_integration_type,
 )
 from .translations import (
+    async_common_translations,
+    async_selector_translations,
     get_option_labels,
     merge_description_placeholders,
     prefixed_error_key,
@@ -63,19 +63,6 @@ from .webhook import (
 )
 
 _LOGGER = get_logger()
-
-
-def _minimum_ha_version_from_manifest() -> str:
-    """Минимальная версия HA из manifest интеграции."""
-    try:
-        manifest_path = Path(__file__).with_name("manifest.json")
-        manifest_data = json.loads(manifest_path.read_text(encoding="utf-8"))
-        return str(manifest_data.get("minimum_ha_version", "unknown"))
-    except Exception:
-        return "unknown"
-
-
-MINIMUM_HA_VERSION = _minimum_ha_version_from_manifest()
 
 
 def _resolve_prefixed_async_step_handler(flow: Any, name: str) -> Any:
@@ -266,12 +253,7 @@ class MaxNotifyConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         WebHook не показывается без внешнего HTTPS (нужен для WebHook).
         Остальные режимы не скрываются; конфликты с другими записями — только при отправке формы.
         """
-        try:
-            trans = await async_get_translations(
-                self.hass, self.hass.config.language, "config", [DOMAIN]
-            )
-        except Exception:
-            trans = {}
+        trans = await async_selector_translations(self.hass)
         msg_fmt_keys = ["text", "markdown", "html"]
         prov = self._wizard_provider()
         recv_keys = prov.config_flow_receive_mode_keys_primary_config(
@@ -325,23 +307,14 @@ class MaxNotifyConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def _async_user_step_placeholders(self) -> dict[str, str]:
         """Placeholder шага user (подсказка режима приёма; зависит от внешнего HTTPS)."""
-        try:
-            trans = await async_get_translations(
-                self.hass, self.hass.config.language, "config", [DOMAIN]
-            )
-        except Exception:
-            trans = {}
-        hints = (
-            trans.get("config", {})
-            .get("step", {})
-            .get("user", {})
-            .get("hints", {})
-        )
+        common = await async_common_translations(self.hass)
         key = self._wizard_provider().config_flow_receive_mode_hint_translation_key(
             self.hass
         )
         out = merge_description_placeholders(self)
-        out["receive_mode_hint"] = hints.get(key, "")
+        out["receive_mode_hint"] = common.get(
+            tr_key(DOMAIN, "common", key), ""
+        )
         return out
 
     def _wizard_integration_type_labels(self) -> dict[str, str]:
@@ -373,12 +346,7 @@ class MaxNotifyConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def _schema_notify_user_async(self):
         """Схема шага ввода токена для стороннего HTTP-провайдера (формат сообщения из переводов)."""
-        try:
-            trans = await async_get_translations(
-                self.hass, self.hass.config.language, "config", [DOMAIN]
-            )
-        except Exception:
-            trans = {}
+        trans = await async_selector_translations(self.hass)
         msg_fmt_keys = ["text", "markdown", "html"]
         msg_fmt_labels = get_option_labels(
             trans,
@@ -717,12 +685,7 @@ class MaxNotifyOptionsFlow(OptionsFlow):
         user_input: dict[str, Any] | None = None,
     ) -> str:
         """Сохранённый или выбранный в форме режим приёма (внутренние ключи)."""
-        try:
-            trans = await async_get_translations(
-                self.hass, self.hass.config.language, "options", [DOMAIN]
-            )
-        except Exception:
-            trans = {}
+        trans = await async_selector_translations(self.hass)
         entry_prov = get_provider(entry)
         recv_step = entry_prov.options_init_step_id()
         if user_input is not None:
@@ -761,26 +724,19 @@ class MaxNotifyOptionsFlow(OptionsFlow):
         user_input: dict[str, Any] | None = None,
     ) -> str:
         """Контекстная справка под режимом приёма (зависит от режима и внешнего HTTPS)."""
-        try:
-            trans = await async_get_translations(
-                self.hass, self.hass.config.language, "options", [DOMAIN]
-            )
-        except Exception:
-            trans = {}
-        hints = (
-            trans.get("options", {})
-            .get("step", {})
-            .get("init", {})
-            .get("hints", {})
-        )
+        common = await async_common_translations(self.hass)
         mode = await self._async_get_init_receive_mode_key(entry, user_input)
         if mode == RECEIVE_MODE_WEBHOOK:
-            return hints.get("receive_mode_webhook_active", "")
-        if mode == RECEIVE_MODE_LONG_POLLING:
-            if webhook_receive_available(self.hass):
-                return hints.get("receive_mode_polling_https", "")
-            return hints.get("receive_mode_polling_no_https", "")
-        return hints.get("receive_mode_send_only", "")
+            key = "receive_mode_webhook_active"
+        elif mode == RECEIVE_MODE_LONG_POLLING:
+            key = (
+                "receive_mode_polling_https"
+                if webhook_receive_available(self.hass)
+                else "receive_mode_polling_no_https"
+            )
+        else:
+            key = "receive_mode_send_only"
+        return common.get(tr_key(DOMAIN, "common", key), "")
 
     async def _async_init_step_placeholders(
         self,
@@ -795,16 +751,8 @@ class MaxNotifyOptionsFlow(OptionsFlow):
             mode == RECEIVE_MODE_WEBHOOK
             and webhook_receive_available(self.hass)
         ):
-            try:
-                trans = await async_get_translations(
-                    self.hass, self.hass.config.language, "options", [DOMAIN]
-                )
-            except Exception:
-                trans = {}
-            tpl = trans.get(
-                tr_key(DOMAIN, "options", "step", "init", "webhook_url_paragraph"),
-                "",
-            )
+            common = await async_common_translations(self.hass)
+            tpl = common.get(tr_key(DOMAIN, "common", "webhook_url_paragraph"), "")
             if tpl:
                 line = tpl.format(
                     webhook_url=url or "(настройте внешний URL в HA)"
@@ -816,6 +764,7 @@ class MaxNotifyOptionsFlow(OptionsFlow):
             "receive_mode_hint": await self._async_receive_mode_hint_options(
                 entry, user_input
             ),
+            **TRANSLATION_DOC_PLACEHOLDERS,
         }
 
     async def _schema_init_async(
@@ -828,12 +777,7 @@ class MaxNotifyOptionsFlow(OptionsFlow):
         Конфликты с другими интеграциями на том же токене бота проверяются в async_step_init
         при отправке, а не скрытием режимов здесь (чтобы работала опциональная смена токена).
         """
-        try:
-            trans = await async_get_translations(
-                self.hass, self.hass.config.language, "options", [DOMAIN]
-            )
-        except Exception:
-            trans = {}
+        trans = await async_selector_translations(self.hass)
         entry_prov = get_provider(entry)
         msg_step_logical = entry_prov.options_init_step_id()
         msg_fmt_labels = get_option_labels(

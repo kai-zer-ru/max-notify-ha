@@ -36,7 +36,12 @@ from ...helpers import (
     normalize_commands,
     other_entry_has_receive_mode,
 )
-from ...translations import get_menu_labels, get_option_labels, get_receive_mode_title
+from ...translations import (
+    async_selector_translations,
+    get_menu_labels,
+    get_option_labels,
+    get_receive_mode_title,
+)
 from ...unique_title import get_unique_entry_title
 from ...webhook import (
     async_clear_subscriptions_for_long_polling,
@@ -84,12 +89,7 @@ async def async_step_init(
         except Exception:
             pass
     if user_input is not None:
-        try:
-            trans = await async_get_translations(
-                flow.hass, flow.hass.config.language, "options", [DOMAIN]
-            )
-        except Exception:
-            trans = {}
+        trans = await async_selector_translations(flow.hass)
         msg_fmt_key_to_label = get_option_labels(
             trans,
             "options",

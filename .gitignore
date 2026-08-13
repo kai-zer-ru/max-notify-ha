@@ -30,3 +30,8 @@ Thumbs.db
 .coverage
 htmlcov/
 *.log
+
+# Локальный act / релиз
+.artifacts/
+.release-notes.md
+max_notify.zip

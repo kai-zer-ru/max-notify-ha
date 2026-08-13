@@ -1,4 +1,431 @@
 {
+  "title": "MaxNotify",
+  "config": {
+    "step": {
+      "integration_type": {
+        "title": "Choose integration type",
+        "description": "Choose how you want to connect.",
+        "data": {
+          "integration_type": "Integration type"
+        }
+      },
+      "user": {
+        "title": "MaxNotify: Bot token",
+        "description": "Enter the bot access token, message format, and receive mode. For Send only, no extra fields are needed.\n\nFor WebHook to become available in the list, configure an external HTTPS URL for Home Assistant (Settings → System → Network). See {docs_ha_network}\n\nWhile a WebHook subscription is active in Max, Long Polling is unavailable, and vice versa — see {docs_max_subscriptions}",
+        "data": {
+          "access_token": "Access token",
+          "message_format": "Message format",
+          "receive_mode": "Receive mode"
+        },
+        "data_description": {
+          "access_token": "Bot token from MAX for developers",
+          "message_format": "Plain text, Markdown or HTML (API format parameter).",
+          "receive_mode": "{receive_mode_hint}"
+        }
+      },
+      "webhook_secret": {
+        "title": "WebHook secret",
+        "description": "Mode: {receive_mode}. Enter WebHook secret if needed. For WebHook, an HTTPS external URL must be configured in Home Assistant (Settings → System → Network). See {docs_ha_network} Then add or remove keyboard buttons on the next step.",
+        "data": {
+          "webhook_secret": "WebHook secret (optional)"
+        },
+        "data_description": {
+          "webhook_secret": "5–256 characters; Max will send it in X-Max-Bot-Api-Secret header."
+        }
+      },
+      "receive_options_menu": {
+        "title": "Keyboard buttons",
+        "description": "{buttons_intro}Choose an action and tap Submit.",
+        "data": {
+          "action": "Action"
+        },
+        "menu_options": {
+          "add_button": "Add button",
+          "remove_button": "Remove button",
+          "next": "Continue"
+        }
+      },
+      "add_button": {
+        "title": "Add button",
+        "description": "Button type, label, and for callback payload or for link an http(s) URL. Current: {buttons_list}",
+        "data": {
+          "button_row": "Row",
+          "button_type": "Type",
+          "button_text": "Button label",
+          "button_payload": "Payload (callback only)",
+          "button_url": "URL (link only)"
+        },
+        "data_description": {
+          "button_row": "Row to add the button to",
+          "button_type": "callback, message, or link (opens a website)",
+          "button_text": "Label on the button",
+          "button_payload": "For callback buttons: this value is sent in the event max_notify_received as callback_data. Use it in automation triggers to identify the button (e.g. light_on, light_off, scene_kitchen).",
+          "button_url": "For link buttons: must start with http:// or https://"
+        },
+        "menu_options": {
+          "0": "Row 1",
+          "1": "Row 2",
+          "2": "Row 3",
+          "3": "Row 4",
+          "4": "Row 5",
+          "5": "Row 6",
+          "6": "Row 7",
+          "7": "Row 8",
+          "8": "Row 9",
+          "9": "Row 10",
+          "new": "New row"
+        }
+      },
+      "remove_button": {
+        "title": "Remove button",
+        "description": "Choose button to remove. Current: {buttons_list}",
+        "data": {
+          "button_to_remove": "Button to remove"
+        },
+        "data_description": {
+          "button_to_remove": "—"
+        }
+      },
+      "commands_menu": {
+        "title": "Slash commands",
+        "description": "Current commands: {commands_list}. Add or remove commands, then continue.",
+        "data": {
+          "action": "Action"
+        },
+        "menu_options": {
+          "add_command": "Add command",
+          "remove_command": "Remove command",
+          "next": "Continue"
+        }
+      },
+      "add_command": {
+        "title": "Add slash command",
+        "description": "Add command for bot menu. Current: {commands_list}",
+        "data": {
+          "command_name": "Command name",
+          "command_description": "Description"
+        },
+        "data_description": {
+          "command_name": "Without slash, for example: start",
+          "command_description": "Optional, 1-128 chars"
+        }
+      },
+      "remove_command": {
+        "title": "Remove slash command",
+        "description": "Choose command to remove. Current: {commands_list}",
+        "data": {
+          "command_to_remove": "Command to remove"
+        }
+      },
+      "recipient": {
+        "title": "Add chat",
+        "description": "Enter one ID. Positive — personal chat, negative — group.",
+        "data": {
+          "recipient_id": "Recipient ID"
+        },
+        "data_description": {
+          "recipient_id": "Positive number — personal chat (User ID), negative — group (Chat ID)."
+        }
+      },
+      "reconfigure": {
+        "title": "Reconfigure MaxNotify",
+        "description": "Change API token (leave empty to keep current) and message format.",
+        "data": {
+          "access_token": "New API token (optional)",
+          "message_format": "Message format"
+        },
+        "data_description": {
+          "access_token": "Leave empty to keep the current token",
+          "message_format": "Plain text, Markdown or HTML."
+        }
+      },
+      "notify_a161_notify_info": {
+        "title": "{provider_label}",
+        "description": "Before continuing: open {provider_site_url}, send \"Хочу подключиться\" to the service bot and save your user_id and token. Then click Submit to enter credentials in Home Assistant. user_id is tied to token and cannot be changed later in integration settings."
+      },
+      "notify_a161_notify_user": {
+        "title": "{provider_label} — token",
+        "description": "Enter token, message format, and receive mode, then user_id.\n\nReceive mode: Send only or Polling updates queue.",
+        "data": {
+          "access_token": "Access token",
+          "message_format": "Message format",
+          "receive_mode": "Receive mode"
+        },
+        "data_description": {
+          "access_token": "Token from the {provider_label} bot ({token_length} characters).",
+          "message_format": "Plain text, Markdown or HTML."
+        }
+      },
+      "notify_a161_notify_recipient": {
+        "title": "{provider_label} — user ID",
+        "description": "Enter your user_id (positive number). It is tied to the token and cannot be changed later in integration settings.",
+        "data": {
+          "recipient_id": "User ID"
+        },
+        "data_description": {
+          "recipient_id": "Use only a positive user ID from the {provider_label} bot response."
+        }
+      },
+      "notify_a161_updates_interval": {
+        "title": "{provider_label} — updates polling interval",
+        "description": "Set polling interval in seconds for /updates queue. Default: {default_seconds} s.",
+        "data": {
+          "updates_interval": "—"
+        }
+      },
+      "notify_a161_a161_inactivity_period": {
+        "title": "{provider_label}: inactivity period",
+        "description": "Choose after how many days without incoming messages and without sends with buttons receive mode is switched to Send only (service policy).",
+        "data": {
+          "a161_inactivity_period_days": "Period"
+        }
+      }
+    },
+    "error": {
+      "invalid_token": "Token cannot be empty",
+      "invalid_auth": "Invalid token. Check the token in the MAX platform Integration section.",
+      "cannot_connect": "Failed to connect to Max API. Check your network and try again.",
+      "polling_subscription_list_failed": "Could not read WebHook subscriptions from Max API. Check the network and try again.",
+      "polling_webhook_subscriptions_remain": "Long Polling cannot be used while a WebHook subscription is active on Max. Remove WebHook subscriptions (or choose Send only / WebHook in settings), then try again. See {docs_max_subscriptions}",
+      "polling_blocked_by_webhook_other_entry": "Another MaxNotify integration already uses WebHook with this bot token. Stop WebHook there or use another token before enabling Long Polling here.",
+      "webhook_blocked_by_polling_other_entry": "Another MaxNotify integration already uses Long Polling with this bot token. Stop Long Polling there or use another token before enabling WebHook here.",
+      "webhook_requires_external_https_url": "WebHook requires an external HTTPS URL for Home Assistant (Settings → System → Network, or Home Assistant Cloud). Configure it first, then choose WebHook again.",
+      "unknown": "An unknown error occurred",
+      "invalid_id_format": "Enter an integer (positive — personal chat, negative — group)",
+      "group_chats_not_supported": "Group chats are not supported by the selected provider.",
+      "invalid_command_name": "Enter a command name (no slash).",
+      "invalid_button_text": "Enter a button label.",
+      "invalid_button_url": "Enter an http(s) URL for link buttons.",
+      "notify_a161_invalid_notify_token_length": "Access token must be {token_length} characters long.",
+      "notify_a161_invalid_updates_interval": "Enter a polling interval from 2 to 30 seconds.",
+      "notify_a161_invalid_a161_inactivity_period": "Choose 1, 2, or 3 days.",
+      "notify_a161_polling_requires_buttons_switched_send_only": "No buttons configured. Receive mode was switched to Send only. Add at least one button to use Polling.",
+      "notify_a161_duplicate_token_not_allowed": "A MaxNotify integration with this token already exists. For {provider_label}, one token means one entry: remove the existing one or use a different token."
+    },
+    "abort": {
+      "already_configured": "This configuration is already added",
+      "reconfigure_successful": "Reconfiguration successful",
+      "unsupported_ha_version": "This integration requires Home Assistant Core {minimum_ha_version} or newer. Update Home Assistant and try again."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "MaxNotify settings",
+        "description": "Token (optional), message format, receive mode.{webhook_url_paragraph}",
+        "data": {
+          "access_token": "New API token (optional)",
+          "message_format": "Message format",
+          "receive_mode": "Receive mode"
+        },
+        "data_description": {
+          "access_token": "Leave empty to keep the current token",
+          "message_format": "Plain text, Markdown or HTML",
+          "receive_mode": "{receive_mode_hint}"
+        }
+      },
+      "webhook_secret": {
+        "title": "Webhook secret",
+        "description": "WebHook URL registered with Max: {webhook_url}.\n\nOptional secret sent in X-Max-Bot-Api-Secret.",
+        "data": {
+          "webhook_secret": "Webhook secret (optional)"
+        },
+        "data_description": {
+          "webhook_secret": "5–256 characters; Max will send it in X-Max-Bot-Api-Secret header"
+        }
+      },
+      "buttons_menu": {
+        "title": "Keyboard buttons",
+        "description": "{buttons_intro}Add, edit or remove buttons, then Finish.",
+        "data": {
+          "action": "Action"
+        },
+        "menu_options": {
+          "opt_add_button": "Add button",
+          "opt_edit_button": "Edit button",
+          "opt_remove_button": "Remove button",
+          "opt_next": "Finish"
+        }
+      },
+      "opt_add_button": {
+        "title": "Add button",
+        "description": "Button type, label, and for callback payload or for link an http(s) URL. Current: {buttons_list}",
+        "data": {
+          "button_row": "Row",
+          "button_type": "Type",
+          "button_text": "Button label",
+          "button_payload": "Payload (callback only)",
+          "button_url": "URL (link only)"
+        },
+        "data_description": {
+          "button_row": "Row to add the button to",
+          "button_type": "callback, message, or link (opens a website)",
+          "button_text": "Label on the button",
+          "button_payload": "For callback buttons: this value is sent in the event max_notify_received as callback_data. Use it in automation triggers to identify the button (e.g. light_on, light_off, scene_kitchen).",
+          "button_url": "For link buttons: must start with http:// or https://"
+        },
+        "menu_options": {
+          "0": "Row 1",
+          "1": "Row 2",
+          "2": "Row 3",
+          "3": "Row 4",
+          "4": "Row 5",
+          "5": "Row 6",
+          "6": "Row 7",
+          "7": "Row 8",
+          "8": "Row 9",
+          "9": "Row 10",
+          "new": "New row"
+        }
+      },
+      "opt_edit_button": {
+        "title": "Edit button",
+        "description": "Choose button to edit. Current: {buttons_list}",
+        "data": {
+          "button_to_edit": "Button to edit"
+        },
+        "data_description": {
+          "button_to_edit": "Select the button you want to change"
+        }
+      },
+      "opt_edit_button_edit": {
+        "title": "Edit button",
+        "description": "Change row, type, label, payload, or link URL. Current: {buttons_list}",
+        "data": {
+          "button_row": "Row",
+          "button_type": "Type",
+          "button_text": "Button label",
+          "button_payload": "Payload (callback only)",
+          "button_url": "URL (link only)"
+        },
+        "data_description": {
+          "button_row": "Row to place the button in",
+          "button_type": "callback, message, or link (opens a website)",
+          "button_text": "Label on the button",
+          "button_payload": "For callback buttons: this value is sent in the event max_notify_received as callback_data. Use it in automation triggers to identify the button (e.g. light_on, light_off, scene_kitchen).",
+          "button_url": "For link buttons: must start with http:// or https://"
+        }
+      },
+      "opt_remove_button": {
+        "title": "Remove button",
+        "description": "Choose button to remove. Current: {buttons_list}",
+        "data": {
+          "button_to_remove": "Button to remove"
+        },
+        "data_description": {
+          "button_to_remove": "—"
+        }
+      },
+      "commands_menu": {
+        "title": "Slash commands",
+        "description": "Current commands: {commands_list}. Add or remove commands, then finish.",
+        "data": {
+          "action": "Action"
+        },
+        "menu_options": {
+          "opt_add_command": "Add command",
+          "opt_remove_command": "Remove command",
+          "opt_next": "Finish"
+        }
+      },
+      "opt_add_command": {
+        "title": "Add slash command",
+        "description": "Add command for bot menu. Current: {commands_list}",
+        "data": {
+          "command_name": "Command name",
+          "command_description": "Description"
+        },
+        "data_description": {
+          "command_name": "Without slash, for example: start",
+          "command_description": "Optional, 1-128 chars"
+        }
+      },
+      "opt_remove_command": {
+        "title": "Remove slash command",
+        "description": "Choose command to remove. Current: {commands_list}",
+        "data": {
+          "command_to_remove": "Command to remove"
+        }
+      },
+      "notify_a161_init_notify": {
+        "title": "{provider_label} — settings",
+        "description": "Message format and receive mode.\n\nReceive mode: Send only or Polling updates queue.\n\nTo change the API token, remove this integration and add it again. user_id stays fixed from initial setup.",
+        "data": {
+          "message_format": "Message format",
+          "receive_mode": "Receive mode"
+        },
+        "data_description": {
+          "message_format": "Plain text, Markdown or HTML"
+        }
+      },
+      "notify_a161_updates_interval": {
+        "title": "{provider_label} — updates polling interval",
+        "description": "Set polling interval in seconds for /updates queue. Default: {default_seconds} s.",
+        "data": {
+          "updates_interval": "—"
+        }
+      },
+      "notify_a161_a161_inactivity_period": {
+        "title": "{provider_label}: inactivity period",
+        "description": "Choose after how many days without incoming messages and without sends with buttons receive mode is switched to Send only (service policy).",
+        "data": {
+          "a161_inactivity_period_days": "Period"
+        }
+      }
+    },
+    "error": {
+      "polling_subscription_list_failed": "Could not read WebHook subscriptions from Max API. Check the network and try again.",
+      "polling_webhook_subscriptions_remain": "Long Polling cannot be used while a WebHook subscription is active on Max. Remove WebHook subscriptions (or choose Send only / WebHook in settings), then try again. See {docs_max_subscriptions}",
+      "polling_blocked_by_webhook_other_entry": "Another MaxNotify integration already uses WebHook with this bot token. Stop WebHook there or use another token before enabling Long Polling here.",
+      "webhook_blocked_by_polling_other_entry": "Another MaxNotify integration already uses Long Polling with this bot token. Stop Long Polling there or use another token before enabling WebHook here.",
+      "webhook_requires_external_https_url": "WebHook requires an external HTTPS URL for Home Assistant (Settings → System → Network, or Home Assistant Cloud). Configure it first, then choose WebHook again.",
+      "notify_a161_invalid_updates_interval": "Enter a polling interval from 2 to 30 seconds.",
+      "notify_a161_invalid_a161_inactivity_period": "Choose 1, 2, or 3 days.",
+      "notify_a161_polling_requires_buttons_switched_send_only": "No buttons configured. Receive mode was switched to Send only. Add at least one button to use Polling."
+    }
+  },
+  "config_subentries": {
+    "recipient": {
+      "abort": {
+        "already_configured": "This ID is already added",
+        "notify_user_locked": "You cannot add chats in this integration entry. Add another MaxNotify integration for a different recipient."
+      },
+      "entry_type": "Chat ID",
+      "error": {
+        "invalid_id_format": "Enter an integer (positive — personal chat, negative — group)",
+        "already_configured": "This ID is already added"
+      },
+      "initiate_flow": {
+        "user": "Add chat"
+      },
+      "step": {
+        "user": {
+          "data": {
+            "recipient_id": "Recipient ID"
+          },
+          "data_description": {
+            "recipient_id": "Positive number — personal chat (User ID), negative — group (Chat ID)."
+          },
+          "description": "Enter one ID. Positive — personal chat, negative — group.",
+          "title": "Add chat"
+        }
+      }
+    }
+  },
+  "issues": {
+    "webhook_disabled_no_https": {
+      "title": "MaxNotify: WebHook turned off (no HTTPS URL)",
+      "description": "{entry_title} was set to WebHook, but Home Assistant has no external HTTPS base URL. Receive mode was switched to Send only. Configure Settings → System → Network (or Home Assistant Cloud), then choose WebHook again in the integration options if needed."
+    },
+    "unsupported_ha_version_runtime": {
+      "title": "MaxNotify: Home Assistant update required",
+      "description": "{entry_title} was not loaded because Home Assistant Core {current_ha_version} is not supported. This integration requires Core {minimum_ha_version} or newer. Update Home Assistant, then reload the integration."
+    },
+    "updates_polling_unavailable": {
+      "title": "MaxNotify: cannot receive messages (polling)",
+      "description": "While polling for incoming updates, the Max API request failed for {entry_title}: {error_detail}. HTTP 500 with code internal.error usually means a temporary problem on the Max servers; try again later. If this keeps happening, check your network and access token. Enable debug logging (custom_components.max_notify: debug) to log a copy-paste curl command (including your token) for manual API checks."
+    }
+  },
   "services": {
     "send_message": {
       "name": "Send message",
@@ -417,470 +844,203 @@
       }
     }
   },
-  "config": {
+  "exceptions": {
+    "invalid_notify_entity": {
+      "message": "Invalid MaxNotify entity: {entity_id}"
+    },
+    "invalid_message_id": {
+      "message": "Message ID cannot be empty."
+    },
+    "delete_from_to_both_required": {
+      "message": "Fill both «Period start» and «Period end», or clear both if you use message_id, message_ids, or «Date» instead."
+    },
+    "delete_requires_id_date_or_period": {
+      "message": "To delete by chat you must also set how to find messages: message_id, message_ids, field «Date», or both «Period start» and «Period end». Only selecting a notify entity is not enough."
+    },
+    "provider_delete_by_period_not_supported": {
+      "message": "{provider} does not support deleting messages by date or time range. Use message_id or message_ids."
+    },
+    "provider_delete_last_outgoing_not_supported": {
+      "message": "{provider} does not support deleting the last outgoing message."
+    },
+    "missing_target": {
+      "message": "Choose where to send: set Target to your MaxNotify notify entity (e.g. notify.maxnotify_…), or if you have several MaxNotify integrations pick the correct one under Integration (config_entry_id)."
+    },
+    "invalid_config_entry": {
+      "message": "Wrong integration id in «Integration» (config_entry_id): {config_entry_id}. Open Settings → Devices & services → MaxNotify and copy the id from the integration card."
+    },
+    "missing_config_entry_id": {
+      "message": "You have several MaxNotify integrations — pick which one to use: set «Integration» (config_entry_id) in the action, or select a notify entity so Home Assistant knows the chat."
+    },
+    "config_entry_entity_mismatch": {
+      "message": "The integration id ({config_entry_id}) does not belong to the selected notify entity. Either remove «Integration» and keep only the entity, or set Integration to {resolved_entry_id}."
+    },
+    "no_matching_entities": {
+      "message": "No notify entities found for this integration id ({config_entry_id}). Add a chat in MaxNotify or check that the id matches Settings → Devices & services."
+    },
+    "recipient_id_no_notify_entity": {
+      "message": "No notify entity for integration id {config_entry_id} with recipient_id {recipient_id}. Check the chat ID or pick Target (notify entity) in the action."
+    },
+    "plain_recipient_not_resolved": {
+      "message": "Could not resolve recipient. Check the notify entity and integration settings."
+    },
+    "unsupported_for_notify_a161": {
+      "message": "Operation {operation} is not supported for {provider_label}."
+    },
+    "delete_last_outgoing_group_only": {
+      "message": "This action works only for group chats (recipient_id < 0). For personal chats, delete by explicit message_id (for example, save it right after sending)."
+    },
+    "provider_feature_not_supported": {
+      "message": "{feature} is not supported for {provider}."
+    },
+    "third_party_attachment_too_large": {
+      "message": "{provider} accepts photos and documents up to {max_mib} MB; this file is about {size_mib} MB."
+    },
+    "third_party_video_too_large": {
+      "message": "{provider} accepts video up to {max_mib} MB; this file is about {size_mib} MB."
+    },
+    "third_party_upload_no_url": {
+      "message": "{provider}: upload step returned no URL."
+    },
+    "third_party_video_upload_incomplete": {
+      "message": "{provider}: video upload response must contain url and token."
+    },
+    "attachments_count_limit_exceeded": {
+      "message": "{provider} allows up to {max_count} attachments per message in integration settings; requested: {actual_count}."
+    },
+    "send_message_failed_after_retries": {
+      "message": "Could not send the message after {attempts} attempts. Error: {error}."
+    },
+    "link_button_url_http_https_only": {
+      "message": "Link button URL must use http or https (received: {url})."
+    },
+    "service_datetime_empty": {
+      "message": "Date or time is empty. Enter a value or fix the template."
+    },
+    "service_invalid_calendar_date": {
+      "message": "Invalid calendar date in «{field_name}». Check day/month/year (e.g. 31 February is invalid)."
+    },
+    "service_invalid_date_format_expected": {
+      "message": "Wrong date format in «{field_name}». Use YYYY-MM-DD, DD-MM-YYYY, or Unix time in milliseconds; examples: 2026-10-23, 23.10.2026."
+    },
+    "service_date_without_time_only": {
+      "message": "Field «{field_name}» must be a date without time (delete by single day). Remove the time part."
+    },
+    "service_invalid_time_format": {
+      "message": "Invalid time: use HH:MM:SS or HH-MM-SS (24-hour)."
+    },
+    "service_invalid_clock_values": {
+      "message": "Invalid time: hour must be 0–23, minutes and seconds 0–59."
+    },
+    "service_invalid_datetime_value": {
+      "message": "Invalid date and time in «{field_name}». Check date, time and timezone."
+    },
+    "service_field_cannot_be_null": {
+      "message": "Field «{field_name}» is missing. Provide a value or fix the automation."
+    },
+    "service_field_cannot_be_empty": {
+      "message": "Field «{field_name}» is empty. Fill it in or fix the template."
+    },
+    "service_delete_date_bad_type": {
+      "message": "Field «{field_name}»: use a text date or Unix timestamp (number). Other types are not supported."
+    },
+    "service_url_auth_need_type": {
+      "message": "You set URL login/password or token — also set «URL auth type» (url_auth_type): basic, digest, or bearer."
+    },
+    "service_url_auth_bearer_need_token": {
+      "message": "For url_auth_type «bearer» you must set url_auth_token."
+    },
+    "service_url_auth_token_bearer_only": {
+      "message": "url_auth_token is only used with url_auth_type «bearer». For basic/digest use login and password."
+    },
+    "service_url_auth_login_password_pairs": {
+      "message": "For basic or digest auth set both url_auth_login and url_auth_password together."
+    },
+    "service_url_auth_basic_digest_only_login_password": {
+      "message": "Login and password are only used with url_auth_type «basic» or «digest»."
+    },
+    "service_files_not_list": {
+      "message": "Parameter «files» must be a YAML list of paths or URLs, e.g. files: [\"/config/file.jpg\"]."
+    },
+    "service_files_items_not_strings": {
+      "message": "Each item in «files» must be a text path or URL."
+    },
+    "service_files_none_given": {
+      "message": "No file paths: set «file» or non-empty «files»."
+    },
+    "service_send_document_use_file_not_files": {
+      "message": "send_document accepts one file only — use the «file» field, not «files»."
+    },
+    "service_send_document_one_file_only": {
+      "message": "send_document: attach exactly one file (path or URL)."
+    },
+    "delete_message_permission_denied": {
+      "message": "No permission to delete messages. In a group chat, make the bot an administrator and grant it permission to delete messages."
+    },
+    "delete_message_no_access_token": {
+      "message": "This integration has no access token configured."
+    },
+    "delete_message_unauthorized": {
+      "message": "The bot token was rejected (unauthorized). Check the token in Max developer settings."
+    },
+    "delete_message_not_found": {
+      "message": "The message was not found or cannot be deleted: {detail}."
+    },
+    "delete_message_api_error": {
+      "message": "Could not delete the message (HTTP {status}): {detail}."
+    },
+    "delete_message_network_error": {
+      "message": "Network error while deleting the message: {error}."
+    }
+  },
+  "selector": {
+    "message_format": {
+      "options": {
+        "text": "Text",
+        "markdown": "Markdown",
+        "html": "HTML"
+      }
+    },
+    "receive_mode": {
+      "options": {
+        "send_only": "Send only",
+        "long_polling": "Long Polling",
+        "webhook": "WebHook",
+        "polling": "Polling queue"
+      }
+    },
+    "button_type": {
+      "options": {
+        "callback": "Callback",
+        "message": "Message",
+        "link": "Link"
+      }
+    },
+    "period_days": {
+      "options": {
+        "1": "1 day",
+        "2": "2 days",
+        "3": "3 days"
+      }
+    },
     "receive_mode_title": {
-      "send_only": "Send only",
-      "long_polling": "Long Polling",
-      "polling": "Polling queue",
-      "webhook": "WebHook"
-    },
-    "step": {
-      "integration_type": {
-        "title": "Choose integration type",
-        "description": "Choose how you want to connect.",
-        "data": {
-          "integration_type": "Integration type"
-        }
-      },
-      "user": {
-        "title": "MaxNotify: Bot token",
-        "description": "Enter the bot access token, message format, and receive mode. For Send only, no extra fields are needed.\n\nFor WebHook to become available in the list, configure an external HTTPS URL for Home Assistant (Settings → System → Network). See https://www.home-assistant.io/docs/configuration/basic/\n\nWhile a WebHook subscription is active in Max, Long Polling is unavailable, and vice versa — see https://dev.max.ru/docs-api/methods/POST/subscriptions",
-        "data": {
-          "access_token": "Access token",
-          "message_format": "Message format",
-          "receive_mode": "Receive mode"
-        },
-        "data_description": {
-          "access_token": "Bot token from MAX for developers",
-          "message_format": "Plain text, Markdown or HTML (API format parameter).",
-          "receive_mode": "{receive_mode_hint}"
-        },
-        "hints": {
-          "receive_mode_with_https": "Send only: outgoing only. Long Polling: receive without a public URL. WebHook: via your Home Assistant HTTPS URL (Settings → System → Network). Max API does not allow Long Polling and WebHook at the same time for one bot. In integration options: while WebHook is selected, Long Polling is hidden; while Long Polling is selected, WebHook is hidden. To change receive mode, switch to Send only first.",
-          "receive_mode_no_https": "Send only: outgoing only. Long Polling: receive commands and button presses without a public HTTPS URL."
-        },
-        "options": {
-          "message_format": {
-            "text": "Text",
-            "markdown": "Markdown",
-            "html": "HTML"
-          },
-          "receive_mode": {
-            "send_only": "Send only",
-            "long_polling": "Long Polling",
-            "webhook": "WebHook"
-          }
-        }
-      },
-      "webhook_secret": {
-        "title": "WebHook secret",
-        "description": "Mode: {receive_mode}. Enter WebHook secret if needed. For WebHook, an HTTPS external URL must be configured in Home Assistant (Settings → System → Network). See https://www.home-assistant.io/docs/configuration/basic/ Then add or remove keyboard buttons on the next step.",
-        "data": {
-          "webhook_secret": "WebHook secret (optional)"
-        },
-        "data_description": {
-          "webhook_secret": "5–256 characters; Max sends in X-Max-Bot-Api-Secret header."
-        }
-      },
-      "recipient": {
-        "title": "Add chat",
-        "description": "Enter one ID. Positive — personal chat, negative — group.",
-        "data": {
-          "recipient_id": "Recipient ID"
-        },
-        "data_description": {
-          "recipient_id": "Positive number — personal chat (User ID), negative — group (Chat ID)."
-        }
-      },
-      "reconfigure": {
-        "title": "Reconfigure MaxNotify",
-        "description": "Change API token (leave empty to keep current) and message format.",
-        "data": {
-          "access_token": "New API token (optional)",
-          "message_format": "Message format"
-        },
-        "data_description": {
-          "access_token": "Leave empty to keep the current token",
-          "message_format": "Plain text, Markdown or HTML."
-        }
-      },
-      "receive_options_menu": {
-        "title": "Keyboard buttons",
-        "intro_no_buttons": "No keyboard buttons configured yet. ",
-        "intro_with_buttons": "Current buttons: {buttons_list}. ",
-        "description": "{buttons_intro}Choose an action and tap Submit.",
-        "data": {
-          "action": "Action"
-        },
-        "menu_options": {
-          "add_button": "Add button",
-          "remove_button": "Remove button",
-          "next": "Continue"
-        }
-      },
-      "add_button": {
-        "title": "Add button",
-        "description": "Button type, label, and for callback payload or for link an http(s) URL. Current: {buttons_list}",
-        "data": {
-          "button_row": "Row",
-          "button_type": "Type",
-          "button_text": "Button label",
-          "button_payload": "Payload (callback only)",
-          "button_url": "URL (link only)"
-        },
-        "data_description": {
-          "button_row": "Row to add the button to",
-          "button_type": "callback, message, or link (opens a website)",
-          "button_text": "Label on the button",
-          "button_payload": "For callback buttons: this value is sent in the event max_notify_received as callback_data. Use it in automation triggers to identify the button (e.g. light_on, light_off, scene_kitchen).",
-          "button_url": "For link buttons: must start with http:// or https://"
-        },
-        "options": {
-          "button_type": {
-            "callback": "Callback",
-            "message": "Message",
-            "link": "Link"
-          }
-        },
-        "menu_options": {
-          "0": "Row 1",
-          "1": "Row 2",
-          "2": "Row 3",
-          "3": "Row 4",
-          "4": "Row 5",
-          "5": "Row 6",
-          "6": "Row 7",
-          "7": "Row 8",
-          "8": "Row 9",
-          "9": "Row 10",
-          "new": "New row"
-        }
-      },
-      "remove_button": {
-        "title": "Remove button",
-        "description": "Choose button to remove. Current: {buttons_list}",
-        "data": {
-          "button_to_remove": "Button to remove"
-        },
-        "data_description": {
-          "button_to_remove": ""
-        }
-      },
-      "notify_a161_notify_info": {
-        "title": "{provider_label}",
-        "description": "Before continuing: open {provider_site_url}, send \"Хочу подключиться\" to the service bot and save your user_id and token. Then click Submit to enter credentials in Home Assistant. user_id is tied to token and cannot be changed later in integration settings."
-      },
-      "notify_a161_notify_user": {
-        "title": "{provider_label} — token",
-        "description": "Enter token, message format, and receive mode, then user_id.\n\nReceive mode: Send only or Polling updates queue.",
-        "data": {
-          "access_token": "Access token",
-          "message_format": "Message format",
-          "receive_mode": "Receive mode"
-        },
-        "data_description": {
-          "access_token": "Token from the {provider_label} bot ({token_length} characters).",
-          "message_format": "Text, Markdown or HTML."
-        },
-        "options": {
-          "message_format": {
-            "text": "Text",
-            "markdown": "Markdown",
-            "html": "HTML"
-          },
-          "receive_mode": {
-            "send_only": "Send only",
-            "polling": "Polling queue"
-          }
-        }
-      },
-      "notify_a161_notify_recipient": {
-        "title": "{provider_label} — user ID",
-        "description": "Enter your user_id (positive number). It is tied to the token and cannot be changed later in integration settings.",
-        "data": {
-          "recipient_id": "User ID"
-        },
-        "data_description": {
-          "recipient_id": "Use only a positive user ID from the {provider_label} bot response."
-        }
-      },
-      "notify_a161_updates_interval": {
-        "title": "{provider_label} — updates polling interval",
-        "description": "Set polling interval in seconds for /updates queue. Default: {default_seconds} s.",
-        "data": {
-          "updates_interval": " "
-        }
-      },
-      "notify_a161_a161_inactivity_period": {
-        "title": "{provider_label}: inactivity period",
-        "description": "Choose after how many days without incoming messages and without sends with buttons receive mode is switched to Send only (service policy).",
-        "data": {
-          "a161_inactivity_period_days": "Period"
-        },
-        "options": {
-          "period_days": {
-            "1": "1 day",
-            "2": "2 days",
-            "3": "3 days"
-          }
-        }
-      }
-    },
-    "error": {
-      "invalid_token": "Token cannot be empty",
-      "invalid_auth": "Invalid token. Check the token in the MAX platform Integration section.",
-      "cannot_connect": "Failed to connect to Max API. Check your network and try again.",
-      "polling_subscription_list_failed": "Could not read WebHook subscriptions from Max API. Check the network and try again.",
-      "polling_webhook_subscriptions_remain": "Long Polling cannot be used while a WebHook subscription is active on Max. Remove WebHook subscriptions (or choose Send only / WebHook in settings), then try again. See https://dev.max.ru/docs-api/methods/POST/subscriptions",
-      "polling_blocked_by_webhook_other_entry": "Another MaxNotify integration already uses WebHook with this bot token. Stop WebHook there or use another token before enabling Long Polling here.",
-      "webhook_blocked_by_polling_other_entry": "Another MaxNotify integration already uses Long Polling with this bot token. Stop Long Polling there or use another token before enabling WebHook here.",
-      "webhook_requires_external_https_url": "WebHook requires an external HTTPS URL for Home Assistant (Settings → System → Network, or Home Assistant Cloud). Configure it first, then choose WebHook again.",
-      "unknown": "An unknown error occurred",
-      "invalid_id_format": "Enter an integer (positive — personal chat, negative — group)",
-      "invalid_command_name": "Enter a command name (no slash).",
-      "invalid_button_text": "Enter a button label.",
-      "invalid_button_url": "Enter an http(s) URL for link buttons.",
-      "notify_a161_invalid_notify_token_length": "Access token must be {token_length} characters long.",
-      "notify_a161_invalid_updates_interval": "Enter a polling interval from 2 to 30 seconds.",
-      "notify_a161_invalid_a161_inactivity_period": "Choose 1, 2, or 3 days.",
-      "notify_a161_polling_requires_buttons_switched_send_only": "No buttons configured. Receive mode was switched to Send only. Add at least one button to use Polling.",
-      "notify_a161_duplicate_token_not_allowed": "A MaxNotify integration with this token already exists. For {provider_label}, one token means one entry: remove the existing one or use a different token."
-    },
-    "abort": {
-      "already_configured": "This configuration is already added",
-      "reconfigure_successful": "Reconfiguration successful",
-      "unsupported_ha_version": "This integration requires Home Assistant Core {minimum_ha_version} or newer. Update Home Assistant and try again."
-    }
-  },
-  "options": {
-    "step": {
-      "init": {
-        "title": "MaxNotify settings",
-        "description": "Token (optional), message format, receive mode.{webhook_url_paragraph}",
-        "webhook_url_paragraph": "WebHook URL registered with Max: {webhook_url}.",
-        "data": {
-          "access_token": "New API token (optional)",
-          "message_format": "Message format",
-          "receive_mode": "Receive mode"
-        },
-        "data_description": {
-          "access_token": "Leave empty to keep the current token",
-          "message_format": "Plain text, Markdown or HTML",
-          "receive_mode": "{receive_mode_hint}"
-        },
-        "hints": {
-          "receive_mode_send_only": "Outgoing only. Choose Long Polling or WebHook to receive commands and button presses (Max allows only one receive mode per bot).",
-          "receive_mode_polling_https": "Long Polling works without a separate public URL. WebHook is available because Home Assistant has HTTPS — pick one mode; if this integration uses WebHook, Long Polling is hidden until you switch to Send only (unregisters WebHook).",
-          "receive_mode_polling_no_https": "Long Polling works without an external HTTPS URL. WebHook will appear after you configure Home Assistant’s external URL. WebHook and Long Polling cannot both be active on Max for the same bot.",
-          "receive_mode_webhook_active": "WebHook is active; Long Polling is not listed until you switch to Send only (unregisters WebHook). The URL above is registered with Max."
-        },
-        "options": {
-          "message_format": {
-            "text": "Text",
-            "markdown": "Markdown",
-            "html": "HTML"
-          },
-          "receive_mode": {
-            "send_only": "Send only",
-            "long_polling": "Long Polling",
-            "webhook": "WebHook"
-          }
-        }
-      },
-      "webhook_secret": {
-        "title": "Webhook secret",
-        "description": "WebHook URL registered with Max: {webhook_url}.\n\nOptional secret sent in X-Max-Bot-Api-Secret.",
-        "data": {
-          "webhook_secret": "Webhook secret (optional)"
-        },
-        "data_description": {
-          "webhook_secret": "5–256 characters; Max sends in X-Max-Bot-Api-Secret header"
-        }
-      },
-      "buttons_menu": {
-        "title": "Keyboard buttons",
-        "intro_no_buttons": "No keyboard buttons configured yet. ",
-        "intro_with_buttons": "Current buttons: {buttons_list}. ",
-        "description": "{buttons_intro}Add, edit or remove buttons, then Finish.",
-        "data": {
-          "action": "Action"
-        },
-        "menu_options": {
-          "opt_add_button": "Add button",
-          "opt_edit_button": "Edit button",
-          "opt_remove_button": "Remove button",
-          "opt_next": "Finish"
-        }
-      },
-      "opt_add_button": {
-        "title": "Add button",
-        "description": "Button type, label, and for callback payload or for link an http(s) URL. Current: {buttons_list}",
-        "data": {
-          "button_row": "Row",
-          "button_type": "Type",
-          "button_text": "Button label",
-          "button_payload": "Payload (callback only)",
-          "button_url": "URL (link only)"
-        },
-        "data_description": {
-          "button_row": "Row to add the button to",
-          "button_type": "callback, message, or link (opens a website)",
-          "button_text": "Label on the button",
-          "button_payload": "For callback buttons: this value is sent in the event max_notify_received as callback_data. Use it in automation triggers to identify the button (e.g. light_on, light_off, scene_kitchen).",
-          "button_url": "For link buttons: must start with http:// or https://"
-        },
-        "options": {
-          "button_type": {
-            "callback": "Callback",
-            "message": "Message",
-            "link": "Link"
-          }
-        },
-        "menu_options": {
-          "0": "Row 1",
-          "1": "Row 2",
-          "2": "Row 3",
-          "3": "Row 4",
-          "4": "Row 5",
-          "5": "Row 6",
-          "6": "Row 7",
-          "7": "Row 8",
-          "8": "Row 9",
-          "9": "Row 10",
-          "new": "New row"
-        }
-      },
-      "opt_edit_button": {
-        "title": "Edit button",
-        "description": "Choose button to edit. Current: {buttons_list}",
-        "data": {
-          "button_to_edit": "Button to edit"
-        },
-        "data_description": {
-          "button_to_edit": "Select the button you want to change"
-        }
-      },
-      "opt_edit_button_edit": {
-        "title": "Edit button",
-        "description": "Change row, type, label, payload, or link URL. Current: {buttons_list}",
-        "data": {
-          "button_row": "Row",
-          "button_type": "Type",
-          "button_text": "Button label",
-          "button_payload": "Payload (callback only)",
-          "button_url": "URL (link only)"
-        },
-        "data_description": {
-          "button_row": "Row to place the button in",
-          "button_type": "callback, message, or link (opens a website)",
-          "button_text": "Label on the button",
-          "button_payload": "For callback buttons: this value is sent in the event max_notify_received as callback_data. Use it in automation triggers to identify the button (e.g. light_on, light_off, scene_kitchen).",
-          "button_url": "For link buttons: must start with http:// or https://"
-        },
-        "options": {
-          "button_type": {
-            "callback": "Callback",
-            "message": "Message",
-            "link": "Link"
-          }
-        }
-      },
-      "opt_remove_button": {
-        "title": "Remove button",
-        "description": "Choose button to remove. Current: {buttons_list}",
-        "data": {
-          "button_to_remove": "Button to remove"
-        },
-        "data_description": {
-          "button_to_remove": ""
-        }
-      },
-      "notify_a161_init_notify": {
-        "title": "{provider_label} — settings",
-        "description": "Message format and receive mode.\n\nReceive mode: Send only or Polling updates queue.\n\nTo change the API token, remove this integration and add it again. user_id stays fixed from initial setup.",
-        "data": {
-          "message_format": "Message format",
-          "receive_mode": "Receive mode"
-        },
-        "data_description": {
-          "message_format": "Plain text, Markdown or HTML"
-        },
-        "options": {
-          "message_format": {
-            "text": "Text",
-            "markdown": "Markdown",
-            "html": "HTML"
-          },
-          "receive_mode": {
-            "send_only": "Send only",
-            "polling": "Polling queue"
-          }
-        }
-      },
-      "notify_a161_updates_interval": {
-        "title": "{provider_label} — updates polling interval",
-        "description": "Set polling interval in seconds for /updates queue. Default: {default_seconds} s.",
-        "data": {
-          "updates_interval": " "
-        }
-      },
-      "notify_a161_a161_inactivity_period": {
-        "title": "{provider_label}: inactivity period",
-        "description": "Choose after how many days without incoming messages and without sends with buttons receive mode is switched to Send only (service policy).",
-        "data": {
-          "a161_inactivity_period_days": "Period"
-        },
-        "options": {
-          "period_days": {
-            "1": "1 day",
-            "2": "2 days",
-            "3": "3 days"
-          }
-        }
-      }
-    },
-    "error": {
-      "polling_subscription_list_failed": "Could not read WebHook subscriptions from Max API. Check the network and try again.",
-      "polling_webhook_subscriptions_remain": "Long Polling cannot be used while a WebHook subscription is active on Max. Remove WebHook subscriptions (or choose Send only / WebHook in settings), then try again. See https://dev.max.ru/docs-api/methods/POST/subscriptions",
-      "polling_blocked_by_webhook_other_entry": "Another MaxNotify integration already uses WebHook with this bot token. Stop WebHook there or use another token before enabling Long Polling here.",
-      "webhook_blocked_by_polling_other_entry": "Another MaxNotify integration already uses Long Polling with this bot token. Stop Long Polling there or use another token before enabling WebHook here.",
-      "webhook_requires_external_https_url": "WebHook requires an external HTTPS URL for Home Assistant (Settings → System → Network, or Home Assistant Cloud). Configure it first, then choose WebHook again.",
-      "notify_a161_invalid_updates_interval": "Enter a polling interval from 2 to 30 seconds.",
-      "notify_a161_invalid_a161_inactivity_period": "Choose 1, 2, or 3 days.",
-      "notify_a161_polling_requires_buttons_switched_send_only": "No buttons configured. Receive mode was switched to Send only. Add at least one button to use Polling."
-    }
-  },
-  "attachments_count_limit_exceeded": "{provider} allows up to {max_count} attachments per message in integration settings; requested: {actual_count}.",
-  "config_subentries": {
-    "recipient": {
-      "abort": {
-        "already_configured": "This ID is already added",
-        "notify_user_locked": "You cannot add chats in this integration entry. Add another MaxNotify integration for a different recipient."
-      },
-      "entry_type": "Chat ID",
-      "error": {
-        "invalid_id_format": "Enter an integer (positive — personal chat, negative — group)",
-        "already_configured": "This ID is already added"
-      },
-      "initiate_flow": {
-        "user": "Add chat"
-      },
-      "step": {
-        "user": {
-          "data": {
-            "recipient_id": "Recipient ID"
-          },
-          "data_description": {
-            "recipient_id": "Positive number — personal chat (User ID), negative — group (Chat ID)."
-          },
-          "description": "Enter one ID. Positive — personal chat, negative — group.",
-          "title": "Add chat"
-        }
+      "options": {
+        "send_only": "Send only",
+        "long_polling": "Long Polling",
+        "polling": "Polling queue",
+        "webhook": "WebHook"
       }
     }
   },
-  "issues": {
-    "webhook_disabled_no_https": {
-      "title": "MaxNotify: WebHook turned off (no HTTPS URL)",
-      "description": "{entry_title} was set to WebHook, but Home Assistant has no external HTTPS base URL. Receive mode was switched to Send only. Configure Settings → System → Network (or Home Assistant Cloud), then choose WebHook again in the integration options if needed."
-    },
-    "unsupported_ha_version_runtime": {
-      "title": "MaxNotify: Home Assistant update required",
-      "description": "{entry_title} was not loaded because Home Assistant Core {current_ha_version} is not supported. This integration requires Core {minimum_ha_version} or newer. Update Home Assistant, then reload the integration."
-    },
-    "updates_polling_unavailable": {
-      "title": "MaxNotify: cannot receive messages (polling)",
-      "description": "While polling for incoming updates, the Max API request failed for {entry_title}: {error_detail}. HTTP 500 with code internal.error usually means a temporary problem on the Max servers; try again later. If this keeps happening, check your network and access token. Enable debug logging (custom_components.max_notify: debug) to log a copy-paste curl command (including your token) for manual API checks."
-    }
+  "common": {
+    "receive_mode_with_https": "Send only: outgoing only. Long Polling: receive without a public URL. WebHook: via your Home Assistant HTTPS URL (Settings → System → Network). Max API does not allow Long Polling and WebHook at the same time for one bot. In integration options: while WebHook is selected, Long Polling is hidden; while Long Polling is selected, WebHook is hidden. To change receive mode, switch to Send only first.",
+    "receive_mode_no_https": "Send only: outgoing only. Long Polling: receive commands and button presses without a public HTTPS URL.",
+    "intro_no_buttons": "No keyboard buttons configured yet.",
+    "intro_with_buttons": "Current buttons: {buttons_list}.",
+    "receive_mode_send_only": "Outgoing only. Choose Long Polling or WebHook to receive commands and button presses (Max allows only one receive mode per bot).",
+    "receive_mode_polling_https": "Long Polling works without a separate public URL. WebHook is available because Home Assistant has HTTPS — pick one mode; if this integration uses WebHook, Long Polling is hidden until you switch to Send only (unregisters WebHook).",
+    "receive_mode_polling_no_https": "Long Polling works without an external HTTPS URL. WebHook will appear after you configure Home Assistant’s external URL. WebHook and Long Polling cannot both be active on Max for the same bot.",
+    "receive_mode_webhook_active": "WebHook is active; Long Polling is not listed until you switch to Send only (unregisters WebHook). The URL above is registered with Max.",
+    "webhook_url_paragraph": "WebHook URL registered with Max: {webhook_url}."
   }
 }

@@ -26,6 +26,7 @@ from ..flow_selectors import _remove_buttons_selector
 from ..flow_ui import async_keyboard_menu_intro
 from ..helpers import buttons_choice_list, buttons_display_str
 from ..translations import (
+    async_selector_translations,
     get_menu_labels,
     get_option_labels,
     get_receive_mode_title,
@@ -161,16 +162,7 @@ async def async_step_add_button_setup(
     )
     choice_labels = [row_labels.get(k, lb) for k, lb in row_choices]
     label_to_row_key = {row_labels.get(k, lb): k for k, lb in row_choices}
-    try:
-        trans = await async_get_translations(
-            flow.hass, flow.hass.config.language, "config", [DOMAIN]
-        )
-    except Exception:
-        _LOGGER.warning(
-            "async_step_add_button: не удалось загрузить переводы",
-            exc_info=True,
-        )
-        trans = {}
+    trans = await async_selector_translations(flow.hass)
     type_labels = get_option_labels(
         trans,
         "config",

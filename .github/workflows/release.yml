@@ -1,0 +1,91 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    name: Validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Hassfest
+        run: bash scripts/run-hassfest.sh
+      # hacs/action checks the tag on GitHub; under nektos/act the tag usually
+      # is not pushed yet → "Not Found". On real GHA the tag already exists.
+      - name: HACS
+        if: ${{ env.ACT == '' }}
+        uses: hacs/action@main
+        with:
+          category: integration
+      - name: HACS skipped under act
+        if: ${{ env.ACT != '' }}
+        run: |
+          echo "HACS skipped under act (remote tag ${GITHUB_REF_NAME:-?} not required to exist)."
+          echo "Covered by make act-push / ci.yml against the default branch."
+
+  release:
+    name: GitHub Release
+    needs: [validate]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve tag and check manifest version
+        id: meta
+        run: |
+          set -euo pipefail
+          TAG="$(bash scripts/resolve-release-tag.sh)"
+          VER="${TAG#v}"
+          MANIFEST_VER="$(python3 -c "import json; print(json.load(open('custom_components/max_notify/manifest.json'))['version'])")"
+          if [[ "$MANIFEST_VER" != "$VER" ]]; then
+            echo "::error::manifest.json version (${MANIFEST_VER}) != tag version (${VER})"
+            exit 1
+          fi
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "version=${VER}" >> "$GITHUB_OUTPUT"
+          if [[ "$TAG" == *-* ]] || [[ "$TAG" == *_* ]]; then
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Extract release notes from CHANGELOG.md
+        run: bash scripts/extract-release-notes.sh "${{ steps.meta.outputs.tag }}"
+
+      - name: Build integration ZIP
+        run: |
+          set -euo pipefail
+          cd custom_components/max_notify
+          zip -r "${GITHUB_WORKSPACE}/max_notify.zip" . \
+            -x '*__pycache__*' '*.pyc' '*.pyo' '.DS_Store'
+
+      - name: Create GitHub Release
+        if: ${{ env.ACT == '' }}
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.meta.outputs.tag }}
+          name: ${{ steps.meta.outputs.tag }}
+          body_path: .release-notes.md
+          draft: false
+          prerelease: ${{ steps.meta.outputs.prerelease == 'true' }}
+          files: max_notify.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Dry-run summary (act)
+        if: ${{ env.ACT != '' }}
+        run: |
+          set -euo pipefail
+          echo "act dry-run: would publish ${{ steps.meta.outputs.tag }}"
+          echo "prerelease=${{ steps.meta.outputs.prerelease }}"
+          echo "asset=max_notify.zip ($(wc -c < max_notify.zip) bytes)"
+          echo "----- release notes -----"
+          cat .release-notes.md
