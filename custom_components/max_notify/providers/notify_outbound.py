@@ -14,7 +14,8 @@ import re
 import secrets
 import ssl
 import hashlib
-from typing import Any, Awaitable, Callable
+import tempfile
+from typing import Any, Awaitable, Callable, Literal
 from urllib.parse import parse_qsl, unquote, urlparse, urlunparse
 
 import aiohttp
@@ -2508,6 +2509,125 @@ def _read_file_bytes(path: str, config_dir: str) -> bytes:
         path = os.path.join(config_dir, path)
     with open(path, "rb") as f:
         return f.read()
+
+
+def _is_remote_file_source(source: str) -> bool:
+    return source.strip().startswith(("http://", "https://"))
+
+
+def cleanup_temp_file_paths(paths: list[str]) -> None:
+    for path in paths:
+        try:
+            os.unlink(path)
+        except OSError:
+            pass
+
+
+def _write_temp_media_file(body: bytes, filename: str) -> str:
+    """Записать байты во временный файл; имя сохранить через суффикс."""
+    safe_name = (filename or "file").rsplit("/", 1)[-1].rsplit("\\", 1)[-1] or "file"
+    suffix = ""
+    if "." in safe_name:
+        raw_ext = safe_name.rsplit(".", 1)[-1]
+        cleaned = re.sub(r"[^A-Za-z0-9]", "", raw_ext)[:16]
+        if cleaned:
+            suffix = f".{cleaned}"
+    with tempfile.NamedTemporaryFile(
+        prefix="max_notify_",
+        suffix=suffix,
+        delete=False,
+    ) as handle:
+        handle.write(body)
+        return handle.name
+
+
+async def async_materialize_remote_file_sources(
+    hass: HomeAssistant,
+    file_sources: list[str],
+    *,
+    media_kind: Literal["image", "file", "video"],
+    disable_ssl: bool = False,
+    url_auth_type: str | None = None,
+    url_auth_login: str | None = None,
+    url_auth_password: str | None = None,
+    url_auth_token: str | None = None,
+) -> tuple[list[str], list[str]] | None:
+    """Правило: http(s) всегда скачивается во временный файл, отправка — с диска.
+
+    Локальные пути не трогаем. При нескольких получателях один URL качается
+    один раз до цикла рассылки.
+
+    Returns:
+        (resolved_sources, temp_paths) — temp_paths нужно удалить после отправки.
+        None — если скачивание хотя бы одного URL не удалось.
+    """
+    if not any(_is_remote_file_source(src) for src in file_sources):
+        return list(file_sources), []
+
+    session = async_get_clientsession(hass)
+    resolved: list[str] = []
+    temp_paths: list[str] = []
+    as_document = media_kind == "file"
+
+    try:
+        for source in file_sources:
+            if not _is_remote_file_source(source):
+                resolved.append(source)
+                continue
+            if media_kind == "video":
+                read_out = await _read_video_body_for_upload(
+                    hass,
+                    session,
+                    source,
+                    disable_ssl=disable_ssl,
+                    url_auth_type=url_auth_type,
+                    url_auth_login=url_auth_login,
+                    url_auth_password=url_auth_password,
+                    url_auth_token=url_auth_token,
+                )
+            else:
+                read_out = await _async_read_media_body_for_upload(
+                    hass,
+                    session,
+                    source,
+                    as_document=as_document,
+                    url_auth_type=url_auth_type,
+                    url_auth_login=url_auth_login,
+                    url_auth_password=url_auth_password,
+                    url_auth_token=url_auth_token,
+                    disable_ssl=disable_ssl,
+                )
+            if read_out is None:
+                _LOGGER.error(
+                    "Не удалось скачать медиа во временный файл: %s", source
+                )
+                cleanup_temp_file_paths(temp_paths)
+                return None
+            body, _content_type, filename = read_out
+            if not body:
+                _LOGGER.error(
+                    "Пустые данные медиа при скачивании во временный файл: %s",
+                    source,
+                )
+                cleanup_temp_file_paths(temp_paths)
+                return None
+            path = await hass.async_add_executor_job(
+                _write_temp_media_file, body, filename
+            )
+            temp_paths.append(path)
+            resolved.append(path)
+            _LOGGER.info(
+                "Медиа сохранено во временный файл перед отправкой: "
+                "источник=%s путь=%s размер=%s",
+                source,
+                path,
+                len(body),
+            )
+    except Exception:
+        cleanup_temp_file_paths(temp_paths)
+        raise
+
+    return resolved, temp_paths
 
 
 async def entity_send_plain_message(

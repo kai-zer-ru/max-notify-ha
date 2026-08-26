@@ -513,3 +513,83 @@ def test_resolve_delete_period_date_only_sets_day_bounds() -> None:
     expected_to = int(datetime.fromisoformat("2026-04-22T23:59:59+08:00").timestamp() * 1000)
     assert ts_from == expected_from
     assert ts_to == expected_to
+
+
+@pytest.mark.asyncio
+async def test_send_photo_always_materializes_url_before_send(
+    hass, mock_config_entry
+) -> None:
+    """URL всегда скачивается во временный файл, даже для одного получателя."""
+    from custom_components.max_notify.services import _send_photo
+
+    mock_config_entry.subentries = {
+        "sub-1": SimpleNamespace(data={CONF_RECIPIENT_ID: 111}),
+        "sub-2": SimpleNamespace(data={CONF_RECIPIENT_ID: 222}),
+    }
+    hass.config_entries = MagicMock()
+    hass.config_entries.async_get_entry = MagicMock(return_value=mock_config_entry)
+
+    ent1 = SimpleNamespace(
+        config_entry_id=mock_config_entry.entry_id,
+        config_subentry_id="sub-1",
+    )
+    ent2 = SimpleNamespace(
+        config_entry_id=mock_config_entry.entry_id,
+        config_subentry_id="sub-2",
+    )
+    reg = MagicMock()
+    reg.async_get = MagicMock(side_effect=lambda eid: {"n1": ent1, "n2": ent2}[eid])
+
+    local_path = "/tmp/max_notify_cached.jpg"
+    with (
+        patch(
+            "custom_components.max_notify.services._resolve_entity_ids",
+            return_value=["n1", "n2"],
+        ),
+        patch(
+            "custom_components.max_notify.services.er.async_get",
+            return_value=reg,
+        ),
+        patch(
+            "custom_components.max_notify.services.get_capabilities",
+            return_value=SimpleNamespace(
+                supports_send_photo=True,
+                supports_inline_keyboard=True,
+            ),
+        ),
+        patch(
+            "custom_components.max_notify.services.resolve_service_inline_keyboard",
+            return_value=None,
+        ),
+        patch(
+            "custom_components.max_notify.services.async_materialize_remote_file_sources",
+            new=AsyncMock(return_value=([local_path], [local_path])),
+        ) as mock_materialize,
+        patch(
+            "custom_components.max_notify.services.upload_image_and_send",
+            new=AsyncMock(),
+        ) as mock_upload,
+        patch(
+            "custom_components.max_notify.services.cleanup_temp_file_paths",
+        ) as mock_cleanup,
+        patch(
+            "custom_components.max_notify.services.recipient_dict_from_subentry",
+            side_effect=lambda sub, **_kw: {"user_id": sub.data[CONF_RECIPIENT_ID]},
+        ),
+    ):
+        await _send_photo(
+            hass,
+            {
+                "file": "https://example.com/photo.jpg",
+                "entity_id": ["n1", "n2"],
+            },
+        )
+
+    mock_materialize.assert_awaited_once()
+    assert mock_materialize.await_args.kwargs["media_kind"] == "image"
+    assert "enabled" not in mock_materialize.await_args.kwargs
+    assert mock_upload.await_count == 2
+    for call in mock_upload.await_args_list:
+        assert call.args[3] == local_path
+        assert call.kwargs["file_paths_or_urls"] == [local_path]
+    mock_cleanup.assert_called_once_with([local_path])

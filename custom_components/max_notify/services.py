@@ -41,6 +41,10 @@ from .notify import (
     upload_image_and_send,
     upload_video_and_send,
 )
+from .providers.notify_outbound import (
+    async_materialize_remote_file_sources,
+    cleanup_temp_file_paths,
+)
 from .const import (
     CONF_CONFIG_ENTRY_ID,
     CONF_COUNT_REQUESTS,
@@ -1393,49 +1397,66 @@ async def _send_photo(
     if not resolved:
         return
 
+    materialized = await async_materialize_remote_file_sources(
+        hass,
+        file_paths_or_urls,
+        media_kind="image",
+        disable_ssl=disable_ssl,
+        url_auth_type=auth_type,
+        url_auth_login=auth_login,
+        url_auth_password=auth_password,
+        url_auth_token=auth_token,
+    )
+    if materialized is None:
+        return
+    local_sources, temp_paths = materialized
+
     reg = er.async_get(hass)
 
-    for eid in resolved:
-        entity_entry = reg.async_get(eid)
-        if not entity_entry or not entity_entry.config_entry_id or not entity_entry.config_subentry_id:
-            _LOGGER.warning("Пропуск сущности %s: нет записи или чата", eid)
-            continue
-        entry = hass.config_entries.async_get_entry(entity_entry.config_entry_id)
-        if not entry or entry.domain != DOMAIN:
-            continue
-        subentries = getattr(entry, "subentries", None) or {}
-        subentry = subentries.get(entity_entry.config_subentry_id)
-        if not subentry:
-            continue
-        caps = get_capabilities(entry)
-        _ensure_capability(entry, caps.supports_send_photo, feature="send_photo")
-        all_buttons = resolve_service_inline_keyboard(
-            entry.options,
-            send_keyboard=send_kb,
-            buttons_provided=buttons_provided,
-            buttons_raw=data.get("buttons"),
-        )
-        if all_buttons:
-            _ensure_capability(entry, caps.supports_inline_keyboard, feature="inline_keyboard")
-        await upload_image_and_send(
-            hass,
-            entry,
-            recipient_dict_from_subentry(
-                subentry, hass=hass, entry_id=entry.entry_id
-            ),
-            file_paths_or_urls[0],
-            file_paths_or_urls=file_paths_or_urls,
-            caption=caption,
-            buttons=all_buttons,
-            count_requests=count_requests,
-            notify=notify_flag,
-            disable_ssl=disable_ssl,
-            url_auth_type=auth_type,
-            url_auth_login=auth_login,
-            url_auth_password=auth_password,
-            url_auth_token=auth_token,
-            message_format=message_format,
-        )
+    try:
+        for eid in resolved:
+            entity_entry = reg.async_get(eid)
+            if not entity_entry or not entity_entry.config_entry_id or not entity_entry.config_subentry_id:
+                _LOGGER.warning("Пропуск сущности %s: нет записи или чата", eid)
+                continue
+            entry = hass.config_entries.async_get_entry(entity_entry.config_entry_id)
+            if not entry or entry.domain != DOMAIN:
+                continue
+            subentries = getattr(entry, "subentries", None) or {}
+            subentry = subentries.get(entity_entry.config_subentry_id)
+            if not subentry:
+                continue
+            caps = get_capabilities(entry)
+            _ensure_capability(entry, caps.supports_send_photo, feature="send_photo")
+            all_buttons = resolve_service_inline_keyboard(
+                entry.options,
+                send_keyboard=send_kb,
+                buttons_provided=buttons_provided,
+                buttons_raw=data.get("buttons"),
+            )
+            if all_buttons:
+                _ensure_capability(entry, caps.supports_inline_keyboard, feature="inline_keyboard")
+            await upload_image_and_send(
+                hass,
+                entry,
+                recipient_dict_from_subentry(
+                    subentry, hass=hass, entry_id=entry.entry_id
+                ),
+                local_sources[0],
+                file_paths_or_urls=local_sources,
+                caption=caption,
+                buttons=all_buttons,
+                count_requests=count_requests,
+                notify=notify_flag,
+                disable_ssl=disable_ssl,
+                url_auth_type=auth_type,
+                url_auth_login=auth_login,
+                url_auth_password=auth_password,
+                url_auth_token=auth_token,
+                message_format=message_format,
+            )
+    finally:
+        cleanup_temp_file_paths(temp_paths)
 
 
 async def _send_document(
@@ -1492,48 +1513,65 @@ async def _send_document(
     if not resolved:
         return
 
+    materialized = await async_materialize_remote_file_sources(
+        hass,
+        file_paths_or_urls,
+        media_kind="file",
+        disable_ssl=disable_ssl,
+        url_auth_type=auth_type,
+        url_auth_login=auth_login,
+        url_auth_password=auth_password,
+        url_auth_token=auth_token,
+    )
+    if materialized is None:
+        return
+    local_sources, temp_paths = materialized
+
     reg = er.async_get(hass)
-    for eid in resolved:
-        entity_entry = reg.async_get(eid)
-        if not entity_entry or not entity_entry.config_entry_id or not entity_entry.config_subentry_id:
-            _LOGGER.warning("Пропуск сущности %s: нет записи или чата", eid)
-            continue
-        entry = hass.config_entries.async_get_entry(entity_entry.config_entry_id)
-        if not entry or entry.domain != DOMAIN:
-            continue
-        subentries = getattr(entry, "subentries", None) or {}
-        subentry = subentries.get(entity_entry.config_subentry_id)
-        if not subentry:
-            continue
-        caps = get_capabilities(entry)
-        _ensure_capability(entry, caps.supports_send_document, feature="send_document")
-        all_buttons = resolve_service_inline_keyboard(
-            entry.options,
-            send_keyboard=send_kb,
-            buttons_provided=buttons_provided,
-            buttons_raw=data.get("buttons"),
-        )
-        if all_buttons:
-            _ensure_capability(entry, caps.supports_inline_keyboard, feature="inline_keyboard")
-        await upload_document_and_send(
-            hass,
-            entry,
-            recipient_dict_from_subentry(
-                subentry, hass=hass, entry_id=entry.entry_id
-            ),
-            file_paths_or_urls[0],
-            file_paths_or_urls=file_paths_or_urls,
-            caption=caption,
-            buttons=all_buttons,
-            count_requests=count_requests,
-            notify=notify_flag,
-            disable_ssl=disable_ssl,
-            url_auth_type=auth_type,
-            url_auth_login=auth_login,
-            url_auth_password=auth_password,
-            url_auth_token=auth_token,
-            message_format=message_format,
-        )
+    try:
+        for eid in resolved:
+            entity_entry = reg.async_get(eid)
+            if not entity_entry or not entity_entry.config_entry_id or not entity_entry.config_subentry_id:
+                _LOGGER.warning("Пропуск сущности %s: нет записи или чата", eid)
+                continue
+            entry = hass.config_entries.async_get_entry(entity_entry.config_entry_id)
+            if not entry or entry.domain != DOMAIN:
+                continue
+            subentries = getattr(entry, "subentries", None) or {}
+            subentry = subentries.get(entity_entry.config_subentry_id)
+            if not subentry:
+                continue
+            caps = get_capabilities(entry)
+            _ensure_capability(entry, caps.supports_send_document, feature="send_document")
+            all_buttons = resolve_service_inline_keyboard(
+                entry.options,
+                send_keyboard=send_kb,
+                buttons_provided=buttons_provided,
+                buttons_raw=data.get("buttons"),
+            )
+            if all_buttons:
+                _ensure_capability(entry, caps.supports_inline_keyboard, feature="inline_keyboard")
+            await upload_document_and_send(
+                hass,
+                entry,
+                recipient_dict_from_subentry(
+                    subentry, hass=hass, entry_id=entry.entry_id
+                ),
+                local_sources[0],
+                file_paths_or_urls=local_sources,
+                caption=caption,
+                buttons=all_buttons,
+                count_requests=count_requests,
+                notify=notify_flag,
+                disable_ssl=disable_ssl,
+                url_auth_type=auth_type,
+                url_auth_login=auth_login,
+                url_auth_password=auth_password,
+                url_auth_token=auth_token,
+                message_format=message_format,
+            )
+    finally:
+        cleanup_temp_file_paths(temp_paths)
 
 
 async def async_send_photo_handler(service: ServiceCall) -> None:
@@ -1592,49 +1630,66 @@ async def _send_video(
     if not resolved:
         return
 
+    materialized = await async_materialize_remote_file_sources(
+        hass,
+        file_paths_or_urls,
+        media_kind="video",
+        disable_ssl=disable_ssl,
+        url_auth_type=auth_type,
+        url_auth_login=auth_login,
+        url_auth_password=auth_password,
+        url_auth_token=auth_token,
+    )
+    if materialized is None:
+        return
+    local_sources, temp_paths = materialized
+
     reg = er.async_get(hass)
 
-    for eid in resolved:
-        entity_entry = reg.async_get(eid)
-        if not entity_entry or not entity_entry.config_entry_id or not entity_entry.config_subentry_id:
-            _LOGGER.warning("Пропуск сущности %s: нет записи или чата", eid)
-            continue
-        entry = hass.config_entries.async_get_entry(entity_entry.config_entry_id)
-        if not entry or entry.domain != DOMAIN:
-            continue
-        subentries = getattr(entry, "subentries", None) or {}
-        subentry = subentries.get(entity_entry.config_subentry_id)
-        if not subentry:
-            continue
-        caps = get_capabilities(entry)
-        _ensure_capability(entry, caps.supports_send_video, feature="send_video")
-        all_buttons = resolve_service_inline_keyboard(
-            entry.options,
-            send_keyboard=send_kb,
-            buttons_provided=buttons_provided,
-            buttons_raw=data.get("buttons"),
-        )
-        if all_buttons:
-            _ensure_capability(entry, caps.supports_inline_keyboard, feature="inline_keyboard")
-        await upload_video_and_send(
-            hass,
-            entry,
-            recipient_dict_from_subentry(
-                subentry, hass=hass, entry_id=entry.entry_id
-            ),
-            file_paths_or_urls[0],
-            file_paths_or_urls=file_paths_or_urls,
-            caption=caption,
-            buttons=all_buttons,
-            count_requests=count_requests,
-            notify=notify_flag,
-            disable_ssl=disable_ssl,
-            url_auth_type=auth_type,
-            url_auth_login=auth_login,
-            url_auth_password=auth_password,
-            url_auth_token=auth_token,
-            message_format=message_format,
-        )
+    try:
+        for eid in resolved:
+            entity_entry = reg.async_get(eid)
+            if not entity_entry or not entity_entry.config_entry_id or not entity_entry.config_subentry_id:
+                _LOGGER.warning("Пропуск сущности %s: нет записи или чата", eid)
+                continue
+            entry = hass.config_entries.async_get_entry(entity_entry.config_entry_id)
+            if not entry or entry.domain != DOMAIN:
+                continue
+            subentries = getattr(entry, "subentries", None) or {}
+            subentry = subentries.get(entity_entry.config_subentry_id)
+            if not subentry:
+                continue
+            caps = get_capabilities(entry)
+            _ensure_capability(entry, caps.supports_send_video, feature="send_video")
+            all_buttons = resolve_service_inline_keyboard(
+                entry.options,
+                send_keyboard=send_kb,
+                buttons_provided=buttons_provided,
+                buttons_raw=data.get("buttons"),
+            )
+            if all_buttons:
+                _ensure_capability(entry, caps.supports_inline_keyboard, feature="inline_keyboard")
+            await upload_video_and_send(
+                hass,
+                entry,
+                recipient_dict_from_subentry(
+                    subentry, hass=hass, entry_id=entry.entry_id
+                ),
+                local_sources[0],
+                file_paths_or_urls=local_sources,
+                caption=caption,
+                buttons=all_buttons,
+                count_requests=count_requests,
+                notify=notify_flag,
+                disable_ssl=disable_ssl,
+                url_auth_type=auth_type,
+                url_auth_login=auth_login,
+                url_auth_password=auth_password,
+                url_auth_token=auth_token,
+                message_format=message_format,
+            )
+    finally:
+        cleanup_temp_file_paths(temp_paths)
 
 
 async def async_send_video_handler(service: ServiceCall) -> None:
