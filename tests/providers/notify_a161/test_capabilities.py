@@ -37,6 +37,7 @@ def test_resolve_a161_by_data(mock_config_entry) -> None:
     assert get_capabilities(mock_config_entry).supports_receive_polling is True
     assert get_capabilities(mock_config_entry).supports_receive_long_polling is False
     assert get_capabilities(mock_config_entry).supports_receive_webhook is False
+    assert get_capabilities(mock_config_entry).supports_receive_websocket is True
     assert (
         get_capabilities(mock_config_entry).supports_delete_last_outgoing_message is False
     )

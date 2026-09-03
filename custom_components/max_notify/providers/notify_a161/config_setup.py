@@ -3,13 +3,12 @@
 from __future__ import annotations
 
 from ...log import get_logger
-import logging
 from typing import Any
 
 import voluptuous as vol
 from homeassistant.data_entry_flow import FlowResult
-from homeassistant.helpers.translation import async_get_translations
 
+from ...flow_selectors import _SENSITIVE_TEXT_SELECTOR
 from ...api import validate_token
 from ...const import (
     CONF_ACCESS_TOKEN,
@@ -35,8 +34,10 @@ from ...translations import (
     prefixed_step_id,
 )
 from ...unique_title import get_unique_entry_title
+from .config_flow import _caps_summary_placeholders, caps_from_flow, message_format_keys, receive_mode_keys
 from .const import (
     CONF_A161_INACTIVITY_PERIOD_DAYS,
+    NOTIFY_A161_INACTIVITY_PERIOD_DAYS_DEFAULT,
     NOTIFY_A161_UPDATES_INTERVAL_SECONDS,
 )
 
@@ -52,6 +53,67 @@ def _notify_user_description_placeholders(flow: Any) -> dict[str, str]:
     exp = flow._wizard_provider().access_token_expected_length()
     extra = {} if exp is None else {"token_length": str(exp)}
     return merge_description_placeholders(flow, extra)
+
+
+def _recipient_description_placeholders(flow: Any) -> dict[str, str]:
+    return merge_description_placeholders(flow, _caps_summary_placeholders(caps_from_flow(flow)))
+
+
+async def _schema_token(flow: Any) -> vol.Schema:
+    suggested = {CONF_ACCESS_TOKEN: getattr(flow, "_token", "") or ""}
+    return flow.add_suggested_values_to_schema(
+        vol.Schema({vol.Required(CONF_ACCESS_TOKEN): _SENSITIVE_TEXT_SELECTOR}),
+        suggested,
+    )
+
+
+async def _schema_receive_mode(flow: Any) -> vol.Schema:
+    trans = await async_selector_translations(flow.hass)
+    caps = caps_from_flow(flow)
+    msg_fmt_keys = message_format_keys(caps)
+    msg_fmt_labels = get_option_labels(
+        trans,
+        "config",
+        "notify_receive_mode",
+        "message_format",
+        msg_fmt_keys,
+        flow=flow,
+    )
+    msg_fmt_list = [msg_fmt_labels[k] for k in msg_fmt_keys]
+    recv_keys = receive_mode_keys(
+        websocket_available=caps.websocket_enabled(),
+        polling_available=caps.polling_enabled(),
+    )
+    recv_labels = get_option_labels(
+        trans,
+        "config",
+        "notify_receive_mode",
+        "receive_mode",
+        recv_keys,
+        flow=flow,
+    )
+    recv_list = [recv_labels[k] for k in recv_keys]
+    current_fmt = getattr(flow, "_message_format", "text")
+    if current_fmt not in msg_fmt_keys:
+        current_fmt = "text"
+    current = getattr(flow, "_receive_mode", RECEIVE_MODE_SEND_ONLY)
+    if current not in recv_keys:
+        current = RECEIVE_MODE_SEND_ONLY
+    suggested = {
+        CONF_MESSAGE_FORMAT: msg_fmt_labels.get(current_fmt, msg_fmt_list[0]),
+        CONF_RECEIVE_MODE: recv_labels.get(current, recv_list[0]),
+    }
+    return flow.add_suggested_values_to_schema(
+        vol.Schema(
+            {
+                vol.Optional(CONF_MESSAGE_FORMAT, default=msg_fmt_list[0]): vol.In(
+                    msg_fmt_list
+                ),
+                vol.Required(CONF_RECEIVE_MODE, default=recv_list[0]): vol.In(recv_list),
+            }
+        ),
+        suggested,
+    )
 
 
 async def async_step_notify_info(
@@ -70,49 +132,14 @@ async def async_step_notify_info(
 async def async_step_notify_user(
     flow: Any, user_input: dict[str, Any] | None = None
 ) -> FlowResult:
-    """notify.a161.ru setup: token + format, затем recipient_id (личный или группа)."""
+    """notify.a161.ru: токен, затем capabilities; format выбирается на следующем шаге."""
     step_user = prefixed_step_id(flow, "notify_user")
     if user_input is not None:
         flow._token = user_input[CONF_ACCESS_TOKEN].strip()
-        trans = await async_selector_translations(flow.hass)
-        msg_fmt_key_to_label = get_option_labels(
-            trans,
-            "config",
-            "notify_user",
-            "message_format",
-            ["text", "markdown", "html"],
-            flow=flow,
-        )
-        recv_key_to_label = get_option_labels(
-            trans,
-            "config",
-            "notify_user",
-            "receive_mode",
-            [RECEIVE_MODE_SEND_ONLY, RECEIVE_MODE_POLLING],
-            flow=flow,
-        )
-        msg_fmt_label_to_key = {v: k for k, v in msg_fmt_key_to_label.items()}
-        recv_label_to_key = {v: k for k, v in recv_key_to_label.items()}
-        flow._message_format = (
-            msg_fmt_label_to_key.get(
-                user_input.get(CONF_MESSAGE_FORMAT),
-                user_input.get(CONF_MESSAGE_FORMAT, "text"),
-            )
-            or "text"
-        )
-        flow._receive_mode = (
-            recv_label_to_key.get(
-                user_input.get(CONF_RECEIVE_MODE),
-                user_input.get(CONF_RECEIVE_MODE),
-            )
-            or RECEIVE_MODE_SEND_ONLY
-        )
-        flow._wizard_polling_requested = flow._receive_mode == RECEIVE_MODE_POLLING
-        flow._updates_interval = int(NOTIFY_A161_UPDATES_INTERVAL_SECONDS)
         if not flow._token:
             return flow.async_show_form(
                 step_id=step_user,
-                data_schema=await flow._schema_notify_user_async(),
+                data_schema=await _schema_token(flow),
                 errors={"base": prefixed_error_key(flow, "invalid_token")},
                 description_placeholders=_notify_user_description_placeholders(flow),
             )
@@ -120,7 +147,7 @@ async def async_step_notify_user(
         if exp_len is not None and len(flow._token) != exp_len:
             return flow.async_show_form(
                 step_id=step_user,
-                data_schema=await flow._schema_notify_user_async(),
+                data_schema=await _schema_token(flow),
                 errors={
                     "base": prefixed_error_key(flow, "invalid_notify_token_length"),
                 },
@@ -130,19 +157,102 @@ async def async_step_notify_user(
         if err:
             return flow.async_show_form(
                 step_id=step_user,
-                data_schema=await flow._schema_notify_user_async(),
+                data_schema=await _schema_token(flow),
                 errors={"base": prefixed_error_key(flow, err)},
                 description_placeholders=_notify_user_description_placeholders(flow),
             )
+        from .remote_capabilities import async_fetch_capabilities_for_token
+
+        caps = await async_fetch_capabilities_for_token(flow.hass, flow._token)
+        flow._a161_remote_caps = caps
+        if not caps.token_active:
+            return flow.async_show_form(
+                step_id=step_user,
+                data_schema=await _schema_token(flow),
+                errors={"base": prefixed_error_key(flow, "token_inactive")},
+                description_placeholders=_notify_user_description_placeholders(flow),
+            )
+        allowed_fmts = message_format_keys(caps)
+        if getattr(flow, "_message_format", "text") not in allowed_fmts:
+            flow._message_format = "text"
+        flow._updates_interval = int(
+            caps.polling_interval_default_s
+            or caps.polling_interval_s
+            or NOTIFY_A161_UPDATES_INTERVAL_SECONDS
+        )
+        flow._a161_inactivity_period_days = int(
+            caps.polling_inactivity_auto_disable_days
+            or NOTIFY_A161_INACTIVITY_PERIOD_DAYS_DEFAULT
+        )
         flow._webhook_secret = ""
         flow._buttons_rows = []
+        flow._receive_mode = RECEIVE_MODE_SEND_ONLY
+        return await flow.async_step_notify_receive_mode(None)
+    return flow.async_show_form(
+        step_id=step_user,
+        data_schema=await _schema_token(flow),
+        description_placeholders=_notify_user_description_placeholders(flow),
+    )
+
+
+async def async_step_notify_receive_mode(
+    flow: Any, user_input: dict[str, Any] | None = None
+) -> FlowResult:
+    """Выбор формата и режима приёма после GET /me/capabilities."""
+    step_id = prefixed_step_id(flow, "notify_receive_mode")
+    caps = caps_from_flow(flow)
+    msg_fmt_keys = message_format_keys(caps)
+    recv_keys = receive_mode_keys(
+        websocket_available=caps.websocket_enabled(),
+        polling_available=caps.polling_enabled(),
+    )
+    if user_input is not None:
+        trans = await async_selector_translations(flow.hass)
+        msg_fmt_labels = get_option_labels(
+            trans,
+            "config",
+            "notify_receive_mode",
+            "message_format",
+            msg_fmt_keys,
+            flow=flow,
+        )
+        msg_fmt_label_to_key = {v: k for k, v in msg_fmt_labels.items()}
+        chosen_fmt = (
+            msg_fmt_label_to_key.get(
+                user_input.get(CONF_MESSAGE_FORMAT),
+                user_input.get(CONF_MESSAGE_FORMAT, "text"),
+            )
+            or "text"
+        )
+        if chosen_fmt not in msg_fmt_keys:
+            chosen_fmt = "text"
+        flow._message_format = chosen_fmt
+        recv_labels = get_option_labels(
+            trans,
+            "config",
+            "notify_receive_mode",
+            "receive_mode",
+            recv_keys,
+            flow=flow,
+        )
+        recv_label_to_key = {v: k for k, v in recv_labels.items()}
+        flow._receive_mode = (
+            recv_label_to_key.get(
+                user_input.get(CONF_RECEIVE_MODE),
+                user_input.get(CONF_RECEIVE_MODE),
+            )
+            or RECEIVE_MODE_SEND_ONLY
+        )
+        if flow._receive_mode not in recv_keys:
+            flow._receive_mode = RECEIVE_MODE_SEND_ONLY
+        flow._wizard_polling_requested = flow._receive_mode == RECEIVE_MODE_POLLING
         if flow._receive_mode == RECEIVE_MODE_POLLING:
             return await flow.async_step_updates_interval(None)
         return await flow.async_step_notify_recipient(None)
     return flow.async_show_form(
-        step_id=step_user,
-        data_schema=await flow._schema_notify_user_async(),
-        description_placeholders=_notify_user_description_placeholders(flow),
+        step_id=step_id,
+        data_schema=await _schema_receive_mode(flow),
+        description_placeholders=_recipient_description_placeholders(flow),
     )
 
 
@@ -160,6 +270,8 @@ async def async_step_notify_recipient(
         else:
             wprov = flow._wizard_provider()
             rid_err = wprov.config_flow_recipient_id_error(n)
+            if rid_err is None and n < 0 and not caps_from_flow(flow).supports_groups:
+                rid_err = "group_chats_not_supported"
             if rid_err:
                 errors["base"] = prefixed_error_key(flow, rid_err)
                 return flow.async_show_form(
@@ -168,7 +280,7 @@ async def async_step_notify_recipient(
                         {vol.Required(CONF_RECIPIENT_ID): vol.Coerce(int)}
                     ),
                     errors=errors,
-                    description_placeholders=merge_description_placeholders(flow),
+                    description_placeholders=_recipient_description_placeholders(flow),
                 )
             unique_id = f"user_{n}" if n > 0 else f"chat_{n}"
             title = f"User {n}" if n > 0 else f"Chat {n}"
@@ -185,7 +297,11 @@ async def async_step_notify_recipient(
                 CONF_BUTTONS: flow._buttons_rows,
                 CONF_UPDATES_INTERVAL: int(flow._updates_interval),
                 CONF_A161_INACTIVITY_PERIOD_DAYS: int(
-                    getattr(flow, "_a161_inactivity_period_days", 3)
+                    getattr(
+                        flow,
+                        "_a161_inactivity_period_days",
+                        NOTIFY_A161_INACTIVITY_PERIOD_DAYS_DEFAULT,
+                    )
                 ),
             }
             token_err = wprov.config_flow_new_entry_token_error_key(
@@ -198,7 +314,7 @@ async def async_step_notify_recipient(
                         {vol.Required(CONF_RECIPIENT_ID): vol.Coerce(int)}
                     ),
                     errors={"base": prefixed_error_key(flow, token_err)},
-                    description_placeholders=merge_description_placeholders(flow),
+                    description_placeholders=_recipient_description_placeholders(flow),
                 )
             mode_title = await get_receive_mode_title(flow.hass, flow._receive_mode)
             base_title = wprov.build_entry_base_title(mode_title)
@@ -219,21 +335,19 @@ async def async_step_notify_recipient(
         step_id=step_recipient,
         data_schema=vol.Schema({vol.Required(CONF_RECIPIENT_ID): vol.Coerce(int)}),
         errors=errors,
-        description_placeholders=merge_description_placeholders(flow),
+        description_placeholders=_recipient_description_placeholders(flow),
     )
 
 
 async def async_step_recipient(
     flow: Any, user_input: dict[str, Any] | None = None
 ) -> FlowResult:
-    """Тот же шаг, что ``notify_recipient``: ``setup_common`` вызывает ``async_step_recipient``."""
     return await async_step_notify_recipient(flow, user_input)
 
 
 async def async_step_updates_interval(
     flow: Any, user_input: dict[str, Any] | None = None
 ) -> FlowResult:
-    """Интервал polling (реализация в провайдере)."""
     return await flow._wizard_provider().async_config_flow_updates_interval_setup(
         flow, user_input
     )
@@ -242,7 +356,6 @@ async def async_step_updates_interval(
 async def async_step_a161_inactivity_period(
     flow: Any, user_input: dict[str, Any] | None = None
 ) -> FlowResult:
-    """Период неактивности для polling (реализация в провайдере)."""
     return await flow._wizard_provider().async_config_flow_inactivity_period_setup(
         flow, user_input
     )

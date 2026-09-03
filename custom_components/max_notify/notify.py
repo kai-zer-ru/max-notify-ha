@@ -60,7 +60,7 @@ async def delete_message(
     hass: HomeAssistant, entry: ConfigEntry, message_id: str
 ) -> bool:
     provider = get_provider(entry)
-    provider.ensure_can_delete_message(entry)
+    provider.ensure_can_delete_message(hass, entry)
     return await provider.async_delete_message(hass, entry, message_id)
 
 
@@ -68,7 +68,7 @@ async def delete_messages(
     hass: HomeAssistant, entry: ConfigEntry, message_ids: list[str]
 ) -> list[str]:
     provider = get_provider(entry)
-    provider.ensure_can_delete_message(entry)
+    provider.ensure_can_delete_message(hass, entry)
     from .providers import notify_outbound
 
     return await notify_outbound.delete_messages(hass, entry, message_ids)
@@ -83,8 +83,8 @@ async def list_message_ids_in_period(
     ts_to: int | None,
 ) -> list[str]:
     provider = get_provider(entry)
-    provider.ensure_can_delete_message(entry)
-    provider.ensure_can_delete_message_by_period(entry)
+    provider.ensure_can_delete_message(hass, entry)
+    provider.ensure_can_delete_message_by_period(hass, entry)
     return await provider.async_list_message_ids_in_period(
         hass,
         entry,
@@ -104,7 +104,9 @@ async def edit_message(
     format: str | None = None,
 ) -> bool:
     provider = get_provider(entry)
-    provider.ensure_can_edit_message(entry)
+    provider.ensure_can_edit_message(hass, entry)
+    if text is not None:
+        provider.ensure_message_format_allowed(hass, entry, format)
     return await provider.async_edit_message(
         hass,
         entry,
@@ -124,7 +126,7 @@ async def delete_last_outgoing_message(
     scan_count: int,
 ) -> bool:
     provider = get_provider(entry)
-    provider.ensure_can_delete_last_outgoing_message(entry)
+    provider.ensure_can_delete_last_outgoing_message(hass, entry)
     return await provider.async_delete_last_outgoing_message(
         hass,
         entry,
@@ -167,7 +169,10 @@ async def send_message(
     notify: bool = True,
 ) -> None:
     provider = get_provider(entry)
-    provider.ensure_can_send_message(entry, recipient, with_buttons=bool(buttons))
+    provider.ensure_can_send_message(
+        hass, entry, recipient, with_buttons=bool(buttons)
+    )
+    provider.ensure_message_format_allowed(hass, entry, message_format)
     await provider.async_send_message(
         hass,
         entry,
@@ -218,7 +223,10 @@ async def upload_image_and_send(
     message_format: str | None = None,
 ) -> None:
     provider = get_provider(entry)
-    provider.ensure_can_upload_image(entry, recipient, with_buttons=bool(buttons))
+    provider.ensure_can_upload_image(
+        hass, entry, recipient, with_buttons=bool(buttons)
+    )
+    provider.ensure_message_format_allowed(hass, entry, message_format)
     await provider.async_upload_image_and_send(
         hass,
         entry,
@@ -255,7 +263,10 @@ async def upload_document_and_send(
     message_format: str | None = None,
 ) -> None:
     provider = get_provider(entry)
-    provider.ensure_can_upload_document(entry, recipient, with_buttons=bool(buttons))
+    provider.ensure_can_upload_document(
+        hass, entry, recipient, with_buttons=bool(buttons)
+    )
+    provider.ensure_message_format_allowed(hass, entry, message_format)
     await provider.async_upload_document_and_send(
         hass,
         entry,
@@ -293,7 +304,10 @@ async def upload_video_and_send(
     message_format: str | None = None,
 ) -> None:
     provider = get_provider(entry)
-    provider.ensure_can_upload_video(entry, recipient, with_buttons=bool(buttons))
+    provider.ensure_can_upload_video(
+        hass, entry, recipient, with_buttons=bool(buttons)
+    )
+    provider.ensure_message_format_allowed(hass, entry, message_format)
     await provider.async_upload_video_and_send(
         hass,
         entry,
@@ -393,8 +407,9 @@ class MaxNotifyEntity(NotifyEntity):
     async def async_send_message(self, message: str, title: str | None = None) -> None:
         provider = get_provider(self._entry)
         provider.ensure_can_send_message(
-            self._entry, self._recipient, with_buttons=False
+            self.hass, self._entry, self._recipient, with_buttons=False
         )
+        provider.ensure_message_format_allowed(self.hass, self._entry, None)
         await provider.async_entity_send_plain_message(
             self.hass,
             self._entry,

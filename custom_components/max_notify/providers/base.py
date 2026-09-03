@@ -14,9 +14,11 @@ _T = TypeVar("_T")
 
 from ..const import (
     API_PATH_MESSAGES,
+    API_PATH_UPDATES,
     CONF_BUTTONS,
     CONF_COMMANDS,
     CONF_INTEGRATION_TYPE,
+    CONF_MESSAGE_FORMAT,
     CONF_UPDATES_INTERVAL,
     CONF_WEBHOOK_SECRET,
     DOMAIN,
@@ -26,6 +28,7 @@ from ..const import (
 )
 from ..translations import get_receive_mode_title
 from ..unique_title import get_unique_entry_title
+from .capabilities import IntegrationCapabilities
 
 
 class MaxNotifyIntegrationProvider:
@@ -53,6 +56,7 @@ class MaxNotifyIntegrationProvider:
         "translation_prefix_keys",
         "supports_receive_polling",
         "supports_receive_long_polling",
+        "supports_receive_websocket",
         "supports_group_chats",
         "supports_bot_command_registration",
         "supports_slash_command_allowlist_ui",
@@ -80,6 +84,7 @@ class MaxNotifyIntegrationProvider:
         translation_prefix_keys: frozenset[str] | None = None,
         supports_receive_polling: bool = False,
         supports_receive_long_polling: bool = False,
+        supports_receive_websocket: bool = False,
         supports_group_chats: bool = False,
         supports_bot_command_registration: bool = False,
         supports_slash_command_allowlist_ui: bool = True,
@@ -103,6 +108,7 @@ class MaxNotifyIntegrationProvider:
         self.translation_prefix_keys = translation_prefix_keys
         self.supports_receive_polling = supports_receive_polling
         self.supports_receive_long_polling = supports_receive_long_polling
+        self.supports_receive_websocket = supports_receive_websocket
         self.supports_group_chats = supports_group_chats
         self.supports_bot_command_registration = supports_bot_command_registration
         self.supports_slash_command_allowlist_ui = supports_slash_command_allowlist_ui
@@ -211,6 +217,12 @@ class MaxNotifyIntegrationProvider:
         self, hass: HomeAssistant, entry: ConfigEntry
     ) -> None:
         """Цикл long polling (режим ``long_polling``); отмена задачи — выход."""
+        return None
+
+    async def async_updates_websocket_loop(
+        self, hass: HomeAssistant, entry: ConfigEntry
+    ) -> None:
+        """Цикл исходящего WebSocket (режим ``websocket``); отмена задачи — выход."""
         return None
 
     async def async_delete_message(
@@ -456,8 +468,11 @@ class MaxNotifyIntegrationProvider:
         """Ключ в ``common`` для подсказки режима приёма (config flow)."""
         return "receive_mode_no_https"
 
-    def config_flow_receive_mode_keys_options_compact(self) -> list[str]:
+    def config_flow_receive_mode_keys_options_compact(
+        self, *, websocket_available: bool = False
+    ) -> list[str]:
         """Узкий набор ключей receive_mode для дополнительного шага опций (без WebHook)."""
+        _ = websocket_available
         return self.config_flow_receive_mode_keys_primary_config(
             webhook_available=False
         )
@@ -474,6 +489,19 @@ class MaxNotifyIntegrationProvider:
         return self.config_flow_receive_mode_keys_primary_config(
             webhook_available=webhook_available
         )
+
+    def apply_remote_capabilities(
+        self,
+        hass: HomeAssistant,
+        entry: ConfigEntry,
+        base: IntegrationCapabilities,
+    ) -> IntegrationCapabilities:
+        """Подмешать runtime remote capabilities в static ``IntegrationCapabilities``.
+
+        По умолчанию без изменений (официальный API и провайдеры без /me/capabilities).
+        """
+        _ = hass, entry
+        return base
 
     def config_flow_recipient_id_error(self, recipient_id: int) -> str | None:
         """Ключ ошибки перевода для шага recipient или None."""
@@ -506,6 +534,7 @@ class MaxNotifyIntegrationProvider:
 
     def ensure_can_send_message(
         self,
+        hass: HomeAssistant,
         entry: ConfigEntry,
         recipient: dict[str, Any],
         *,
@@ -514,7 +543,7 @@ class MaxNotifyIntegrationProvider:
         """Проверки capability перед отправкой текста."""
         from .registry import get_capabilities
 
-        caps = get_capabilities(entry)
+        caps = get_capabilities(entry, hass)
         if self._recipient_is_group_chat(recipient):
             self._require_feature(
                 entry, feature="group_chats", enabled=caps.supports_group_chats
@@ -524,19 +553,44 @@ class MaxNotifyIntegrationProvider:
                 entry, feature="inline_keyboard", enabled=caps.supports_inline_keyboard
             )
 
-    def ensure_can_delete_message(self, entry: ConfigEntry) -> None:
+    @staticmethod
+    def resolve_message_format(
+        entry: ConfigEntry, message_format: str | None
+    ) -> str:
+        """Эффективный format: аргумент сервиса или настройка записи."""
+        raw = (
+            message_format
+            if message_format is not None
+            else entry.data.get(CONF_MESSAGE_FORMAT, "text")
+        )
+        return str(raw or "text").strip().lower() or "text"
+
+    def ensure_message_format_allowed(
+        self,
+        hass: HomeAssistant,
+        entry: ConfigEntry,
+        message_format: str | None,
+    ) -> None:
+        """Гейт markdown/html по возможностям провайдера/токена (по умолчанию — всё ок)."""
+        return None
+
+    def ensure_can_delete_message(
+        self, hass: HomeAssistant, entry: ConfigEntry
+    ) -> None:
         from .registry import get_capabilities
 
-        caps = get_capabilities(entry)
+        caps = get_capabilities(entry, hass)
         self._require_feature(
             entry, feature="delete_message", enabled=caps.supports_delete_message
         )
 
-    def ensure_can_delete_message_by_period(self, entry: ConfigEntry) -> None:
+    def ensure_can_delete_message_by_period(
+        self, hass: HomeAssistant, entry: ConfigEntry
+    ) -> None:
         """Удаление по дате/интервалу from–to (поиск в API и пакетное удаление)."""
         from .registry import get_capabilities
 
-        caps = get_capabilities(entry)
+        caps = get_capabilities(entry, hass)
         if caps.supports_delete_message_by_period:
             return
         raise ServiceValidationError(
@@ -545,10 +599,12 @@ class MaxNotifyIntegrationProvider:
             translation_placeholders={"provider": self.label},
         )
 
-    def ensure_can_delete_last_outgoing_message(self, entry: ConfigEntry) -> None:
+    def ensure_can_delete_last_outgoing_message(
+        self, hass: HomeAssistant, entry: ConfigEntry
+    ) -> None:
         from .registry import get_capabilities
 
-        caps = get_capabilities(entry)
+        caps = get_capabilities(entry, hass)
         if caps.supports_delete_last_outgoing_message:
             return
         raise ServiceValidationError(
@@ -557,16 +613,19 @@ class MaxNotifyIntegrationProvider:
             translation_placeholders={"provider": self.label},
         )
 
-    def ensure_can_edit_message(self, entry: ConfigEntry) -> None:
+    def ensure_can_edit_message(
+        self, hass: HomeAssistant, entry: ConfigEntry
+    ) -> None:
         from .registry import get_capabilities
 
-        caps = get_capabilities(entry)
+        caps = get_capabilities(entry, hass)
         self._require_feature(
             entry, feature="edit_message", enabled=caps.supports_edit_message
         )
 
     def ensure_can_upload_image(
         self,
+        hass: HomeAssistant,
         entry: ConfigEntry,
         recipient: dict[str, Any],
         *,
@@ -574,7 +633,7 @@ class MaxNotifyIntegrationProvider:
     ) -> None:
         from .registry import get_capabilities
 
-        caps = get_capabilities(entry)
+        caps = get_capabilities(entry, hass)
         if self._recipient_is_group_chat(recipient):
             self._require_feature(
                 entry, feature="group_chats", enabled=caps.supports_group_chats
@@ -587,6 +646,7 @@ class MaxNotifyIntegrationProvider:
 
     def ensure_can_upload_document(
         self,
+        hass: HomeAssistant,
         entry: ConfigEntry,
         recipient: dict[str, Any],
         *,
@@ -594,7 +654,7 @@ class MaxNotifyIntegrationProvider:
     ) -> None:
         from .registry import get_capabilities
 
-        caps = get_capabilities(entry)
+        caps = get_capabilities(entry, hass)
         if self._recipient_is_group_chat(recipient):
             self._require_feature(
                 entry, feature="group_chats", enabled=caps.supports_group_chats
@@ -609,6 +669,7 @@ class MaxNotifyIntegrationProvider:
 
     def ensure_can_upload_video(
         self,
+        hass: HomeAssistant,
         entry: ConfigEntry,
         recipient: dict[str, Any],
         *,
@@ -616,7 +677,7 @@ class MaxNotifyIntegrationProvider:
     ) -> None:
         from .registry import get_capabilities
 
-        caps = get_capabilities(entry)
+        caps = get_capabilities(entry, hass)
         if self._recipient_is_group_chat(recipient):
             self._require_feature(
                 entry, feature="group_chats", enabled=caps.supports_group_chats
@@ -669,7 +730,11 @@ class MaxNotifyIntegrationProvider:
         return []
 
     def build_updates_poll_params(
-        self, entry: ConfigEntry, marker: Any | None
+        self,
+        entry: ConfigEntry,
+        marker: Any | None,
+        *,
+        hass: HomeAssistant | None = None,
     ) -> dict[str, Any]:
         """Параметры query для long polling (официальный API: marker, types, timeout)."""
         params: dict[str, Any] = {
@@ -689,7 +754,10 @@ class MaxNotifyIntegrationProvider:
         """True — выдерживать интервал между запросами (настройка в options)."""
         return False
 
-    def updates_poll_interval_seconds(self, entry: ConfigEntry) -> float:
+    def updates_poll_interval_seconds(
+        self, entry: ConfigEntry, *, hass: HomeAssistant | None = None
+    ) -> float:
+        _ = hass
         return float(self.updates_interval_default)
 
     def should_persist_updates_marker(self) -> bool:
@@ -701,7 +769,27 @@ class MaxNotifyIntegrationProvider:
         return None
 
     def updates_poll_sleep_after_empty_batch_seconds(self) -> float:
-        return 0.5
+        return 0.0
+
+    def updates_poll_url(
+        self, entry: ConfigEntry, *, hass: HomeAssistant | None = None
+    ) -> str:
+        """Полный URL GET …/updates; провайдер может переопределить (remote capabilities)."""
+        _ = entry, hass
+        return f"{self.api_base_url}{API_PATH_UPDATES}"
+
+    async def async_before_polling_iteration(
+        self, hass: HomeAssistant, entry: ConfigEntry
+    ) -> None:
+        _ = hass, entry
+        return None
+
+    def polling_iteration_skip_reason(
+        self, hass: HomeAssistant, entry: ConfigEntry
+    ) -> str | None:
+        """Причина пропуска итерации polling; None — выполнять запрос."""
+        _ = hass, entry
+        return None
 
     def build_delete_message_url(
         self, base_url: str, api_path_messages: str, message_id: str
@@ -752,6 +840,39 @@ class MaxNotifyIntegrationProvider:
 
     def max_attachment_upload_bytes(self) -> int | None:
         """Лимит тела вложения при загрузке; None — без проверки на уровне интеграции."""
+        return None
+
+    def upload_limit_mb_for_display(
+        self,
+        hass: HomeAssistant,
+        entry: ConfigEntry,
+        *,
+        media_kind: str,
+    ) -> int | None:
+        """Лимит в МБ для текста ошибки (remote capabilities); None — взять из байт."""
+        _ = hass, entry, media_kind
+        return None
+
+    def resolve_upload_limit_bytes(
+        self,
+        hass: HomeAssistant,
+        entry: ConfigEntry,
+        *,
+        media_kind: str | None = None,
+    ) -> int | None:
+        """Лимит upload с учётом remote capabilities провайдера."""
+        _ = hass, entry, media_kind
+        return self.max_attachment_upload_bytes()
+
+    async def async_acquire_upload_slot(
+        self,
+        hass: HomeAssistant,
+        entry: ConfigEntry,
+        *,
+        size_bytes: int | None = None,
+    ) -> None:
+        """Дополнительный rate limit перед upload (провайдер может переопределить)."""
+        _ = hass, entry, size_bytes
         return None
 
     def max_attachments_per_message(self, entry: ConfigEntry) -> int | None:

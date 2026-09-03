@@ -36,3 +36,4 @@ class IntegrationCapabilities:
     supports_receive_polling: bool = False
     supports_receive_long_polling: bool = False
     supports_receive_webhook: bool = False
+    supports_receive_websocket: bool = False

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import time
+from dataclasses import replace
 from typing import TYPE_CHECKING, Any
 
 from ...const import normalize_access_token
@@ -18,6 +19,7 @@ from ...const import (
 from ...translations import get_receive_mode_title
 from ...unique_title import get_unique_entry_title
 from ..base import MaxNotifyIntegrationProvider
+from ..capabilities import IntegrationCapabilities
 from ..entry_kind import entry_matches_notify_a161
 from ..setup_common import (
     async_run_primary_config_shared_step,
@@ -38,9 +40,9 @@ from .const import (
     NOTIFY_A161_INACTIVITY_PERIOD_DAYS_MAX,
     NOTIFY_A161_INACTIVITY_PERIOD_DAYS_MIN,
     NOTIFY_A161_MAX_UPLOAD_BYTES,
-    NOTIFY_A161_MIN_SEND_INTERVAL_SECONDS,
 )
 from .lifecycle import ensure_polling_grace
+from .remote_capabilities import A161RemoteCapabilities, resolve_remote_capabilities
 from . import notify as a161_notify
 from .updates import extract_updates_from_payload as a161_extract_updates_from_payload
 
@@ -51,14 +53,169 @@ if TYPE_CHECKING:
 
 class NotifyA161IntegrationProvider(MaxNotifyIntegrationProvider):
     @staticmethod
-    def _sanitize_inactivity_days(raw: Any) -> int:
+    def _sanitize_inactivity_days(raw: Any, *, default: int | None = None) -> int:
+        fallback = (
+            default
+            if default is not None
+            else NOTIFY_A161_INACTIVITY_PERIOD_DAYS_DEFAULT
+        )
         try:
             days = int(raw)
         except (TypeError, ValueError):
-            days = NOTIFY_A161_INACTIVITY_PERIOD_DAYS_DEFAULT
+            days = fallback
         return min(
             NOTIFY_A161_INACTIVITY_PERIOD_DAYS_MAX,
             max(NOTIFY_A161_INACTIVITY_PERIOD_DAYS_MIN, days),
+        )
+
+    @staticmethod
+    def _remote_caps(hass: HomeAssistant, entry: ConfigEntry):
+        return resolve_remote_capabilities(hass, entry)
+
+    def apply_remote_capabilities(
+        self,
+        hass: HomeAssistant,
+        entry: ConfigEntry,
+        base: IntegrationCapabilities,
+    ) -> IntegrationCapabilities:
+        caps = self._remote_caps(hass, entry)
+        size_candidates = [
+            caps.max_size_mb_for_kind("photo"),
+            caps.max_size_mb_for_kind("video"),
+            caps.max_size_mb_for_kind("document"),
+        ]
+        size_mb = [one for one in size_candidates if one is not None]
+        max_upload = (
+            max(size_mb) * 1024 * 1024 if size_mb else base.max_client_upload_bytes
+        )
+        return replace(
+            base,
+            supports_group_chats=caps.supports_groups,
+            supports_inline_keyboard=caps.supports_inline_keyboard,
+            supports_delete_message=caps.supports_delete_by_id,
+            supports_edit_message=caps.supports_edit_message,
+            supports_send_photo=caps.support_photo,
+            supports_send_document=caps.support_document,
+            supports_send_video=caps.support_video,
+            supports_receive_polling=caps.polling_enabled(),
+            supports_receive_websocket=caps.websocket_enabled(),
+            max_client_upload_bytes=max_upload,
+        )
+
+    def upload_limit_mb_for_display(
+        self,
+        hass: HomeAssistant,
+        entry: ConfigEntry,
+        *,
+        media_kind: str,
+    ) -> int | None:
+        """max_*_size_mb из remote capabilities для текста ошибки."""
+        return self._remote_caps(hass, entry).max_size_mb_for_kind(media_kind)
+
+    def _raise_if_remote_unavailable(
+        self, entry: ConfigEntry, caps: A161RemoteCapabilities
+    ) -> None:
+        from homeassistant.exceptions import ServiceValidationError
+
+        if not caps.service_enabled():
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="token_inactive",
+                translation_placeholders={"provider": self.label},
+            )
+        if caps.maintenance:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="provider_maintenance",
+                translation_placeholders={
+                    "provider": self.label,
+                    "message": caps.maintenance_message
+                    or "Service is under maintenance",
+                },
+            )
+
+    def ensure_message_format_allowed(
+        self,
+        hass: HomeAssistant,
+        entry: ConfigEntry,
+        message_format: str | None,
+    ) -> None:
+        caps = self._remote_caps(hass, entry)
+        self._raise_if_remote_unavailable(entry, caps)
+        fmt = self.resolve_message_format(entry, message_format)
+        if caps.allows_message_format(fmt):
+            return
+        feature = (
+            "markdown"
+            if fmt == "markdown"
+            else "html"
+            if fmt == "html"
+            else f"format:{fmt}"
+        )
+        self._require_feature(entry, feature=feature, enabled=False)
+
+    def ensure_can_send_message(
+        self,
+        hass: HomeAssistant,
+        entry: ConfigEntry,
+        recipient: dict[str, Any],
+        *,
+        with_buttons: bool,
+    ) -> None:
+        self._raise_if_remote_unavailable(entry, self._remote_caps(hass, entry))
+        super().ensure_can_send_message(
+            hass, entry, recipient, with_buttons=with_buttons
+        )
+
+    def ensure_can_delete_message(
+        self, hass: HomeAssistant, entry: ConfigEntry
+    ) -> None:
+        self._raise_if_remote_unavailable(entry, self._remote_caps(hass, entry))
+        super().ensure_can_delete_message(hass, entry)
+
+    def ensure_can_edit_message(
+        self, hass: HomeAssistant, entry: ConfigEntry
+    ) -> None:
+        self._raise_if_remote_unavailable(entry, self._remote_caps(hass, entry))
+        super().ensure_can_edit_message(hass, entry)
+
+    def ensure_can_upload_image(
+        self,
+        hass: HomeAssistant,
+        entry: ConfigEntry,
+        recipient: dict[str, Any],
+        *,
+        with_buttons: bool,
+    ) -> None:
+        self._raise_if_remote_unavailable(entry, self._remote_caps(hass, entry))
+        super().ensure_can_upload_image(
+            hass, entry, recipient, with_buttons=with_buttons
+        )
+
+    def ensure_can_upload_document(
+        self,
+        hass: HomeAssistant,
+        entry: ConfigEntry,
+        recipient: dict[str, Any],
+        *,
+        with_buttons: bool,
+    ) -> None:
+        self._raise_if_remote_unavailable(entry, self._remote_caps(hass, entry))
+        super().ensure_can_upload_document(
+            hass, entry, recipient, with_buttons=with_buttons
+        )
+
+    def ensure_can_upload_video(
+        self,
+        hass: HomeAssistant,
+        entry: ConfigEntry,
+        recipient: dict[str, Any],
+        *,
+        with_buttons: bool,
+    ) -> None:
+        self._raise_if_remote_unavailable(entry, self._remote_caps(hass, entry))
+        super().ensure_can_upload_video(
+            hass, entry, recipient, with_buttons=with_buttons
         )
 
     def options_init_step_id(self) -> str:
@@ -116,11 +273,15 @@ class NotifyA161IntegrationProvider(MaxNotifyIntegrationProvider):
     def config_flow_receive_mode_keys_primary_config(
         self, *, webhook_available: bool
     ) -> list[str]:
-        return receive_mode_keys()
+        _ = webhook_available
+        return receive_mode_keys(websocket_available=False)
 
-    def config_flow_receive_mode_keys_options_compact(self) -> list[str]:
-        return self.config_flow_receive_mode_keys_primary_config(
-            webhook_available=False
+    def config_flow_receive_mode_keys_options_compact(
+        self, *, websocket_available: bool = False, polling_available: bool = True
+    ) -> list[str]:
+        return receive_mode_keys(
+            websocket_available=websocket_available,
+            polling_available=polling_available,
         )
 
     def config_flow_receive_mode_keys_options_sheet(
@@ -131,9 +292,8 @@ class NotifyA161IntegrationProvider(MaxNotifyIntegrationProvider):
         allow_switch_from_webhook: bool,
         allow_switch_from_polling: bool,
     ) -> list[str]:
-        return self.config_flow_receive_mode_keys_primary_config(
-            webhook_available=False
-        )
+        _ = current_mode, webhook_available, allow_switch_from_webhook, allow_switch_from_polling
+        return receive_mode_keys(websocket_available=False)
 
     def should_restore_polling_after_first_keyboard_button(
         self, *, polling_requested: bool
@@ -144,31 +304,69 @@ class NotifyA161IntegrationProvider(MaxNotifyIntegrationProvider):
         return a161_extract_updates_from_payload(data)
 
     def build_updates_poll_params(
-        self, entry: ConfigEntry, marker: Any | None
+        self,
+        entry: ConfigEntry,
+        marker: Any | None,
+        *,
+        hass: HomeAssistant | None = None,
     ) -> dict[str, Any]:
         params: dict[str, Any] = {"v": self.api_version}
-        if self.updates_poll_limit is not None:
-            params["limit"] = self.updates_poll_limit
+        limit = self.updates_poll_limit
+        if hass is not None:
+            limit = self._remote_caps(hass, entry).polling_limit_s
+        if limit is not None:
+            params["limit"] = limit
         return params
+
+    def updates_poll_url(
+        self, entry: ConfigEntry, *, hass: HomeAssistant | None = None
+    ) -> str:
+        if hass is not None:
+            return self._remote_caps(hass, entry).polling_url
+        return super().updates_poll_url(entry, hass=hass)
+
+    async def async_before_polling_iteration(
+        self, hass: HomeAssistant, entry: ConfigEntry
+    ) -> None:
+        from .remote_capabilities import async_fetch_remote_capabilities
+
+        await async_fetch_remote_capabilities(hass, entry)
+
+    def polling_iteration_skip_reason(
+        self, hass: HomeAssistant, entry: ConfigEntry
+    ) -> str | None:
+        caps = self._remote_caps(hass, entry)
+        if not caps.token_active:
+            return "token inactive or expired"
+        if caps.maintenance:
+            return caps.maintenance_message or "maintenance"
+        if not caps.polling_enabled():
+            return "polling unavailable for this token"
+        return None
+
+    def updates_poll_interval_seconds(
+        self, entry: ConfigEntry, *, hass: HomeAssistant | None = None
+    ) -> float:
+        iv_min = float(self.updates_interval_min)
+        iv_max = float(self.updates_interval_max)
+        iv_default = float(self.updates_interval_default)
+        if hass is not None:
+            caps = self._remote_caps(hass, entry)
+            iv_min = float(caps.polling_interval_min_s)
+            iv_max = float(caps.polling_interval_max_s)
+            iv_default = float(caps.polling_interval_default_s or caps.polling_interval_s)
+        raw = (entry.options or {}).get(CONF_UPDATES_INTERVAL, iv_default)
+        try:
+            iv = float(raw)
+        except (TypeError, ValueError):
+            iv = iv_default
+        return max(iv_min, min(iv_max, iv))
 
     def updates_poll_http_timeout_total(self) -> float:
         return 15.0
 
     def updates_poll_uses_request_pacing(self) -> bool:
         return True
-
-    def updates_poll_interval_seconds(self, entry: ConfigEntry) -> float:
-        raw = (entry.options or {}).get(
-            CONF_UPDATES_INTERVAL, self.updates_interval_default
-        )
-        try:
-            iv = float(raw)
-        except (TypeError, ValueError):
-            iv = float(self.updates_interval_default)
-        return max(
-            float(self.updates_interval_min),
-            min(float(self.updates_interval_max), iv),
-        )
 
     def should_persist_updates_marker(self) -> bool:
         return False
@@ -210,16 +408,52 @@ class NotifyA161IntegrationProvider(MaxNotifyIntegrationProvider):
         entry: ConfigEntry,
         inner: Any,
     ) -> Any:
+        caps = self._remote_caps(hass, entry)
+        self._raise_if_remote_unavailable(entry, caps)
         return await a161_notify.with_pace_lock(
             hass,
             entry,
             domain=DOMAIN,
-            min_interval_seconds=NOTIFY_A161_MIN_SEND_INTERVAL_SECONDS,
+            min_interval_seconds=caps.message_min_interval_seconds(),
             run=inner,
         )
 
     def max_attachment_upload_bytes(self) -> int | None:
         return NOTIFY_A161_MAX_UPLOAD_BYTES
+
+    def resolve_upload_limit_bytes(
+        self,
+        hass: HomeAssistant,
+        entry: ConfigEntry,
+        *,
+        media_kind: str | None = None,
+    ) -> int | None:
+        caps = self._remote_caps(hass, entry)
+        self._raise_if_remote_unavailable(entry, caps)
+        kind = (media_kind or "").strip()
+        if kind:
+            denied = caps.upload_denied_feature(kind)
+            if denied is not None:
+                self._require_feature(entry, feature=denied, enabled=False)
+            remote = caps.max_upload_bytes_for_kind(kind)
+            if remote is not None:
+                return remote
+            return None
+        remote_any = caps.max_upload_bytes_for_kind("")
+        if remote_any is not None:
+            return remote_any
+        return self.max_attachment_upload_bytes()
+
+    async def async_acquire_upload_slot(
+        self,
+        hass: HomeAssistant,
+        entry: ConfigEntry,
+        *,
+        size_bytes: int | None = None,
+    ) -> None:
+        from .upload_rate import async_acquire_upload_slot
+
+        await async_acquire_upload_slot(hass, entry, size_bytes=size_bytes)
 
     def mark_after_send_with_keyboard(
         self, hass: HomeAssistant, entry: ConfigEntry
@@ -416,6 +650,10 @@ class NotifyA161IntegrationProvider(MaxNotifyIntegrationProvider):
 
         async def on_valid(days: int) -> Any:
             flow._pending_a161_inactivity_days = days
+            caps = getattr(flow, "_a161_remote_caps", None)
+            if caps is not None and not getattr(caps, "supports_inline_keyboard", True):
+                flow._opt_buttons = []
+                return await flow.async_step_opt_next(None)
             return await flow.async_step_buttons_menu(None)
 
         return await async_run_inactivity_period_step(
@@ -438,7 +676,11 @@ class NotifyA161IntegrationProvider(MaxNotifyIntegrationProvider):
     async def async_prepare_entry_for_receive(
         self, hass: HomeAssistant, entry: ConfigEntry
     ) -> None:
+        from .remote_capabilities import async_fetch_remote_capabilities
+
         await ensure_polling_grace(hass, entry)
+        # Каждая (пере)загрузка интеграции — свежий GET /me/capabilities.
+        await async_fetch_remote_capabilities(hass, entry, force=True)
 
     async def async_process_incoming_update(
         self, hass: HomeAssistant, entry: ConfigEntry, update: dict[str, Any]
@@ -457,6 +699,13 @@ class NotifyA161IntegrationProvider(MaxNotifyIntegrationProvider):
         from ..updates_service import async_run_polling_loop
 
         await async_run_polling_loop(hass, entry)
+
+    async def async_updates_websocket_loop(
+        self, hass: HomeAssistant, entry: ConfigEntry
+    ) -> None:
+        from .websocket import async_run_websocket_loop
+
+        await async_run_websocket_loop(hass, entry)
 
     async def async_delete_message(
         self, hass: HomeAssistant, entry: ConfigEntry, message_id: str

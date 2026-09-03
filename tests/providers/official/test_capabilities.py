@@ -65,7 +65,7 @@ def test_notify_a161_does_not_register_bot_commands_with_max(mock_config_entry) 
     mock_config_entry.data[CONF_INTEGRATION_TYPE] = INTEGRATION_TYPE_NOTIFY_A161
     assert get_capabilities(mock_config_entry).supports_bot_command_registration is False
     assert (
-        get_capabilities(mock_config_entry).supports_slash_command_allowlist_ui is True
+        get_capabilities(mock_config_entry).supports_slash_command_allowlist_ui is False
     )
 
 

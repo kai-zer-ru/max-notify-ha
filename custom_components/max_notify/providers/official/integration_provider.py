@@ -52,7 +52,10 @@ class OfficialIntegrationProvider(MaxNotifyIntegrationProvider):
         """Long poll Max: не чаще 2 RPS (интервал не меньше 0,5 с между запросами)."""
         return True
 
-    def updates_poll_interval_seconds(self, entry: ConfigEntry) -> float:
+    def updates_poll_interval_seconds(
+        self, entry: ConfigEntry, *, hass: HomeAssistant | None = None
+    ) -> float:
+        _ = hass
         raw = (entry.options or {}).get(
             CONF_UPDATES_INTERVAL, self.updates_interval_default
         )

@@ -15,6 +15,7 @@ from .const import (
     RECEIVE_MODE_LONG_POLLING,
     RECEIVE_MODE_POLLING,
     RECEIVE_MODE_SEND_ONLY,
+    RECEIVE_MODE_WEBSOCKET,
 )
 from .providers.registry import get_capabilities, get_provider
 
@@ -34,7 +35,7 @@ def start_polling(hass: HomeAssistant, entry: ConfigEntry) -> asyncio.Task[None]
     """Запустить фоновый приём updates: отдельно polling и long_polling (см. провайдер)."""
     receive_mode = (entry.options or {}).get(CONF_RECEIVE_MODE, RECEIVE_MODE_SEND_ONLY)
     prov = get_provider(entry)
-    caps = get_capabilities(entry)
+    caps = get_capabilities(entry, hass)
 
     if receive_mode == RECEIVE_MODE_LONG_POLLING:
         if not caps.supports_receive_long_polling:
@@ -52,6 +53,14 @@ def start_polling(hass: HomeAssistant, entry: ConfigEntry) -> asyncio.Task[None]
             )
             return None
         coro_factory = prov.async_updates_polling_loop
+    elif receive_mode == RECEIVE_MODE_WEBSOCKET:
+        if not caps.supports_receive_websocket:
+            _LOGGER.debug(
+                "start_polling пропущен: websocket не поддерживается, запись=%s",
+                entry.entry_id,
+            )
+            return None
+        coro_factory = prov.async_updates_websocket_loop
     else:
         return None
 

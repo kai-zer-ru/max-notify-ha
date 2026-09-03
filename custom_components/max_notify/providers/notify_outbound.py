@@ -654,16 +654,43 @@ def _recipient_to_user_chat(recipient: dict[str, Any]) -> tuple[int | None, int 
     return uid, cid
 
 
-def _effective_upload_limit_bytes(entry: ConfigEntry) -> int | None:
-    """Единый лимит загрузки: capability-контракт + провайдерный fallback."""
+def _effective_upload_limit_bytes(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    *,
+    media_kind: str | None = None,
+) -> int | None:
+    """Единый лимит загрузки: per-kind remote/provider, иначе capability-контракт."""
     prov = get_provider(entry)
-    caps_limit = get_capabilities(entry).max_client_upload_bytes
-    provider_limit = prov.max_attachment_upload_bytes()
+    provider_limit = prov.resolve_upload_limit_bytes(
+        hass, entry, media_kind=media_kind
+    )
+    # Для конкретного вида вложения (photo/video/document) лимит провайдера
+    # уже из capabilities — не зажимаем общим max_client_upload_bytes.
+    if media_kind and provider_limit is not None:
+        return provider_limit
+    caps_limit = get_capabilities(entry, hass).max_client_upload_bytes
     if caps_limit is None:
         return provider_limit
     if provider_limit is None:
         return caps_limit
     return min(caps_limit, provider_limit)
+
+
+def _upload_limit_mib_for_error(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    *,
+    media_kind: str,
+    limit_bytes: int,
+) -> str:
+    """Число МБ в ошибке: предпочтительно max_*_size_mb из capabilities."""
+    mb = get_provider(entry).upload_limit_mb_for_display(
+        hass, entry, media_kind=media_kind
+    )
+    if mb is not None:
+        return str(int(mb))
+    return str(max(0, int(limit_bytes) // (1024 * 1024)))
 
 
 def _recipient_id_from_subentry_unique_id(unique_id: str | None) -> int | None:
@@ -1839,7 +1866,8 @@ async def _upload_media_and_send(
 
     upload_type = attachment_type
 
-    max_up = _effective_upload_limit_bytes(entry)
+    media_kind = "document" if as_document else "photo"
+    max_up = _effective_upload_limit_bytes(hass, entry, media_kind=media_kind)
     if max_up is None:
         raise ServiceValidationError(
             f"{prov.label} must define max_attachment_upload_bytes() for media uploads"
@@ -1879,7 +1907,12 @@ async def _upload_media_and_send(
                     translation_key="third_party_attachment_too_large",
                     translation_placeholders={
                         "provider": prov.label,
-                        "max_mib": str(max_up_effective // (1024 * 1024)),
+                        "max_mib": _upload_limit_mib_for_error(
+                            hass,
+                            entry,
+                            media_kind=media_kind,
+                            limit_bytes=max_up_effective,
+                        ),
                         "size_mib": f"{len(body) / (1024 * 1024):.2f}",
                     },
                 )
@@ -1887,6 +1920,7 @@ async def _upload_media_and_send(
             upload_req_url = prov.build_upload_url(
                 _api_base_url_for_entry(entry), API_PATH_UPLOADS, upload_type
             )
+            await prov.async_acquire_upload_slot(hass, entry, size_bytes=len(body))
             data = await _request_upload_url_json_with_retry(
                 hass,
                 session,
@@ -2003,6 +2037,7 @@ async def _upload_media_and_send(
         upload_req_url = prov.build_upload_url(
             _api_base_url_for_entry(entry), API_PATH_UPLOADS, upload_type
         )
+        await prov.async_acquire_upload_slot(hass, entry)
         data = await _request_upload_url_json_with_retry(
             hass,
             session,
@@ -2332,7 +2367,7 @@ async def upload_video_and_send(
     headers = {"Authorization": token}
 
     prov = get_provider(entry)
-    max_vid = _effective_upload_limit_bytes(entry)
+    max_vid = _effective_upload_limit_bytes(hass, entry, media_kind="video")
     if max_vid is None:
         raise ServiceValidationError(
             f"{prov.label} must define max_attachment_upload_bytes() for video uploads"
@@ -2341,9 +2376,40 @@ async def upload_video_and_send(
     video_tokens: list[str] = []
 
     for file_source in file_sources:
+        read_out = await _read_video_body_for_upload(
+            hass,
+            session,
+            file_source,
+            disable_ssl=disable_ssl,
+            url_auth_type=url_auth_type,
+            url_auth_login=url_auth_login,
+            url_auth_password=url_auth_password,
+            url_auth_token=url_auth_token,
+        )
+        if read_out is None:
+            return
+        body, content_type, filename = read_out
+
+        if len(body) > max_vid_effective:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="third_party_video_too_large",
+                translation_placeholders={
+                    "provider": prov.label,
+                    "max_mib": _upload_limit_mib_for_error(
+                        hass,
+                        entry,
+                        media_kind="video",
+                        limit_bytes=max_vid_effective,
+                    ),
+                    "size_mib": f"{len(body) / (1024 * 1024):.2f}",
+                },
+            )
+
         upload_req_url = prov.build_upload_url(
             _api_base_url_for_entry(entry), API_PATH_UPLOADS, "video"
         )
+        await prov.async_acquire_upload_slot(hass, entry, size_bytes=len(body))
         data = await _request_upload_url_json_with_retry(
             hass,
             session,
@@ -2373,31 +2439,6 @@ async def upload_video_and_send(
                 raise ServiceValidationError(
                     "Max API upload response has no token (required for video)"
                 )
-
-        read_out = await _read_video_body_for_upload(
-            hass,
-            session,
-            file_source,
-            disable_ssl=disable_ssl,
-            url_auth_type=url_auth_type,
-            url_auth_login=url_auth_login,
-            url_auth_password=url_auth_password,
-            url_auth_token=url_auth_token,
-        )
-        if read_out is None:
-            return
-        body, content_type, filename = read_out
-
-        if len(body) > max_vid_effective:
-            raise ServiceValidationError(
-                translation_domain=DOMAIN,
-                translation_key="third_party_video_too_large",
-                translation_placeholders={
-                    "provider": prov.label,
-                    "max_mib": str(max_vid_effective // (1024 * 1024)),
-                    "size_mib": f"{len(body) / (1024 * 1024):.2f}",
-                },
-            )
 
         try:
             form = aiohttp.FormData()

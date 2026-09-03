@@ -175,6 +175,13 @@ class MaxNotifyConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             self, "notify_user", user_input
         )
 
+    async def async_step_notify_receive_mode(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        return await self._wizard_provider().async_config_setup_step(
+            self, "notify_receive_mode", user_input
+        )
+
     async def async_step_notify_recipient(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
@@ -780,12 +787,17 @@ class MaxNotifyOptionsFlow(OptionsFlow):
         trans = await async_selector_translations(self.hass)
         entry_prov = get_provider(entry)
         msg_step_logical = entry_prov.options_init_step_id()
+        msg_fmt_keys = ["text", "markdown", "html"]
+        if entry_prov.options_use_compact_receive_mode_init_branch():
+            caps = getattr(self, "_a161_remote_caps", None)
+            if caps is not None and hasattr(caps, "available_message_formats"):
+                msg_fmt_keys = list(caps.available_message_formats())
         msg_fmt_labels = get_option_labels(
             trans,
             "options",
             msg_step_logical,
             "message_format",
-            ["text", "markdown", "html"],
+            msg_fmt_keys,
             flow=self,
         )
         options = entry.options or {}
@@ -809,7 +821,7 @@ class MaxNotifyOptionsFlow(OptionsFlow):
             recv_keys,
             flow=self,
         )
-        msg_fmt_list = [msg_fmt_labels[k] for k in ["text", "markdown", "html"]]
+        msg_fmt_list = [msg_fmt_labels[k] for k in msg_fmt_keys]
         recv_list = [recv_labels[k] for k in recv_keys]
         selected_mode = cur_recv if cur_recv in recv_keys else RECEIVE_MODE_SEND_ONLY
         if user_input is not None:
@@ -820,6 +832,8 @@ class MaxNotifyOptionsFlow(OptionsFlow):
             }
         else:
             cur_fmt = entry.data.get(CONF_MESSAGE_FORMAT, "text")
+            if cur_fmt not in msg_fmt_keys:
+                cur_fmt = "text"
             eff_recv = (
                 selected_mode if selected_mode in recv_keys else RECEIVE_MODE_SEND_ONLY
             )
@@ -829,7 +843,18 @@ class MaxNotifyOptionsFlow(OptionsFlow):
                 CONF_RECEIVE_MODE: recv_labels.get(eff_recv, recv_list[0]),
             }
         if entry_prov.options_use_compact_receive_mode_init_branch():
-            recv_keys_compact = entry_prov.config_flow_receive_mode_keys_options_compact()
+            caps = getattr(self, "_a161_remote_caps", None)
+            ws_avail = bool(
+                caps is not None and getattr(caps, "websocket_enabled", lambda: False)()
+            )
+            polling_avail = bool(
+                caps is None
+                or getattr(caps, "polling_enabled", lambda: True)()
+            )
+            recv_keys_compact = entry_prov.config_flow_receive_mode_keys_options_compact(
+                websocket_available=ws_avail,
+                polling_available=polling_avail,
+            )
             recv_labels_compact = get_option_labels(
                 trans,
                 "options",
@@ -852,6 +877,8 @@ class MaxNotifyOptionsFlow(OptionsFlow):
                 }
             else:
                 cur_fmt = entry.data.get(CONF_MESSAGE_FORMAT, "text")
+                if cur_fmt not in msg_fmt_keys:
+                    cur_fmt = "text"
                 suggested_compact = {
                     CONF_MESSAGE_FORMAT: msg_fmt_labels.get(cur_fmt, cur_fmt),
                     CONF_RECEIVE_MODE: recv_labels_compact.get(

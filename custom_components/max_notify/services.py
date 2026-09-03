@@ -681,10 +681,10 @@ async def async_delete_message_handler(service: ServiceCall) -> ServiceResponse:
         config_entry_id=config_entry_id,
         entity_ids=entity_ids,
     )
-    caps = get_capabilities(entry)
+    caps = get_capabilities(entry, hass)
     _ensure_capability(entry, caps.supports_delete_message, feature="delete_message")
     if use_period:
-        get_provider(entry).ensure_can_delete_message_by_period(entry)
+        get_provider(entry).ensure_can_delete_message_by_period(hass, entry)
 
     async def _delete_batch(entry_obj: ConfigEntry, ids: list[str]) -> int:
         if not ids:
@@ -978,7 +978,7 @@ async def async_edit_message_handler(service: ServiceCall) -> None:
         config_entry_id=config_entry_id,
         entity_ids=entity_ids,
     )
-    caps = get_capabilities(entry)
+    caps = get_capabilities(entry, hass)
     _ensure_capability(entry, caps.supports_edit_message, feature="edit_message")
 
     remove_b = data.get("remove_buttons", False)
@@ -1175,7 +1175,7 @@ async def async_send_message_handler(service: ServiceCall) -> None:
         if all_buttons:
             _ensure_capability(
                 entry,
-                get_capabilities(entry).supports_inline_keyboard,
+                get_capabilities(entry, hass).supports_inline_keyboard,
                 feature="inline_keyboard",
             )
             with_keyboard.append(eid)
@@ -1305,7 +1305,7 @@ async def async_send_text_to_all_handler(service: ServiceCall) -> None:
                 if all_buttons:
                     _ensure_capability(
                         entry,
-                        get_capabilities(entry).supports_inline_keyboard,
+                        get_capabilities(entry, hass).supports_inline_keyboard,
                         feature="inline_keyboard",
                     )
                     await send_message(
@@ -1426,7 +1426,7 @@ async def _send_photo(
             subentry = subentries.get(entity_entry.config_subentry_id)
             if not subentry:
                 continue
-            caps = get_capabilities(entry)
+            caps = get_capabilities(entry, hass)
             _ensure_capability(entry, caps.supports_send_photo, feature="send_photo")
             all_buttons = resolve_service_inline_keyboard(
                 entry.options,
@@ -1541,7 +1541,7 @@ async def _send_document(
             subentry = subentries.get(entity_entry.config_subentry_id)
             if not subentry:
                 continue
-            caps = get_capabilities(entry)
+            caps = get_capabilities(entry, hass)
             _ensure_capability(entry, caps.supports_send_document, feature="send_document")
             all_buttons = resolve_service_inline_keyboard(
                 entry.options,
@@ -1659,7 +1659,7 @@ async def _send_video(
             subentry = subentries.get(entity_entry.config_subentry_id)
             if not subentry:
                 continue
-            caps = get_capabilities(entry)
+            caps = get_capabilities(entry, hass)
             _ensure_capability(entry, caps.supports_send_video, feature="send_video")
             all_buttons = resolve_service_inline_keyboard(
                 entry.options,

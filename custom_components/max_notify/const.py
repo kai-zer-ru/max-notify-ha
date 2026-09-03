@@ -85,6 +85,8 @@ RECEIVE_MODE_POLLING = "polling"
 # Официальный Max API: long polling (GET /updates).
 RECEIVE_MODE_LONG_POLLING = "long_polling"
 RECEIVE_MODE_WEBHOOK = "webhook"
+# Исходящий WebSocket (клиент HA → notify.a161.ru).
+RECEIVE_MODE_WEBSOCKET = "websocket"
 WEBHOOK_PATH_PREFIX = "/api/max_notify"
 WEBHOOK_SECRET_HEADER = "X-Max-Bot-Api-Secret"
 

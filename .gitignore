@@ -17,6 +17,8 @@ build/
 # IDE
 .idea/
 .vscode/
+.cursor/
+AGENTS.md
 *.swp
 *.swo
 *~

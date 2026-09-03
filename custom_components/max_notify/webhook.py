@@ -154,7 +154,7 @@ async def async_clear_subscriptions_for_long_polling(
 
 async def register_webhook(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Зарегистрировать URL WebHook у провайдера записи. True при успехе."""
-    if not get_capabilities(entry).supports_receive_webhook:
+    if not get_capabilities(entry, hass).supports_receive_webhook:
         _LOGGER.debug(
             "Регистрация WebHook пропущена: провайдер не поддерживает WebHook, запись=%s",
             entry.entry_id,
@@ -169,7 +169,7 @@ async def register_webhook(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 async def unregister_webhook(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Снять WebHook у провайдера записи."""
-    if not get_capabilities(entry).supports_receive_webhook:
+    if not get_capabilities(entry, hass).supports_receive_webhook:
         return True
     _LOGGER.debug("Снятие WebHook: запись=%s", entry.entry_id)
     url = get_webhook_url(hass, entry)
@@ -203,7 +203,7 @@ class MaxNotifyWebHookView(HomeAssistantView):
             _LOGGER.debug("WebHook: неизвестная запись %s", entry_id)
             return web.Response(status=404, text="not found")
 
-        if not get_capabilities(entry).supports_receive_webhook:
+        if not get_capabilities(entry, hass).supports_receive_webhook:
             return web.Response(status=404, text="WebHook not supported")
 
         prov = get_provider(entry)

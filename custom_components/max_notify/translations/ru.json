@@ -145,20 +145,28 @@
       },
       "notify_a161_notify_user": {
         "title": "{provider_label} — токен",
-        "description": "Введите токен, формат сообщений и режим приёма, затем user_id.\n\nРежим приёма: только отправка или очередь Polling updates.",
+        "description": "Введите токен доступа. Формат сообщений и режим приёма выбираются на следующем шаге после загрузки лимитов сервера.",
         "data": {
-          "access_token": "Токен доступа",
+          "access_token": "Токен доступа"
+        },
+        "data_description": {
+          "access_token": "Токен бота {provider_label} ({token_length} символов)."
+        }
+      },
+      "notify_a161_notify_receive_mode": {
+        "title": "{provider_label} — формат и режим приёма",
+        "description": "Форматы и режимы с сервера ({caps_source}). Доступные форматы: {available_formats}. WebSocket появляется только при websocket_available=true.\n\nТокен активен ещё {token_active_days} дн.; фото/видео/документ до {max_photo_mb}/{max_video_mb}/{max_document_mb} МБ; опрос {interval_min}–{interval_max} с.",
+        "data": {
           "message_format": "Формат сообщений",
           "receive_mode": "Режим приёма"
         },
         "data_description": {
-          "access_token": "Токен бота {provider_label} ({token_length} символов).",
-          "message_format": "Текст, Markdown или HTML."
+          "message_format": "Разрешено сервером: {available_formats}."
         }
       },
       "notify_a161_notify_recipient": {
         "title": "{provider_label} — user_id",
-        "description": "Укажите ваш user_id (положительное число). Он привязан к токену и позже не меняется в настройках интеграции.",
+        "description": "Укажите ваш user_id (положительное число). Он привязан к токену и позже не меняется.\n\nЛимиты с сервера ({caps_source}): токен активен ещё {token_active_days} дн.; фото/видео/документ до {max_photo_mb}/{max_video_mb}/{max_document_mb} МБ; опрос {interval_min}–{interval_max} с.",
         "data": {
           "recipient_id": "User ID"
         },
@@ -168,14 +176,17 @@
       },
       "notify_a161_updates_interval": {
         "title": "{provider_label} — интервал опроса",
-        "description": "Укажите интервал опроса очереди /updates в секундах. По умолчанию: {default_seconds} с.",
+        "description": "Лимиты с сервера ({caps_source}): токен активен ещё {token_active_days} дн.; опрос {interval_min}–{interval_max} с (по умолчанию {default_seconds} с); фото/видео/документ до {max_photo_mb}/{max_video_mb}/{max_document_mb} МБ.",
         "data": {
-          "updates_interval": "—"
+          "updates_interval": "Интервал опроса (с)"
+        },
+        "data_description": {
+          "updates_interval": "Допустимо от {interval_min} до {interval_max} с."
         }
       },
       "notify_a161_a161_inactivity_period": {
         "title": "{provider_label}: период неактивности",
-        "description": "Выберите, через сколько суток без входящих сообщений и без отправок с кнопками режим приёма переключается на «Только отправка» (ограничение сервиса).",
+        "description": "Выберите, через сколько суток без входящих сообщений и без отправок с кнопками режим приёма переключается на «Только отправка». Рекомендация сервера ({caps_source}): {inactivity_days} сут. Допустимо: {days_min}–{days_max}.",
         "data": {
           "a161_inactivity_period_days": "Период"
         }
@@ -197,8 +208,10 @@
       "invalid_button_text": "Введите подпись на кнопке.",
       "invalid_button_url": "Для кнопки-ссылки укажите URL с http:// или https://.",
       "notify_a161_invalid_notify_token_length": "Токен доступа должен содержать {token_length} символов.",
-      "notify_a161_invalid_updates_interval": "Введите интервал опроса от 2 до 30 секунд.",
-      "notify_a161_invalid_a161_inactivity_period": "Выберите 1, 2 или 3 суток.",
+      "notify_a161_invalid_updates_interval": "Введите интервал опроса от {interval_min} до {interval_max} секунд.",
+      "notify_a161_token_inactive": "Токен неактивен или истёк (token_active=false). Обновите/оплатите токен на notify.a161.ru.",
+      "notify_a161_websocket_unavailable": "WebSocket пока недоступен для этого токена (websocket_available=false). Используйте Polling или дождитесь фазы 2 на notify.a161.ru.",
+      "notify_a161_invalid_a161_inactivity_period": "Выберите значение от {days_min} до {days_max} суток.",
       "notify_a161_polling_requires_buttons_switched_send_only": "Кнопки не настроены. Режим приёма автоматически переключен на «Только отправка». Добавьте хотя бы одну кнопку, чтобы использовать Polling.",
       "notify_a161_duplicate_token_not_allowed": "Интеграция MaxNotify с этим токеном уже есть. Для {provider_label} один токен — одна запись: удалите существующую или укажите другой токен."
     },
@@ -349,25 +362,28 @@
       },
       "notify_a161_init_notify": {
         "title": "{provider_label} — настройки",
-        "description": "Формат сообщений и режим приёма.\n\nРежим приёма: только отправка или очередь Polling updates.\n\nЧтобы сменить API-ключ, удалите интеграцию и добавьте заново. user_id задаётся только при первой настройке.",
+        "description": "Формат и режим приёма с сервера ({caps_source}). Доступные форматы: {available_formats}.\n\nТокен активен ещё {token_active_days} дн.; фото/видео/документ до {max_photo_mb}/{max_video_mb}/{max_document_mb} МБ; опрос {interval_min}–{interval_max} с.\n\nWebSocket появляется только при websocket_available=true.\n\nЧтобы сменить API-ключ, удалите интеграцию и добавьте заново. user_id задаётся только при первой настройке.",
         "data": {
           "message_format": "Формат сообщений",
           "receive_mode": "Режим приёма"
         },
         "data_description": {
-          "message_format": "Текст, Markdown или HTML"
+          "message_format": "Разрешено сервером: {available_formats}."
         }
       },
       "notify_a161_updates_interval": {
         "title": "{provider_label} — интервал опроса",
-        "description": "Укажите интервал опроса очереди /updates в секундах. По умолчанию: {default_seconds} с.",
+        "description": "Лимиты с сервера ({caps_source}): токен активен ещё {token_active_days} дн.; опрос {interval_min}–{interval_max} с (по умолчанию {default_seconds} с); фото/видео/документ до {max_photo_mb}/{max_video_mb}/{max_document_mb} МБ.",
         "data": {
-          "updates_interval": "—"
+          "updates_interval": "Интервал опроса (с)"
+        },
+        "data_description": {
+          "updates_interval": "Допустимо от {interval_min} до {interval_max} с."
         }
       },
       "notify_a161_a161_inactivity_period": {
         "title": "{provider_label}: период неактивности",
-        "description": "Выберите, через сколько суток без входящих сообщений и без отправок с кнопками режим приёма переключается на «Только отправка» (ограничение сервиса).",
+        "description": "Выберите, через сколько суток без входящих сообщений и без отправок с кнопками режим приёма переключается на «Только отправка». Рекомендация сервера ({caps_source}): {inactivity_days} сут. Допустимо: {days_min}–{days_max}.",
         "data": {
           "a161_inactivity_period_days": "Период"
         }
@@ -379,8 +395,10 @@
       "polling_blocked_by_webhook_other_entry": "Другая интеграция MaxNotify уже использует WebHook с этим токеном бота. Сначала отключите WebHook там или используйте другой токен.",
       "webhook_blocked_by_polling_other_entry": "Другая интеграция MaxNotify уже использует Long Polling с этим токеном бота. Сначала отключите Long Polling там или используйте другой токен.",
       "webhook_requires_external_https_url": "Для WebHook нужен внешний HTTPS-адрес Home Assistant (Настройки → Система → Сеть или Nabu Casa). Сначала настройте URL, затем снова выберите WebHook.",
-      "notify_a161_invalid_updates_interval": "Введите интервал опроса от 2 до 30 секунд.",
-      "notify_a161_invalid_a161_inactivity_period": "Выберите 1, 2 или 3 суток.",
+      "notify_a161_invalid_updates_interval": "Введите интервал опроса от {interval_min} до {interval_max} секунд.",
+      "notify_a161_token_inactive": "Токен неактивен или истёк (token_active=false). Обновите/оплатите токен на notify.a161.ru.",
+      "notify_a161_websocket_unavailable": "WebSocket пока недоступен для этого токена (websocket_available=false). Используйте Polling или дождитесь фазы 2 на notify.a161.ru.",
+      "notify_a161_invalid_a161_inactivity_period": "Выберите значение от {days_min} до {days_max} суток.",
       "notify_a161_polling_requires_buttons_switched_send_only": "Кнопки не настроены. Режим приёма автоматически переключен на «Только отправка». Добавьте хотя бы одну кнопку, чтобы использовать Polling."
     }
   },
@@ -893,11 +911,17 @@
     "provider_feature_not_supported": {
       "message": "Для {provider} не поддерживается: {feature}."
     },
+    "token_inactive": {
+      "message": "{provider}: токен неактивен или истёк."
+    },
+    "provider_maintenance": {
+      "message": "{provider}: {message}"
+    },
     "third_party_attachment_too_large": {
-      "message": "У провайдера {provider} максимальный размер фото и документов — {max_mib} МБ; этот файл — около {size_mib} МБ."
+      "message": "У провайдера {provider} лимит для этого типа файла — {max_mib} МБ; этот файл — около {size_mib} МБ."
     },
     "third_party_video_too_large": {
-      "message": "У провайдера {provider} максимальный размер видео — {max_mib} МБ; этот файл — около {size_mib} МБ."
+      "message": "У провайдера {provider} лимит видео — {max_mib} МБ; этот файл — около {size_mib} МБ."
     },
     "third_party_upload_no_url": {
       "message": "{provider}: шаг загрузки не вернул URL."
@@ -1006,7 +1030,8 @@
         "send_only": "Только отправка",
         "long_polling": "Long Polling",
         "webhook": "WebHook",
-        "polling": "Очередь Polling updates"
+        "polling": "Очередь Polling updates",
+        "websocket": "WebSocket"
       }
     },
     "button_type": {
@@ -1028,7 +1053,8 @@
         "send_only": "отправка",
         "long_polling": "Long Polling",
         "polling": "Очередь Polling updates",
-        "webhook": "WebHook"
+        "webhook": "WebHook",
+        "websocket": "WebSocket"
       }
     }
   },

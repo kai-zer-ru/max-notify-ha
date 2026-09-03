@@ -20,5 +20,6 @@ NOTIFY_A161_CAPABILITIES = IntegrationCapabilities(
     supports_slash_command_allowlist_ui=False,
     supports_receive_long_polling=False,
     supports_receive_webhook=False,
+    supports_receive_websocket=True,
     max_client_upload_bytes=NOTIFY_A161_MAX_UPLOAD_BYTES,
 )

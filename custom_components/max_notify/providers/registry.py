@@ -4,10 +4,13 @@ from __future__ import annotations
 
 from ..log import get_logger
 import logging
-from typing import NoReturn
+from typing import NoReturn, TYPE_CHECKING
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.exceptions import ServiceValidationError
+
+if TYPE_CHECKING:
+    from homeassistant.core import HomeAssistant
 
 from ..const import (
     CONF_INTEGRATION_TYPE,
@@ -46,6 +49,7 @@ NOTIFY_A161_TRANSLATION_KEYS = frozenset(
     {
         "notify_info",
         "notify_user",
+        "notify_receive_mode",
         "notify_recipient",
         "updates_interval",
         "a161_inactivity_period",
@@ -55,6 +59,8 @@ NOTIFY_A161_TRANSLATION_KEYS = frozenset(
         "invalid_a161_inactivity_period",
         "polling_requires_buttons_switched_send_only",
         "duplicate_token_not_allowed",
+        "token_inactive",
+        "websocket_unavailable",
     }
 )
 
@@ -76,6 +82,7 @@ NOTIFY_A161_PROVIDER = NotifyA161IntegrationProvider(
     translation_prefix_keys=NOTIFY_A161_TRANSLATION_KEYS,
     supports_receive_polling=NOTIFY_A161_CAPABILITIES.supports_receive_polling,
     supports_receive_long_polling=NOTIFY_A161_CAPABILITIES.supports_receive_long_polling,
+    supports_receive_websocket=NOTIFY_A161_CAPABILITIES.supports_receive_websocket,
     supports_group_chats=NOTIFY_A161_CAPABILITIES.supports_group_chats,
     supports_bot_command_registration=NOTIFY_A161_CAPABILITIES.supports_bot_command_registration,
     supports_slash_command_allowlist_ui=NOTIFY_A161_CAPABILITIES.supports_slash_command_allowlist_ui,
@@ -199,17 +206,24 @@ def resolve_integration_type(entry: ConfigEntry) -> str:
     return get_provider(entry).integration_type
 
 
-def get_capabilities(entry: ConfigEntry) -> IntegrationCapabilities:
-    """Возможности для этой записи конфигурации."""
+def get_capabilities(
+    entry: ConfigEntry,
+    hass: HomeAssistant | None = None,
+) -> IntegrationCapabilities:
+    """Возможности для записи; с ``hass`` — с учётом remote /me/capabilities (a161)."""
     raw = str(entry.data.get(CONF_INTEGRATION_TYPE, "") or "")
     if (
         raw
         and raw not in _BUILTIN_INTEGRATION_TYPES
         and raw in _CAPABILITIES
     ):
-        return _CAPABILITIES[raw]
-    resolved = resolve_integration_type(entry)
-    return _resolve_known_capabilities_by_type(resolved)
+        base = _CAPABILITIES[raw]
+    else:
+        resolved = resolve_integration_type(entry)
+        base = _resolve_known_capabilities_by_type(resolved)
+    if hass is None:
+        return base
+    return get_provider(entry).apply_remote_capabilities(hass, entry, base)
 
 
 def get_capabilities_by_type(integration_type: str) -> IntegrationCapabilities:

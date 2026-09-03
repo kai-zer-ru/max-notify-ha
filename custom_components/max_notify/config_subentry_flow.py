@@ -73,6 +73,16 @@ class MaxNotifyRecipientSubentryFlow(ConfigSubentryFlow):
                 errors["base"] = "invalid_id_format"
             else:
                 rid_err = prov.config_flow_recipient_id_error(n)
+                if rid_err is None and n < 0:
+                    from .providers.notify_a161.remote_capabilities import (
+                        resolve_remote_capabilities,
+                    )
+                    from .providers.entry_kind import entry_matches_notify_a161
+
+                    if entry_matches_notify_a161(entry) and not resolve_remote_capabilities(
+                        self.hass, entry
+                    ).supports_groups:
+                        rid_err = "group_chats_not_supported"
                 if rid_err:
                     errors["base"] = rid_err
                 else:

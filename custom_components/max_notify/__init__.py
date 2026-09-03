@@ -22,6 +22,7 @@ from .const import (
     RECEIVE_MODE_LONG_POLLING,
     RECEIVE_MODE_POLLING,
     RECEIVE_MODE_WEBHOOK,
+    RECEIVE_MODE_WEBSOCKET,
 )
 from .device_helpers import (
     async_ensure_integration_device,
@@ -181,7 +182,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Сначала снять устаревший polling — режим мог смениться между быстрыми перезагрузками.
     stop_polling(hass, entry)
 
-    if receive_mode in (RECEIVE_MODE_POLLING, RECEIVE_MODE_LONG_POLLING):
+    if receive_mode in (
+        RECEIVE_MODE_POLLING,
+        RECEIVE_MODE_LONG_POLLING,
+        RECEIVE_MODE_WEBSOCKET,
+    ):
         start_polling(hass, entry)
     elif receive_mode == RECEIVE_MODE_WEBHOOK:
         _LOGGER.debug(

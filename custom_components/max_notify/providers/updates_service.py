@@ -18,7 +18,6 @@ from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from ..const import (
-    API_PATH_UPDATES,
     CONF_ACCESS_TOKEN,
     CONF_BUTTONS,
     CONF_COMMANDS,
@@ -550,17 +549,35 @@ async def async_run_polling_loop(hass: HomeAssistant, entry: ConfigEntry) -> Non
 
     while True:
         provider = get_provider(entry)
+        await provider.async_before_polling_iteration(hass, entry)
         paced = provider.updates_poll_uses_request_pacing()
         if paced:
             now = time.monotonic()
             if now < next_request_not_before:
                 await asyncio.sleep(next_request_not_before - now)
             next_request_not_before = (
-                time.monotonic() + provider.updates_poll_interval_seconds(entry)
+                time.monotonic()
+                + provider.updates_poll_interval_seconds(entry, hass=hass)
             )
 
+        skip_reason = provider.polling_iteration_skip_reason(hass, entry)
+        if skip_reason:
+            _LOGGER.debug(
+                "Polling пропущен для %s: %s",
+                entry_id,
+                skip_reason,
+            )
+            _set_updates_polling_issue(
+                hass,
+                entry,
+                skip_reason,
+                severity=ir.IssueSeverity.WARNING,
+            )
+            await asyncio.sleep(POLLING_RETRY_DELAY)
+            continue
+
         marker = markers.get(entry_id)
-        params = provider.build_updates_poll_params(entry, marker)
+        params = provider.build_updates_poll_params(entry, marker, hass=hass)
 
         _LOGGER.debug(
             "Polling GET /updates: запись=%s маркер=%s параметры=%s",
@@ -569,7 +586,7 @@ async def async_run_polling_loop(hass: HomeAssistant, entry: ConfigEntry) -> Non
             params,
         )
 
-        url = f"{provider.api_base_url}{API_PATH_UPDATES}"
+        url = provider.updates_poll_url(entry, hass=hass)
         headers = {"Authorization": token}
 
         try:

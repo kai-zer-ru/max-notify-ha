@@ -554,7 +554,7 @@ class TestUploadDispatch:
             )
 
             provider.ensure_can_send_message.assert_called_once_with(
-                mock_config_entry, {"recipient_id": 1}, with_buttons=True
+                hass, mock_config_entry, {"recipient_id": 1}, with_buttons=True
             )
             provider.async_send_message.assert_awaited_once()
             call = provider.async_send_message.await_args
@@ -575,7 +575,7 @@ class TestUploadDispatch:
             )
 
             provider.ensure_can_send_message.assert_called_once_with(
-                mock_config_entry, {"recipient_id": 1}, with_buttons=False
+                hass, mock_config_entry, {"recipient_id": 1}, with_buttons=False
             )
             provider.async_send_message.assert_awaited_once()
 
@@ -672,6 +672,7 @@ class TestUploadDispatch:
             await entity.async_send_message("hello")
 
             provider.ensure_can_send_message.assert_called_once_with(
+                hass,
                 mock_config_entry,
                 {"recipient_id": -100},
                 with_buttons=False,
