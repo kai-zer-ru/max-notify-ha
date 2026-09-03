@@ -47,7 +47,7 @@
 - **Дзен** — [kai_zer_ru_ha](https://dzen.ru/kai_zer_ru_ha)
 - **VK** — [kai_zer_ru_ha](https://vk.com/kai_zer_ru_ha)
 - **Обсуждение** - [Чат в Max](https://max.ru/join/KoCsTSA3VGOCiIFdSAW0myVJEwXZi-rt9fTfGxdgk6A)
-- **Поддержка автора** - [Т-Банк](https://www.tbank.ru/rm/r_wKLcbFgjYa.ncgWMwrHSA/vyQvd5941/)
+- **Поддержка автора** - [Мой сайт](https://kai-zer.ru/support)
 
 ---
 
