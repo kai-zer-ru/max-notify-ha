@@ -692,10 +692,24 @@ class NotifyA161IntegrationProvider(MaxNotifyIntegrationProvider):
         self, hass: HomeAssistant, entry: ConfigEntry
     ) -> None:
         from .remote_capabilities import async_fetch_remote_capabilities
+        from ...log import get_logger
 
+        log = get_logger()
+        t0 = time.monotonic()
+        log.debug("a161 prepare start entry=%s", entry.entry_id)
         await ensure_polling_grace(hass, entry)
-        # Каждая (пере)загрузка интеграции — свежий GET /me/capabilities.
+        log.debug(
+            "a161 prepare after inactivity check entry=%s elapsed=%.3fs",
+            entry.entry_id,
+            time.monotonic() - t0,
+        )
+        # Свежий GET, если rate-limit позволяет; иначе кэш (без ожидания слота).
         await async_fetch_remote_capabilities(hass, entry, force=True)
+        log.debug(
+            "a161 prepare done entry=%s elapsed=%.3fs",
+            entry.entry_id,
+            time.monotonic() - t0,
+        )
 
     async def async_process_incoming_update(
         self, hass: HomeAssistant, entry: ConfigEntry, update: dict[str, Any]

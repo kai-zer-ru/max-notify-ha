@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from .log import get_logger
 import re
+import time
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import __version__ as HA_VERSION
@@ -170,7 +171,18 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
 
     provider = get_provider(entry)
+    t_prep = time.monotonic()
+    _LOGGER.debug(
+        "async_setup_entry: prepare start entry=%s type=%s",
+        entry.entry_id,
+        getattr(provider, "integration_type", "?"),
+    )
     await provider.async_prepare_entry_for_receive(hass, entry)
+    _LOGGER.debug(
+        "async_setup_entry: prepare done entry=%s elapsed=%.3fs",
+        entry.entry_id,
+        time.monotonic() - t_prep,
+    )
     if provider.supports_bot_command_registration:
         synced = await sync_bot_commands_to_max(hass, entry)
         if not synced:

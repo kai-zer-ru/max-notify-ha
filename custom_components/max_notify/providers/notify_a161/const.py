@@ -68,8 +68,10 @@ NOTIFY_A161_WEBSOCKET_RECONNECT_MIN_SECONDS = 2
 NOTIFY_A161_WEBSOCKET_RECONNECT_MAX_SECONDS = 120
 # TTL кэша capabilities, если API не отдал refresh_capabilities / null / 0.
 NOTIFY_A161_CAPABILITIES_CACHE_SECONDS = 24 * 60 * 60
-# Интервал между GET /me/capabilities, если rate_limit_capabilities_per_minute нет / null / 0.
+# Фоновые GET, если rate_limit_capabilities_per_minute нет / null / 0.
 NOTIFY_A161_CAPABILITIES_RATE_DEFAULT_INTERVAL_SECONDS = 15 * 60
+# Reload / настройки (force): не чаще 1 раза в минуту, если rpm с сервера нет.
+NOTIFY_A161_CAPABILITIES_FORCE_MIN_INTERVAL_SECONDS = 60.0
 NOTIFY_A161_CAPABILITIES_HTTP_TIMEOUT = 15.0
 
 TITLE_FALLBACK_SUBSTRINGS: tuple[str, ...] = (

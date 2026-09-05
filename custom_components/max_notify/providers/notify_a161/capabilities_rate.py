@@ -10,8 +10,14 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 
 from ...const import DOMAIN
-from .const import NOTIFY_A161_CAPABILITIES_RATE_DEFAULT_INTERVAL_SECONDS
+from ...log import get_logger
+from .const import (
+    NOTIFY_A161_CAPABILITIES_FORCE_MIN_INTERVAL_SECONDS,
+    NOTIFY_A161_CAPABILITIES_RATE_DEFAULT_INTERVAL_SECONDS,
+)
 from .remote_capabilities import resolve_remote_capabilities
+
+_LOGGER = get_logger()
 
 _STATE_KEY = "_a161_capabilities_rate_state"
 
@@ -22,16 +28,25 @@ async def async_acquire_capabilities_slot(
     entry: ConfigEntry | None = None,
     bucket_key: str | None = None,
     min_interval_seconds: float | None = None,
-) -> None:
-    """Подождать слот под GET /me/capabilities.
+    wait: bool = False,
+    force: bool = False,
+) -> bool:
+    """Взять слот под GET /me/capabilities.
 
-    Интервал: из caps entry (``rate_limit_capabilities_per_minute`` → 60/N,
-    либо 15 мин при 0/пусто); либо явный ``min_interval_seconds``.
+    По умолчанию не спит: если рано — ``False`` (вызывающий берёт кэш).
+    ``wait=True`` — подождать интервал (только тесты / редкие фоновые циклы).
+
+    Интервал: ``rate_limit_capabilities_per_minute`` → 60/N;
+    rpm 0: фон 15 мин, ``force`` (reload) — не чаще 1 раза в минуту.
     """
     if min_interval_seconds is None:
         if entry is not None:
-            min_interval_seconds = (
-                resolve_remote_capabilities(hass, entry).capabilities_request_min_interval_seconds()
+            min_interval_seconds = resolve_remote_capabilities(
+                hass, entry
+            ).capabilities_request_min_interval_seconds(force=force)
+        elif force:
+            min_interval_seconds = float(
+                NOTIFY_A161_CAPABILITIES_FORCE_MIN_INTERVAL_SECONDS
             )
         else:
             min_interval_seconds = float(
@@ -39,7 +54,7 @@ async def async_acquire_capabilities_slot(
             )
     interval = float(min_interval_seconds)
     if interval <= 0:
-        return
+        return True
 
     key = bucket_key
     if not key:
@@ -53,5 +68,21 @@ async def async_acquire_capabilities_slot(
         now = time.monotonic()
         next_allowed = float(state["next_allowed"])
         if now < next_allowed:
-            await asyncio.sleep(next_allowed - now)
+            delay = next_allowed - now
+            _LOGGER.debug(
+                "a161 capabilities rate: skip/wait key=%s delay=%.1fs wait=%s interval=%.1fs",
+                key,
+                delay,
+                wait,
+                interval,
+            )
+            if not wait:
+                return False
+            await asyncio.sleep(delay)
         state["next_allowed"] = time.monotonic() + interval
+        _LOGGER.debug(
+            "a161 capabilities rate: acquired key=%s next_in=%.1fs",
+            key,
+            interval,
+        )
+        return True

@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import time
 from typing import Any
 
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers.translation import async_get_translations
 
+from ...log import get_logger
 from ...const import (
     CONF_BUTTONS,
     CONF_MESSAGE_FORMAT,
@@ -54,8 +56,19 @@ async def async_step_init_notify(
     step_init = prefixed_step_id(flow, "init_notify")
     from .remote_capabilities import async_fetch_remote_capabilities
 
+    t0 = time.monotonic()
+    get_logger().debug(
+        "a161 options init start entry=%s force_fetch=True",
+        entry.entry_id,
+    )
     caps = await async_fetch_remote_capabilities(flow.hass, entry, force=True)
     flow._a161_remote_caps = caps
+    get_logger().debug(
+        "a161 options init after capabilities entry=%s elapsed=%.3fs from_remote=%s",
+        entry.entry_id,
+        time.monotonic() - t0,
+        caps.from_remote,
+    )
 
     if user_input is None:
         try:

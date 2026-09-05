@@ -176,12 +176,12 @@
           "updates_interval": "Polling interval (seconds)"
         },
         "data_description": {
-          "updates_interval": "Allowed range: {interval_min}–{interval_max} s."
+          "updates_interval": "Server range: {interval_min}–{interval_max} s."
         }
       },
       "notify_a161_a161_inactivity_period": {
         "title": "{provider_label}: inactivity period",
-        "description": "If there are no incoming messages and no sends with buttons for {inactivity_days} day(s), receive mode becomes Send only."
+        "description": "The period comes from the server. If there are no incoming messages and no sends with buttons for {inactivity_days} day(s), receive mode becomes Send only."
       }
     },
     "error": {
@@ -365,12 +365,12 @@
           "updates_interval": "Polling interval (seconds)"
         },
         "data_description": {
-          "updates_interval": "Allowed range: {interval_min}–{interval_max} s."
+          "updates_interval": "Server range: {interval_min}–{interval_max} s."
         }
       },
       "notify_a161_a161_inactivity_period": {
         "title": "{provider_label}: inactivity period",
-        "description": "If there are no incoming messages and no sends with buttons for {inactivity_days} day(s), receive mode becomes Send only."
+        "description": "The period comes from the server. If there are no incoming messages and no sends with buttons for {inactivity_days} day(s), receive mode becomes Send only."
       }
     },
     "error": {

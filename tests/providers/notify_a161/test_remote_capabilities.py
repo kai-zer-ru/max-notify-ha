@@ -108,10 +108,14 @@ def test_rate_limit_capabilities_per_minute_from_api() -> None:
         caps = capabilities_from_json(payload)
         assert caps.rate_limit_capabilities_per_minute == 0
         assert caps.capabilities_request_min_interval_seconds() == 15 * 60
+        assert caps.capabilities_request_min_interval_seconds(force=True) == 60.0
 
     assert default_remote_capabilities().capabilities_request_min_interval_seconds() == (
         15 * 60
     )
+    assert default_remote_capabilities().capabilities_request_min_interval_seconds(
+        force=True
+    ) == 60.0
 
 
 def test_cache_is_fresh_uses_refresh_ttl() -> None:

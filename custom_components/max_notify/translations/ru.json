@@ -176,12 +176,12 @@
           "updates_interval": "Интервал опроса (с)"
         },
         "data_description": {
-          "updates_interval": "Допустимо от {interval_min} до {interval_max} с."
+          "updates_interval": "По лимиту сервера: от {interval_min} до {interval_max} с."
         }
       },
       "notify_a161_a161_inactivity_period": {
         "title": "{provider_label}: период неактивности",
-        "description": "Если {inactivity_days} сут. не будет входящих и отправок с кнопками, режим станет «Только отправка»."
+        "description": "Срок задаёт сервер. Если {inactivity_days} сут. не будет входящих и отправок с кнопками, режим станет «Только отправка»."
       }
     },
     "error": {
@@ -365,12 +365,12 @@
           "updates_interval": "Интервал опроса (с)"
         },
         "data_description": {
-          "updates_interval": "Допустимо от {interval_min} до {interval_max} с."
+          "updates_interval": "По лимиту сервера: от {interval_min} до {interval_max} с."
         }
       },
       "notify_a161_a161_inactivity_period": {
         "title": "{provider_label}: период неактивности",
-        "description": "Если {inactivity_days} сут. не будет входящих и отправок с кнопками, режим станет «Только отправка»."
+        "description": "Срок задаёт сервер. Если {inactivity_days} сут. не будет входящих и отправок с кнопками, режим станет «Только отправка»."
       }
     },
     "error": {
