@@ -145,7 +145,7 @@
       },
       "notify_a161_notify_user": {
         "title": "{provider_label} — токен",
-        "description": "Введите токен доступа. Формат сообщений и режим приёма выбираются на следующем шаге после загрузки лимитов сервера.",
+        "description": "Введите токен доступа.",
         "data": {
           "access_token": "Токен доступа"
         },
@@ -155,18 +155,14 @@
       },
       "notify_a161_notify_receive_mode": {
         "title": "{provider_label} — формат и режим приёма",
-        "description": "Форматы и режимы с сервера ({caps_source}). Доступные форматы: {available_formats}. WebSocket появляется только при websocket_available=true.\n\nТокен активен ещё {token_active_days} дн.; фото/видео/документ до {max_photo_mb}/{max_video_mb}/{max_document_mb} МБ; опрос {interval_min}–{interval_max} с.",
         "data": {
           "message_format": "Формат сообщений",
           "receive_mode": "Режим приёма"
-        },
-        "data_description": {
-          "message_format": "Разрешено сервером: {available_formats}."
         }
       },
       "notify_a161_notify_recipient": {
         "title": "{provider_label} — user_id",
-        "description": "Укажите ваш user_id (положительное число). Он привязан к токену и позже не меняется.\n\nЛимиты с сервера ({caps_source}): токен активен ещё {token_active_days} дн.; фото/видео/документ до {max_photo_mb}/{max_video_mb}/{max_document_mb} МБ; опрос {interval_min}–{interval_max} с.",
+        "description": "Укажите user_id. Позже не меняется.",
         "data": {
           "recipient_id": "User ID"
         },
@@ -176,7 +172,6 @@
       },
       "notify_a161_updates_interval": {
         "title": "{provider_label} — интервал опроса",
-        "description": "Лимиты с сервера ({caps_source}): токен активен ещё {token_active_days} дн.; опрос {interval_min}–{interval_max} с (по умолчанию {default_seconds} с); фото/видео/документ до {max_photo_mb}/{max_video_mb}/{max_document_mb} МБ.",
         "data": {
           "updates_interval": "Интервал опроса (с)"
         },
@@ -186,10 +181,7 @@
       },
       "notify_a161_a161_inactivity_period": {
         "title": "{provider_label}: период неактивности",
-        "description": "Выберите, через сколько суток без входящих сообщений и без отправок с кнопками режим приёма переключается на «Только отправка». Рекомендация сервера ({caps_source}): {inactivity_days} сут. Допустимо: {days_min}–{days_max}.",
-        "data": {
-          "a161_inactivity_period_days": "Период"
-        }
+        "description": "Если {inactivity_days} сут. не будет входящих и отправок с кнопками, режим станет «Только отправка»."
       }
     },
     "error": {
@@ -362,18 +354,13 @@
       },
       "notify_a161_init_notify": {
         "title": "{provider_label} — настройки",
-        "description": "Формат и режим приёма с сервера ({caps_source}). Доступные форматы: {available_formats}.\n\nТокен активен ещё {token_active_days} дн.; фото/видео/документ до {max_photo_mb}/{max_video_mb}/{max_document_mb} МБ; опрос {interval_min}–{interval_max} с.\n\nWebSocket появляется только при websocket_available=true.\n\nЧтобы сменить API-ключ, удалите интеграцию и добавьте заново. user_id задаётся только при первой настройке.",
         "data": {
           "message_format": "Формат сообщений",
           "receive_mode": "Режим приёма"
-        },
-        "data_description": {
-          "message_format": "Разрешено сервером: {available_formats}."
         }
       },
       "notify_a161_updates_interval": {
         "title": "{provider_label} — интервал опроса",
-        "description": "Лимиты с сервера ({caps_source}): токен активен ещё {token_active_days} дн.; опрос {interval_min}–{interval_max} с (по умолчанию {default_seconds} с); фото/видео/документ до {max_photo_mb}/{max_video_mb}/{max_document_mb} МБ.",
         "data": {
           "updates_interval": "Интервал опроса (с)"
         },
@@ -383,10 +370,7 @@
       },
       "notify_a161_a161_inactivity_period": {
         "title": "{provider_label}: период неактивности",
-        "description": "Выберите, через сколько суток без входящих сообщений и без отправок с кнопками режим приёма переключается на «Только отправка». Рекомендация сервера ({caps_source}): {inactivity_days} сут. Допустимо: {days_min}–{days_max}.",
-        "data": {
-          "a161_inactivity_period_days": "Период"
-        }
+        "description": "Если {inactivity_days} сут. не будет входящих и отправок с кнопками, режим станет «Только отправка»."
       }
     },
     "error": {

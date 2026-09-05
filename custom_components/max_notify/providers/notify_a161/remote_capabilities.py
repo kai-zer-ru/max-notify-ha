@@ -20,6 +20,8 @@ from .const import (
     NOTIFY_A161_CAPABILITIES_HTTP_TIMEOUT,
     NOTIFY_A161_CAPABILITIES_RATE_DEFAULT_INTERVAL_SECONDS,
     NOTIFY_A161_INACTIVITY_PERIOD_DAYS_DEFAULT,
+    NOTIFY_A161_INACTIVITY_PERIOD_DAYS_HARD_MAX,
+    NOTIFY_A161_INACTIVITY_PERIOD_DAYS_MIN,
     NOTIFY_A161_MAX_DOCUMENT_SIZE_MB,
     NOTIFY_A161_MAX_MESSAGE_PER_MINUTE,
     NOTIFY_A161_MAX_MESSAGE_PER_SECOND,
@@ -221,6 +223,13 @@ class A161RemoteCapabilities:
             return self.supports_html
         return True
 
+    def inactivity_limit_days(self) -> int:
+        """Лимит автоотключения polling в днях из capabilities (для UI и clamp)."""
+        raw = int(self.polling_inactivity_auto_disable_days or 0)
+        if raw < NOTIFY_A161_INACTIVITY_PERIOD_DAYS_MIN:
+            return NOTIFY_A161_INACTIVITY_PERIOD_DAYS_DEFAULT
+        return min(raw, NOTIFY_A161_INACTIVITY_PERIOD_DAYS_HARD_MAX)
+
     def available_message_formats(self) -> tuple[str, ...]:
         """Ключи format для UI (config/options), с учётом remote flags."""
         out: list[str] = ["text"]
@@ -270,6 +279,27 @@ def _size_mb(data: dict[str, Any], mb_key: str, legacy_key: str, default: int) -
     if legacy_key in data:
         return _int(data, legacy_key, default)
     return default
+
+
+def _inactivity_auto_disable_days(data: dict[str, Any]) -> int:
+    """Лимит дней: polling_inactivity_auto_disable_days или alias из спеки."""
+    for key in (
+        "polling_inactivity_auto_disable_days",
+        "inactivity_auto_disable_days",
+    ):
+        if key not in data:
+            continue
+        raw = data.get(key)
+        if raw is None or raw == "":
+            continue
+        try:
+            value = int(raw)
+        except (TypeError, ValueError):
+            continue
+        if value < NOTIFY_A161_INACTIVITY_PERIOD_DAYS_MIN:
+            continue
+        return min(value, NOTIFY_A161_INACTIVITY_PERIOD_DAYS_HARD_MAX)
+    return NOTIFY_A161_INACTIVITY_PERIOD_DAYS_DEFAULT
 
 
 def _refresh_capabilities_seconds(data: dict[str, Any]) -> int:
@@ -338,11 +368,7 @@ def capabilities_from_json(data: dict[str, Any]) -> A161RemoteCapabilities:
             data, "polling_interval_max_s", NOTIFY_A161_POLLING_INTERVAL_MAX_SECONDS
         ),
         polling_interval_default_s=interval_default,
-        polling_inactivity_auto_disable_days=_int(
-            data,
-            "polling_inactivity_auto_disable_days",
-            NOTIFY_A161_INACTIVITY_PERIOD_DAYS_DEFAULT,
-        ),
+        polling_inactivity_auto_disable_days=_inactivity_auto_disable_days(data),
         support_photo=_bool(data, "support_photo", True),
         max_photo_size_mb=_size_mb(
             data, "max_photo_size_mb", "max_photo_size", NOTIFY_A161_MAX_PHOTO_SIZE_MB

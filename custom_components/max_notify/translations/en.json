@@ -145,7 +145,7 @@
       },
       "notify_a161_notify_user": {
         "title": "{provider_label} — token",
-        "description": "Enter the access token. Message format and receive mode are chosen on the next step after server limits are loaded.",
+        "description": "Enter the access token.",
         "data": {
           "access_token": "Access token"
         },
@@ -155,18 +155,14 @@
       },
       "notify_a161_notify_receive_mode": {
         "title": "{provider_label} — format and receive mode",
-        "description": "Formats and modes from the server ({caps_source}). Available formats: {available_formats}. WebSocket appears only when websocket_available=true.\n\nToken active for {token_active_days} day(s); photo/video/document up to {max_photo_mb}/{max_video_mb}/{max_document_mb} MB; polling {interval_min}–{interval_max} s.",
         "data": {
           "message_format": "Message format",
           "receive_mode": "Receive mode"
-        },
-        "data_description": {
-          "message_format": "Allowed by the server: {available_formats}."
         }
       },
       "notify_a161_notify_recipient": {
         "title": "{provider_label} — user ID",
-        "description": "Enter your user_id (positive number). It is tied to the token and cannot be changed later.\n\nServer limits ({caps_source}): token active for {token_active_days} day(s); photo/video/document up to {max_photo_mb}/{max_video_mb}/{max_document_mb} MB; polling {interval_min}–{interval_max} s.",
+        "description": "Enter user_id. It cannot be changed later.",
         "data": {
           "recipient_id": "User ID"
         },
@@ -176,7 +172,6 @@
       },
       "notify_a161_updates_interval": {
         "title": "{provider_label} — updates polling interval",
-        "description": "Server limits ({caps_source}): token active for {token_active_days} day(s); polling {interval_min}–{interval_max} s (default {default_seconds} s); photo/video/document up to {max_photo_mb}/{max_video_mb}/{max_document_mb} MB.",
         "data": {
           "updates_interval": "Polling interval (seconds)"
         },
@@ -186,10 +181,7 @@
       },
       "notify_a161_a161_inactivity_period": {
         "title": "{provider_label}: inactivity period",
-        "description": "Choose after how many days without incoming messages and without sends with buttons receive mode is switched to Send only. Server suggestion ({caps_source}): {inactivity_days} day(s). Allowed: {days_min}–{days_max}.",
-        "data": {
-          "a161_inactivity_period_days": "Period"
-        }
+        "description": "If there are no incoming messages and no sends with buttons for {inactivity_days} day(s), receive mode becomes Send only."
       }
     },
     "error": {
@@ -362,18 +354,13 @@
       },
       "notify_a161_init_notify": {
         "title": "{provider_label} — settings",
-        "description": "Message format and receive mode from the server ({caps_source}). Available formats: {available_formats}.\n\nToken active for {token_active_days} day(s); photo/video/document up to {max_photo_mb}/{max_video_mb}/{max_document_mb} MB; polling {interval_min}–{interval_max} s.\n\nWebSocket appears only when websocket_available=true.\n\nTo change the API token, remove this integration and add it again. user_id stays fixed from initial setup.",
         "data": {
           "message_format": "Message format",
           "receive_mode": "Receive mode"
-        },
-        "data_description": {
-          "message_format": "Allowed by the server: {available_formats}."
         }
       },
       "notify_a161_updates_interval": {
         "title": "{provider_label} — updates polling interval",
-        "description": "Server limits ({caps_source}): token active for {token_active_days} day(s); polling {interval_min}–{interval_max} s (default {default_seconds} s); photo/video/document up to {max_photo_mb}/{max_video_mb}/{max_document_mb} MB.",
         "data": {
           "updates_interval": "Polling interval (seconds)"
         },
@@ -383,10 +370,7 @@
       },
       "notify_a161_a161_inactivity_period": {
         "title": "{provider_label}: inactivity period",
-        "description": "Choose after how many days without incoming messages and without sends with buttons receive mode is switched to Send only. Server suggestion ({caps_source}): {inactivity_days} day(s). Allowed: {days_min}–{days_max}.",
-        "data": {
-          "a161_inactivity_period_days": "Period"
-        }
+        "description": "If there are no incoming messages and no sends with buttons for {inactivity_days} day(s), receive mode becomes Send only."
       }
     },
     "error": {

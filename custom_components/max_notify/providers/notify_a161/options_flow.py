@@ -37,8 +37,6 @@ from ..options_keyboard import (
 )
 from ..registry import get_provider
 from .config_flow import (
-    _caps_summary_placeholders,
-    caps_from_flow,
     message_format_keys,
     receive_mode_keys,
 )
@@ -161,10 +159,7 @@ async def async_step_init_notify(
     return flow.async_show_form(
         step_id=step_init,
         data_schema=await flow._schema_init_async(entry),
-        description_placeholders=merge_description_placeholders(
-            flow,
-            _caps_summary_placeholders(caps),
-        ),
+        description_placeholders=merge_description_placeholders(flow),
     )
 
 

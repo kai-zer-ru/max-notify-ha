@@ -34,7 +34,11 @@ from ...translations import (
     prefixed_step_id,
 )
 from ...unique_title import get_unique_entry_title
-from .config_flow import _caps_summary_placeholders, caps_from_flow, message_format_keys, receive_mode_keys
+from .config_flow import (
+    caps_from_flow,
+    message_format_keys,
+    receive_mode_keys,
+)
 from .const import (
     CONF_A161_INACTIVITY_PERIOD_DAYS,
     NOTIFY_A161_INACTIVITY_PERIOD_DAYS_DEFAULT,
@@ -56,7 +60,7 @@ def _notify_user_description_placeholders(flow: Any) -> dict[str, str]:
 
 
 def _recipient_description_placeholders(flow: Any) -> dict[str, str]:
-    return merge_description_placeholders(flow, _caps_summary_placeholders(caps_from_flow(flow)))
+    return merge_description_placeholders(flow)
 
 
 async def _schema_token(flow: Any) -> vol.Schema:

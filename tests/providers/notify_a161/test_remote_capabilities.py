@@ -280,12 +280,21 @@ def test_caps_summary_placeholders_hide_unsupported_sizes() -> None:
         }
     )
     ph = _caps_summary_placeholders(caps)
-    assert ph["max_photo_mb"] == "8"
-    assert ph["max_video_mb"] == "—"
-    assert ph["max_document_mb"] == "3"
-    assert ph["available_formats"] == "text, markdown"
     assert ph["inactivity_days"] == "2"
-    assert ph["caps_source"] == "API"
+
+
+def test_inactivity_limit_uses_remote_days() -> None:
+    caps = capabilities_from_json({"polling_inactivity_auto_disable_days": 7})
+    assert caps.polling_inactivity_auto_disable_days == 7
+    assert caps.inactivity_limit_days() == 7
+    alias = capabilities_from_json({"inactivity_auto_disable_days": 15})
+    assert alias.inactivity_limit_days() == 15
+    from custom_components.max_notify.providers.notify_a161.config_flow import (
+        _caps_summary_placeholders,
+    )
+
+    ph = _caps_summary_placeholders(caps)
+    assert ph["inactivity_days"] == "7"
 
 
 def test_message_rate_per_minute() -> None:

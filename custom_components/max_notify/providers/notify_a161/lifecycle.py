@@ -9,12 +9,9 @@ from homeassistant.core import HomeAssistant
 
 from ...const import CONF_BUTTONS, CONF_RECEIVE_MODE, DOMAIN, RECEIVE_MODE_POLLING, RECEIVE_MODE_SEND_ONLY
 from .const import (
-    CONF_A161_INACTIVITY_PERIOD_DAYS,
     CONF_A161_LAST_BUTTON_SEND_AT,
     CONF_A161_LAST_INCOMING_AT,
     CONF_A161_POLLING_GRACE_STARTED_AT,
-    NOTIFY_A161_INACTIVITY_PERIOD_DAYS_MAX,
-    NOTIFY_A161_INACTIVITY_PERIOD_DAYS_MIN,
 )
 from .remote_capabilities import resolve_remote_capabilities
 from homeassistant.components import persistent_notification
@@ -48,20 +45,7 @@ async def ensure_polling_grace(hass: HomeAssistant, entry: ConfigEntry) -> None:
 
     now_ts = int(time.time())
     caps = resolve_remote_capabilities(hass, entry)
-    try:
-        days = int(
-            options.get(
-                CONF_A161_INACTIVITY_PERIOD_DAYS,
-                caps.polling_inactivity_auto_disable_days,
-            )
-            or 0
-        )
-    except (TypeError, ValueError):
-        days = caps.polling_inactivity_auto_disable_days
-    days = min(
-        NOTIFY_A161_INACTIVITY_PERIOD_DAYS_MAX,
-        max(NOTIFY_A161_INACTIVITY_PERIOD_DAYS_MIN, days),
-    )
+    days = caps.inactivity_limit_days()
     period_sec = int(days * 86400)
 
     last_in = int(options.get(CONF_A161_LAST_INCOMING_AT, 0) or 0)

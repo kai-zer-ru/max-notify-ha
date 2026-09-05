@@ -8,17 +8,11 @@ import voluptuous as vol
 
 from ...const import CONF_UPDATES_INTERVAL
 from ...translations import (
-    async_selector_translations,
     merge_description_placeholders,
-    get_option_labels,
     prefixed_error_key,
     prefixed_step_id,
 )
 from .const import (
-    CONF_A161_INACTIVITY_PERIOD_DAYS,
-    NOTIFY_A161_INACTIVITY_PERIOD_DAYS_DEFAULT,
-    NOTIFY_A161_INACTIVITY_PERIOD_DAYS_MAX,
-    NOTIFY_A161_INACTIVITY_PERIOD_DAYS_MIN,
     NOTIFY_A161_UPDATES_INTERVAL_MAX_SECONDS,
     NOTIFY_A161_UPDATES_INTERVAL_MIN_SECONDS,
     NOTIFY_A161_UPDATES_INTERVAL_SECONDS,
@@ -67,36 +61,13 @@ def _interval_bounds(caps: A161RemoteCapabilities) -> tuple[int, int, int]:
     return iv_min, iv_max, iv_default
 
 
-def _size_mb_placeholder(caps: A161RemoteCapabilities, kind: str) -> str:
-    mb = caps.max_size_mb_for_kind(kind)
-    return str(mb) if mb is not None else "—"
-
-
 def _caps_summary_placeholders(caps: A161RemoteCapabilities) -> dict[str, str]:
     iv_min, iv_max, iv_default = _interval_bounds(caps)
-    days = caps.token_active_days
-    formats = caps.available_message_formats()
-    inactivity = int(
-        caps.polling_inactivity_auto_disable_days
-        or NOTIFY_A161_INACTIVITY_PERIOD_DAYS_DEFAULT
-    )
-    inactivity = min(
-        NOTIFY_A161_INACTIVITY_PERIOD_DAYS_MAX,
-        max(NOTIFY_A161_INACTIVITY_PERIOD_DAYS_MIN, inactivity),
-    )
     return {
         "default_seconds": str(iv_default),
         "interval_min": str(iv_min),
         "interval_max": str(iv_max),
-        "token_active_days": str(days) if days is not None else "—",
-        "max_photo_mb": _size_mb_placeholder(caps, "photo"),
-        "max_video_mb": _size_mb_placeholder(caps, "video"),
-        "max_document_mb": _size_mb_placeholder(caps, "document"),
-        "available_formats": ", ".join(formats),
-        "inactivity_days": str(inactivity),
-        "days_min": str(NOTIFY_A161_INACTIVITY_PERIOD_DAYS_MIN),
-        "days_max": str(NOTIFY_A161_INACTIVITY_PERIOD_DAYS_MAX),
-        "caps_source": "API" if caps.from_remote else "defaults",
+        "inactivity_days": str(caps.inactivity_limit_days()),
     }
 
 
@@ -153,70 +124,15 @@ async def async_run_inactivity_period_step(
     suggested_days: int,
     on_valid: Callable[[int], Awaitable[Any]],
 ) -> Any:
-    """Общая форма шага «период неактивности» для notify.a161 polling."""
-    step_id = prefixed_step_id(flow, "a161_inactivity_period")
-    errors: dict[str, str] = {}
-    trans = await async_selector_translations(flow.hass)
-    day_keys = [
-        str(d)
-        for d in range(
-            NOTIFY_A161_INACTIVITY_PERIOD_DAYS_MIN,
-            NOTIFY_A161_INACTIVITY_PERIOD_DAYS_MAX + 1,
-        )
-    ]
-    day_labels = get_option_labels(
-        trans,
-        "options",
-        "a161_inactivity_period",
-        "period_days",
-        day_keys,
-        flow=flow,
-    )
-    choice_labels = [day_labels[k] for k in day_keys]
-    label_to_int = {day_labels[k]: int(k) for k in day_keys}
-
-    if user_input is not None:
-        raw = user_input.get(CONF_A161_INACTIVITY_PERIOD_DAYS)
-        days = label_to_int.get(raw)
-        if days is None:
-            try:
-                cand = int(raw)
-            except (TypeError, ValueError):
-                cand = 0
-            days = (
-                cand
-                if NOTIFY_A161_INACTIVITY_PERIOD_DAYS_MIN
-                <= cand
-                <= NOTIFY_A161_INACTIVITY_PERIOD_DAYS_MAX
-                else None
-            )
-        if days is None:
-            errors["base"] = prefixed_error_key(flow, "invalid_a161_inactivity_period")
-        else:
-            return await on_valid(days)
-
-    suggested_int = min(
-        NOTIFY_A161_INACTIVITY_PERIOD_DAYS_MAX,
-        max(NOTIFY_A161_INACTIVITY_PERIOD_DAYS_MIN, int(suggested_days)),
-    )
-    suggested_label = day_labels.get(
-        str(suggested_int), str(NOTIFY_A161_INACTIVITY_PERIOD_DAYS_DEFAULT)
-    )
+    """Информационный шаг: период неактивности задаёт сервер, выбора нет."""
+    del suggested_days
     caps = caps_from_flow(flow)
+    days = caps.inactivity_limit_days()
+    if user_input is not None:
+        return await on_valid(days)
     return flow.async_show_form(
-        step_id=step_id,
-        data_schema=flow.add_suggested_values_to_schema(
-            vol.Schema(
-                {
-                    vol.Required(
-                        CONF_A161_INACTIVITY_PERIOD_DAYS,
-                        default=suggested_label,
-                    ): vol.In(choice_labels),
-                }
-            ),
-            {CONF_A161_INACTIVITY_PERIOD_DAYS: suggested_label},
-        ),
-        errors=errors,
+        step_id=prefixed_step_id(flow, "a161_inactivity_period"),
+        data_schema=vol.Schema({}),
         description_placeholders=merge_description_placeholders(
             flow,
             _caps_summary_placeholders(caps),

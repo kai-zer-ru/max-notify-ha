@@ -29,6 +29,7 @@ from .api import sync_bot_commands, validate_token
 from .config_flow import (
     async_run_inactivity_period_step,
     async_run_updates_interval_step,
+    caps_from_flow,
     receive_mode_keys,
 )
 from .const import (
@@ -37,7 +38,6 @@ from .const import (
     CONF_A161_LAST_INCOMING_AT,
     CONF_A161_POLLING_GRACE_STARTED_AT,
     NOTIFY_A161_INACTIVITY_PERIOD_DAYS_DEFAULT,
-    NOTIFY_A161_INACTIVITY_PERIOD_DAYS_MAX,
     NOTIFY_A161_INACTIVITY_PERIOD_DAYS_MIN,
     NOTIFY_A161_MAX_UPLOAD_BYTES,
 )
@@ -53,7 +53,21 @@ if TYPE_CHECKING:
 
 class NotifyA161IntegrationProvider(MaxNotifyIntegrationProvider):
     @staticmethod
-    def _sanitize_inactivity_days(raw: Any, *, default: int | None = None) -> int:
+    @staticmethod
+    def _sanitize_inactivity_days(
+        raw: Any,
+        *,
+        default: int | None = None,
+        max_days: int | None = None,
+    ) -> int:
+        """Период неактивности: всегда лимит с сервера, если он известен."""
+        if max_days is not None:
+            try:
+                limit = int(max_days)
+            except (TypeError, ValueError):
+                limit = 0
+            if limit >= NOTIFY_A161_INACTIVITY_PERIOD_DAYS_MIN:
+                return limit
         fallback = (
             default
             if default is not None
@@ -63,10 +77,7 @@ class NotifyA161IntegrationProvider(MaxNotifyIntegrationProvider):
             days = int(raw)
         except (TypeError, ValueError):
             days = fallback
-        return min(
-            NOTIFY_A161_INACTIVITY_PERIOD_DAYS_MAX,
-            max(NOTIFY_A161_INACTIVITY_PERIOD_DAYS_MIN, days),
-        )
+        return max(NOTIFY_A161_INACTIVITY_PERIOD_DAYS_MIN, days)
 
     @staticmethod
     def _remote_caps(hass: HomeAssistant, entry: ConfigEntry):
@@ -577,7 +588,8 @@ class NotifyA161IntegrationProvider(MaxNotifyIntegrationProvider):
                     flow,
                     "_a161_inactivity_period_days",
                     NOTIFY_A161_INACTIVITY_PERIOD_DAYS_DEFAULT,
-                )
+                ),
+                max_days=caps_from_flow(flow).inactivity_limit_days(),
             )
             return await flow.async_step_a161_inactivity_period(None)
 
@@ -600,7 +612,8 @@ class NotifyA161IntegrationProvider(MaxNotifyIntegrationProvider):
                 (entry.options or {}).get(
                     CONF_A161_INACTIVITY_PERIOD_DAYS,
                     NOTIFY_A161_INACTIVITY_PERIOD_DAYS_DEFAULT,
-                )
+                ),
+                max_days=caps_from_flow(flow).inactivity_limit_days(),
             )
             return await flow.async_step_a161_inactivity_period(None)
 
@@ -619,7 +632,8 @@ class NotifyA161IntegrationProvider(MaxNotifyIntegrationProvider):
                 flow,
                 "_a161_inactivity_period_days",
                 NOTIFY_A161_INACTIVITY_PERIOD_DAYS_DEFAULT,
-            )
+            ),
+            max_days=caps_from_flow(flow).inactivity_limit_days(),
         )
 
         async def on_valid(days: int) -> Any:
@@ -645,7 +659,8 @@ class NotifyA161IntegrationProvider(MaxNotifyIntegrationProvider):
                     CONF_A161_INACTIVITY_PERIOD_DAYS,
                     NOTIFY_A161_INACTIVITY_PERIOD_DAYS_DEFAULT,
                 ),
-            )
+            ),
+            max_days=caps_from_flow(flow).inactivity_limit_days(),
         )
 
         async def on_valid(days: int) -> Any:
