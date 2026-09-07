@@ -24,6 +24,7 @@ from ..const import (
     DOMAIN,
     POLLING_LIMIT,
     POLLING_TIMEOUT,
+    RECEIVE_MODE_POLLING,
     RECEIVE_MODE_SEND_ONLY,
 )
 from ..translations import get_receive_mode_title
@@ -698,6 +699,11 @@ class MaxNotifyIntegrationProvider:
         """После добавления первой кнопки в мастере восстановить режим приёма polling."""
         return False
 
+    def receive_mode_restored_after_keyboard(self, *, polling_requested: bool) -> str:
+        """Какой receive_mode вернуть после первой кнопки, если restore включён."""
+        _ = polling_requested
+        return RECEIVE_MODE_POLLING
+
     async def async_config_flow_updates_interval_setup(
         self, flow: object, user_input: dict | None
     ) -> object:
@@ -747,7 +753,10 @@ class MaxNotifyIntegrationProvider:
             params["marker"] = marker
         return params
 
-    def updates_poll_http_timeout_total(self) -> float:
+    def updates_poll_http_timeout_total(
+        self, entry: ConfigEntry | None = None, *, hass: HomeAssistant | None = None
+    ) -> float:
+        _ = entry, hass
         return float(POLLING_TIMEOUT + 10)
 
     def updates_poll_uses_request_pacing(self) -> bool:

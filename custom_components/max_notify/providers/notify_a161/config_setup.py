@@ -20,8 +20,9 @@ from ...const import (
     CONF_WEBHOOK_SECRET,
     CONF_BUTTONS,
     DOMAIN,
-    RECEIVE_MODE_POLLING,
+    RECEIVE_MODE_LONG_POLLING,
     RECEIVE_MODE_SEND_ONLY,
+    RECEIVE_MODE_WEBSOCKET,
     SUBENTRY_TYPE_RECIPIENT,
 )
 from ...services import register_send_message_service
@@ -36,13 +37,16 @@ from ...translations import (
 from ...unique_title import get_unique_entry_title
 from .config_flow import (
     caps_from_flow,
+    is_a161_http_receive_mode,
     message_format_keys,
+    preferred_receive_mode,
     receive_mode_keys,
 )
 from .const import (
     CONF_A161_INACTIVITY_PERIOD_DAYS,
+    CONF_A161_UPDATES_LIMIT,
     NOTIFY_A161_INACTIVITY_PERIOD_DAYS_DEFAULT,
-    NOTIFY_A161_UPDATES_INTERVAL_SECONDS,
+    NOTIFY_A161_UPDATES_LIMIT,
 )
 
 try:
@@ -100,9 +104,9 @@ async def _schema_receive_mode(flow: Any) -> vol.Schema:
     current_fmt = getattr(flow, "_message_format", "text")
     if current_fmt not in msg_fmt_keys:
         current_fmt = "text"
-    current = getattr(flow, "_receive_mode", RECEIVE_MODE_SEND_ONLY)
+    current = getattr(flow, "_receive_mode", preferred_receive_mode(caps))
     if current not in recv_keys:
-        current = RECEIVE_MODE_SEND_ONLY
+        current = preferred_receive_mode(caps)
     suggested = {
         CONF_MESSAGE_FORMAT: msg_fmt_labels.get(current_fmt, msg_fmt_list[0]),
         CONF_RECEIVE_MODE: recv_labels.get(current, recv_list[0]),
@@ -179,18 +183,15 @@ async def async_step_notify_user(
         allowed_fmts = message_format_keys(caps)
         if getattr(flow, "_message_format", "text") not in allowed_fmts:
             flow._message_format = "text"
-        flow._updates_interval = int(
-            caps.polling_interval_default_s
-            or caps.polling_interval_s
-            or NOTIFY_A161_UPDATES_INTERVAL_SECONDS
-        )
+        flow._updates_interval = int(caps.long_poll_wait_seconds())
+        flow._updates_limit = int(caps.long_poll_limit())
         flow._a161_inactivity_period_days = int(
             caps.polling_inactivity_auto_disable_days
             or NOTIFY_A161_INACTIVITY_PERIOD_DAYS_DEFAULT
         )
         flow._webhook_secret = ""
         flow._buttons_rows = []
-        flow._receive_mode = RECEIVE_MODE_SEND_ONLY
+        flow._receive_mode = preferred_receive_mode(caps)
         return await flow.async_step_notify_receive_mode(None)
     return flow.async_show_form(
         step_id=step_user,
@@ -248,10 +249,20 @@ async def async_step_notify_receive_mode(
             or RECEIVE_MODE_SEND_ONLY
         )
         if flow._receive_mode not in recv_keys:
-            flow._receive_mode = RECEIVE_MODE_SEND_ONLY
-        flow._wizard_polling_requested = flow._receive_mode == RECEIVE_MODE_POLLING
-        if flow._receive_mode == RECEIVE_MODE_POLLING:
+            flow._receive_mode = preferred_receive_mode(caps)
+        flow._wizard_polling_requested = is_a161_http_receive_mode(flow._receive_mode)
+        if is_a161_http_receive_mode(flow._receive_mode):
+            flow._receive_mode = RECEIVE_MODE_LONG_POLLING
+            flow._updates_interval = int(
+                caps.long_poll_wait_seconds(getattr(flow, "_updates_interval", None))
+            )
+            flow._updates_limit = int(caps.long_poll_limit())
             return await flow.async_step_updates_interval(None)
+        if (
+            flow._receive_mode == RECEIVE_MODE_WEBSOCKET
+            and caps.supports_inline_keyboard
+        ):
+            return await flow.async_step_receive_options_menu(None)
         return await flow.async_step_notify_recipient(None)
     return flow.async_show_form(
         step_id=step_id,
@@ -300,6 +311,9 @@ async def async_step_notify_recipient(
                 CONF_WEBHOOK_SECRET: flow._webhook_secret,
                 CONF_BUTTONS: flow._buttons_rows,
                 CONF_UPDATES_INTERVAL: int(flow._updates_interval),
+                CONF_A161_UPDATES_LIMIT: int(
+                    getattr(flow, "_updates_limit", NOTIFY_A161_UPDATES_LIMIT)
+                ),
                 CONF_A161_INACTIVITY_PERIOD_DAYS: int(
                     getattr(
                         flow,

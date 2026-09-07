@@ -55,21 +55,39 @@ def start_polling(hass: HomeAssistant, entry: ConfigEntry) -> asyncio.Task[None]
         coro_factory = prov.async_updates_polling_loop
     elif receive_mode == RECEIVE_MODE_WEBSOCKET:
         if not caps.supports_receive_websocket:
-            _LOGGER.debug(
-                "start_polling пропущен: websocket не поддерживается, запись=%s",
+            _LOGGER.warning(
+                "start_polling пропущен: websocket не поддерживается, запись=%s "
+                "supports_receive_websocket=%s",
                 entry.entry_id,
+                caps.supports_receive_websocket,
             )
             return None
         coro_factory = prov.async_updates_websocket_loop
     else:
+        _LOGGER.debug(
+            "start_polling пропущен: режим=%s запись=%s",
+            receive_mode,
+            entry.entry_id,
+        )
         return None
 
     if DOMAIN not in hass.data:
         hass.data[DOMAIN] = {}
     tasks = hass.data[DOMAIN].setdefault("_polling_tasks", {})
     entry_id = entry.entry_id
-    if entry_id in tasks:
-        return tasks[entry_id]
+    existing = tasks.pop(entry_id, None)
+    if existing is not None:
+        _LOGGER.debug(
+            "start_polling: отмена прежней задачи перед режимом %s запись=%s",
+            receive_mode,
+            entry_id,
+        )
+        existing.cancel()
+    _LOGGER.info(
+        "Запуск приёма updates режим=%s запись=%s",
+        receive_mode,
+        entry_id,
+    )
     if hasattr(hass, "async_create_background_task"):
         try:
             task = hass.async_create_background_task(

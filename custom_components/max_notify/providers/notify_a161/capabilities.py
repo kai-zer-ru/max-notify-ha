@@ -8,7 +8,7 @@ from ..capabilities import IntegrationCapabilities
 NOTIFY_A161_CAPABILITIES = IntegrationCapabilities(
     supports_group_chats=True,
     supports_inline_keyboard=True,
-    supports_receive_polling=True,
+    supports_receive_polling=False,
     supports_delete_message=True,
     supports_delete_message_by_period=False,
     supports_delete_last_outgoing_message=False,
@@ -18,7 +18,7 @@ NOTIFY_A161_CAPABILITIES = IntegrationCapabilities(
     supports_send_video=True,
     supports_bot_command_registration=False,
     supports_slash_command_allowlist_ui=False,
-    supports_receive_long_polling=False,
+    supports_receive_long_polling=True,
     supports_receive_webhook=False,
     supports_receive_websocket=True,
     max_client_upload_bytes=NOTIFY_A161_MAX_UPLOAD_BYTES,

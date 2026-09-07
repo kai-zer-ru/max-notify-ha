@@ -69,13 +69,10 @@ def mark_button_send(
     last_button_send_at_key: str,
 ) -> None:
     """Запомнить время последней успешной отправки a161 с кнопками."""
-    now_ts = time.time()
-    domain_data = hass.data.setdefault(domain, {})
-    marks: dict[str, float] = domain_data.setdefault("_a161_button_send_marks", {})
-    marks[entry.entry_id] = now_ts
-    new_options = dict(entry.options or {})
-    new_options[last_button_send_at_key] = int(now_ts)
-    hass.config_entries.async_update_entry(entry, options=new_options)
+    del domain, last_button_send_at_key
+    from .lifecycle import note_last_button_send
+
+    note_last_button_send(hass, entry)
 
 
 async def with_pace_lock(

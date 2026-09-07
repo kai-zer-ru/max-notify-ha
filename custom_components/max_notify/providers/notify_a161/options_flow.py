@@ -16,7 +16,7 @@ from ...const import (
     CONF_UPDATES_INTERVAL,
     CONF_WEBHOOK_SECRET,
     DOMAIN,
-    RECEIVE_MODE_POLLING,
+    RECEIVE_MODE_LONG_POLLING,
     RECEIVE_MODE_SEND_ONLY,
     RECEIVE_MODE_WEBSOCKET,
 )
@@ -39,13 +39,17 @@ from ..options_keyboard import (
 )
 from ..registry import get_provider
 from .config_flow import (
+    is_a161_http_receive_mode,
     message_format_keys,
+    normalize_a161_receive_mode,
     receive_mode_keys,
 )
 from .const import (
     CONF_A161_INACTIVITY_PERIOD_DAYS,
+    CONF_A161_UPDATES_LIMIT,
     NOTIFY_A161_INACTIVITY_PERIOD_DAYS_DEFAULT,
     NOTIFY_A161_UPDATES_INTERVAL_SECONDS,
+    NOTIFY_A161_UPDATES_LIMIT,
 )
 
 
@@ -109,22 +113,23 @@ async def async_step_init_notify(
         if chosen_fmt not in msg_fmt_keys:
             chosen_fmt = "text"
         new_data[CONF_MESSAGE_FORMAT] = chosen_fmt
-        new_receive_mode = (
+        new_receive_mode = normalize_a161_receive_mode(
             recv_label_to_key.get(raw_recv, raw_recv) or RECEIVE_MODE_SEND_ONLY
         )
         if new_receive_mode not in recv_keys:
             new_receive_mode = RECEIVE_MODE_SEND_ONLY
-        flow._wizard_polling_requested = new_receive_mode == RECEIVE_MODE_POLLING
-        if new_receive_mode == RECEIVE_MODE_POLLING:
+        flow._wizard_polling_requested = is_a161_http_receive_mode(new_receive_mode)
+        if is_a161_http_receive_mode(new_receive_mode):
             flow._pending_data = new_data
             flow._pending_updates_interval = int(
-                (entry.options or {}).get(
-                    CONF_UPDATES_INTERVAL,
-                    caps.polling_interval_default_s or NOTIFY_A161_UPDATES_INTERVAL_SECONDS,
+                caps.long_poll_wait_seconds(
+                    (entry.options or {}).get(CONF_UPDATES_INTERVAL)
                 )
             )
+            stored_limit = (entry.options or {}).get(CONF_A161_UPDATES_LIMIT)
+            flow._pending_updates_limit = int(caps.long_poll_limit(stored_limit))
             flow._pending_options = {
-                CONF_RECEIVE_MODE: RECEIVE_MODE_POLLING,
+                CONF_RECEIVE_MODE: RECEIVE_MODE_LONG_POLLING,
                 CONF_WEBHOOK_SECRET: "",
             }
             flow._pending_a161_inactivity_days = int(
@@ -136,6 +141,34 @@ async def async_step_init_notify(
             )
             flow._opt_buttons = normalize_buttons((entry.options or {}).get(CONF_BUTTONS))
             return await flow.async_step_updates_interval(None)
+        if new_receive_mode == RECEIVE_MODE_WEBSOCKET:
+            flow._pending_data = new_data
+            flow._pending_updates_interval = int(
+                caps.long_poll_wait_seconds(
+                    (entry.options or {}).get(CONF_UPDATES_INTERVAL)
+                )
+            )
+            stored_limit = (entry.options or {}).get(CONF_A161_UPDATES_LIMIT)
+            flow._pending_updates_limit = int(caps.long_poll_limit(stored_limit))
+            flow._pending_options = {
+                CONF_RECEIVE_MODE: RECEIVE_MODE_WEBSOCKET,
+                CONF_WEBHOOK_SECRET: "",
+            }
+            flow._pending_a161_inactivity_days = int(
+                (entry.options or {}).get(
+                    CONF_A161_INACTIVITY_PERIOD_DAYS,
+                    caps.polling_inactivity_auto_disable_days
+                    or NOTIFY_A161_INACTIVITY_PERIOD_DAYS_DEFAULT,
+                )
+            )
+            flow._opt_buttons = (
+                normalize_buttons((entry.options or {}).get(CONF_BUTTONS))
+                if caps.supports_inline_keyboard
+                else []
+            )
+            if caps.supports_inline_keyboard:
+                return await flow.async_step_buttons_menu(None)
+            return await flow.async_step_opt_next(None)
         new_options = {
             CONF_RECEIVE_MODE: new_receive_mode,
             CONF_WEBHOOK_SECRET: "",
@@ -149,6 +182,12 @@ async def async_step_init_notify(
                 (entry.options or {}).get(
                     CONF_UPDATES_INTERVAL,
                     caps.polling_interval_default_s or NOTIFY_A161_UPDATES_INTERVAL_SECONDS,
+                )
+            ),
+            CONF_A161_UPDATES_LIMIT: int(
+                (entry.options or {}).get(
+                    CONF_A161_UPDATES_LIMIT,
+                    caps.long_poll_limit(),
                 )
             ),
             CONF_A161_INACTIVITY_PERIOD_DAYS: int(
@@ -165,7 +204,7 @@ async def async_step_init_notify(
             flow.hass, DOMAIN, base_title, exclude_entry_id=entry.entry_id
         )
         flow.hass.config_entries.async_update_entry(
-            entry, data=new_data, title=new_title
+            entry, data=new_data, options=new_options, title=new_title
         )
         await flow.hass.config_entries.async_reload(entry.entry_id)
         return flow.async_create_entry(data=new_options)

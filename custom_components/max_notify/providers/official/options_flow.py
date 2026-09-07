@@ -153,7 +153,7 @@ async def async_step_init(
                 flow.hass, DOMAIN, base_title, exclude_entry_id=entry.entry_id
             )
             flow.hass.config_entries.async_update_entry(
-                entry, data=new_data, title=new_title
+                entry, data=new_data, options=new_options, title=new_title
             )
             await flow.hass.config_entries.async_reload(entry.entry_id)
             return flow.async_create_entry(data=new_options)

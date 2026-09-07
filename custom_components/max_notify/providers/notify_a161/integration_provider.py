@@ -13,6 +13,7 @@ from ...const import (
     CONF_RECEIVE_MODE,
     CONF_UPDATES_INTERVAL,
     DOMAIN,
+    RECEIVE_MODE_LONG_POLLING,
     RECEIVE_MODE_POLLING,
     RECEIVE_MODE_SEND_ONLY,
 )
@@ -35,11 +36,12 @@ from .config_flow import (
 from .const import (
     CONF_A161_INACTIVITY_PERIOD_DAYS,
     CONF_A161_LAST_BUTTON_SEND_AT,
-    CONF_A161_LAST_INCOMING_AT,
     CONF_A161_POLLING_GRACE_STARTED_AT,
+    CONF_A161_UPDATES_LIMIT,
     NOTIFY_A161_INACTIVITY_PERIOD_DAYS_DEFAULT,
     NOTIFY_A161_INACTIVITY_PERIOD_DAYS_MIN,
     NOTIFY_A161_MAX_UPLOAD_BYTES,
+    NOTIFY_A161_UPDATES_LIMIT,
 )
 from .lifecycle import ensure_polling_grace
 from .remote_capabilities import A161RemoteCapabilities, resolve_remote_capabilities
@@ -108,8 +110,9 @@ class NotifyA161IntegrationProvider(MaxNotifyIntegrationProvider):
             supports_send_photo=caps.support_photo,
             supports_send_document=caps.support_document,
             supports_send_video=caps.support_video,
-            supports_receive_polling=caps.polling_enabled(),
-            supports_receive_websocket=caps.websocket_enabled(),
+            supports_receive_polling=False,
+            supports_receive_long_polling=caps.polling_available,
+            supports_receive_websocket=caps.websocket_available,
             max_client_upload_bytes=max_upload,
         )
 
@@ -245,6 +248,12 @@ class NotifyA161IntegrationProvider(MaxNotifyIntegrationProvider):
             polling_requested and pending_receive_mode == RECEIVE_MODE_SEND_ONLY
         )
 
+    def receive_mode_restored_after_keyboard(
+        self, *, polling_requested: bool
+    ) -> str:
+        _ = polling_requested
+        return RECEIVE_MODE_LONG_POLLING
+
     def iter_config_entries_sharing_token(
         self,
         hass: HomeAssistant,
@@ -285,7 +294,7 @@ class NotifyA161IntegrationProvider(MaxNotifyIntegrationProvider):
         self, *, webhook_available: bool
     ) -> list[str]:
         _ = webhook_available
-        return receive_mode_keys(websocket_available=False)
+        return receive_mode_keys(websocket_available=True, polling_available=True)
 
     def config_flow_receive_mode_keys_options_compact(
         self, *, websocket_available: bool = False, polling_available: bool = True
@@ -304,7 +313,7 @@ class NotifyA161IntegrationProvider(MaxNotifyIntegrationProvider):
         allow_switch_from_polling: bool,
     ) -> list[str]:
         _ = current_mode, webhook_available, allow_switch_from_webhook, allow_switch_from_polling
-        return receive_mode_keys(websocket_available=False)
+        return receive_mode_keys(websocket_available=True, polling_available=True)
 
     def should_restore_polling_after_first_keyboard_button(
         self, *, polling_requested: bool
@@ -322,11 +331,27 @@ class NotifyA161IntegrationProvider(MaxNotifyIntegrationProvider):
         hass: HomeAssistant | None = None,
     ) -> dict[str, Any]:
         params: dict[str, Any] = {"v": self.api_version}
-        limit = self.updates_poll_limit
-        if hass is not None:
-            limit = self._remote_caps(hass, entry).polling_limit_s
-        if limit is not None:
-            params["limit"] = limit
+        caps = self._remote_caps(hass, entry) if hass is not None else None
+        stored = entry.options or {}
+        stored_limit = stored.get(CONF_A161_UPDATES_LIMIT)
+        stored_wait = stored.get(CONF_UPDATES_INTERVAL)
+        if caps is not None:
+            params["limit"] = int(caps.long_poll_limit(stored_limit))
+            requested_wait: int | None
+            try:
+                requested_wait = int(stored_wait) if stored_wait is not None else None
+            except (TypeError, ValueError):
+                requested_wait = None
+            params["wait"] = int(caps.long_poll_wait_seconds(requested_wait))
+        else:
+            try:
+                params["limit"] = int(stored_limit or self.updates_poll_limit or NOTIFY_A161_UPDATES_LIMIT)
+            except (TypeError, ValueError):
+                params["limit"] = int(self.updates_poll_limit or NOTIFY_A161_UPDATES_LIMIT)
+            try:
+                params["wait"] = int(stored_wait) if stored_wait is not None else 60
+            except (TypeError, ValueError):
+                params["wait"] = 60
         return params
 
     def updates_poll_url(
@@ -373,11 +398,21 @@ class NotifyA161IntegrationProvider(MaxNotifyIntegrationProvider):
             iv = iv_default
         return max(iv_min, min(iv_max, iv))
 
-    def updates_poll_http_timeout_total(self) -> float:
-        return 15.0
+    def updates_poll_http_timeout_total(
+        self, entry: ConfigEntry | None = None, *, hass: HomeAssistant | None = None
+    ) -> float:
+        wait = 60.0
+        if hass is not None and entry is not None:
+            stored = (entry.options or {}).get(CONF_UPDATES_INTERVAL)
+            try:
+                requested = int(stored) if stored is not None else None
+            except (TypeError, ValueError):
+                requested = None
+            wait = float(self._remote_caps(hass, entry).long_poll_wait_seconds(requested))
+        return wait + 15.0
 
     def updates_poll_uses_request_pacing(self) -> bool:
-        return True
+        return False
 
     def should_persist_updates_marker(self) -> bool:
         return False
@@ -415,9 +450,11 @@ class NotifyA161IntegrationProvider(MaxNotifyIntegrationProvider):
                 hass, entry
             ).capabilities_request_min_interval_seconds()
         else:
-            local = self.updates_poll_interval_seconds(entry, hass=hass)
+            local = float(
+                resolve_remote_capabilities(hass, entry).long_poll_wait_seconds()
+            )
 
-        if retry is None and status not in ("DELAYED", "REJECTED"):
+        if retry is None and status not in ("REJECTED",):
             return None
         wait = wait_seconds_from_rate_headers(
             local_interval=local,
@@ -523,9 +560,6 @@ class NotifyA161IntegrationProvider(MaxNotifyIntegrationProvider):
             domain=DOMAIN,
             last_button_send_at_key=CONF_A161_LAST_BUTTON_SEND_AT,
         )
-        options = dict(entry.options or {})
-        options[CONF_A161_POLLING_GRACE_STARTED_AT] = 0
-        hass.config_entries.async_update_entry(entry, options=options)
 
     def upload_step2_response_ok(self, resp: Any) -> bool:
         return a161_notify.upload_step2_ok(resp)
@@ -629,8 +663,9 @@ class NotifyA161IntegrationProvider(MaxNotifyIntegrationProvider):
     async def async_config_flow_updates_interval_setup(
         self, flow: Any, user_input: dict | None
     ) -> Any:
-        async def on_valid(interval: int) -> Any:
-            flow._updates_interval = interval
+        async def on_valid(wait: int, limit: int) -> Any:
+            flow._updates_interval = wait
+            flow._updates_limit = limit
             flow._a161_inactivity_period_days = self._sanitize_inactivity_days(
                 getattr(
                     flow,
@@ -641,20 +676,32 @@ class NotifyA161IntegrationProvider(MaxNotifyIntegrationProvider):
             )
             return await flow.async_step_a161_inactivity_period(None)
 
+        caps = caps_from_flow(flow)
         return await async_run_updates_interval_step(
             flow,
             user_input,
-            suggested_interval=flow._updates_interval,
+            suggested_wait=getattr(flow, "_updates_interval", caps.long_poll_wait_seconds()),
+            suggested_limit=getattr(flow, "_updates_limit", caps.long_poll_limit()),
             on_valid=on_valid,
         )
 
     async def async_config_flow_updates_interval_options(
         self, flow: Any, user_input: dict | None
     ) -> Any:
-        suggested = flow._effective_pending_updates_interval()
+        caps = caps_from_flow(flow)
+        suggested_wait = flow._effective_pending_updates_interval()
+        stored_limit = getattr(
+            flow,
+            "_pending_updates_limit",
+            (flow.config_entry.options or {}).get(CONF_A161_UPDATES_LIMIT),
+        )
 
-        async def on_valid(interval: int) -> Any:
-            flow._pending_updates_interval = interval
+        async def on_valid(wait: int, limit: int) -> Any:
+            flow._pending_updates_interval = wait
+            flow._pending_updates_limit = limit
+            pending = dict(getattr(flow, "_pending_options", {}) or {})
+            pending[CONF_A161_UPDATES_LIMIT] = int(limit)
+            flow._pending_options = pending
             entry = flow.config_entry
             flow._pending_a161_inactivity_days = self._sanitize_inactivity_days(
                 (entry.options or {}).get(
@@ -668,7 +715,8 @@ class NotifyA161IntegrationProvider(MaxNotifyIntegrationProvider):
         return await async_run_updates_interval_step(
             flow,
             user_input,
-            suggested_interval=suggested,
+            suggested_wait=suggested_wait,
+            suggested_limit=int(caps.long_poll_limit(stored_limit)),
             on_valid=on_valid,
         )
 
@@ -745,6 +793,10 @@ class NotifyA161IntegrationProvider(MaxNotifyIntegrationProvider):
         log = get_logger()
         t0 = time.monotonic()
         log.debug("a161 prepare start entry=%s", entry.entry_id)
+        options = dict(entry.options or {})
+        if options.get(CONF_RECEIVE_MODE) == RECEIVE_MODE_POLLING:
+            options[CONF_RECEIVE_MODE] = RECEIVE_MODE_LONG_POLLING
+            hass.config_entries.async_update_entry(entry, options=options)
         await ensure_polling_grace(hass, entry)
         log.debug(
             "a161 prepare after inactivity check entry=%s elapsed=%.3fs",
@@ -762,15 +814,19 @@ class NotifyA161IntegrationProvider(MaxNotifyIntegrationProvider):
     async def async_process_incoming_update(
         self, hass: HomeAssistant, entry: ConfigEntry, update: dict[str, Any]
     ) -> None:
-        options = dict(entry.options or {})
-        options[CONF_A161_LAST_INCOMING_AT] = int(time.time())
-        options[CONF_A161_POLLING_GRACE_STARTED_AT] = 0
-        hass.config_entries.async_update_entry(entry, options=options)
+        from .lifecycle import note_last_incoming
+
+        note_last_incoming(hass, entry)
         from ..updates_service import async_process_incoming_update_impl
 
         await async_process_incoming_update_impl(hass, entry, update)
 
     async def async_updates_polling_loop(
+        self, hass: HomeAssistant, entry: ConfigEntry
+    ) -> None:
+        await self.async_updates_long_polling_loop(hass, entry)
+
+    async def async_updates_long_polling_loop(
         self, hass: HomeAssistant, entry: ConfigEntry
     ) -> None:
         from ..updates_service import async_run_polling_loop
@@ -894,6 +950,12 @@ class NotifyA161IntegrationProvider(MaxNotifyIntegrationProvider):
             **pending_options,
             CONF_BUTTONS: opt_buttons,
             CONF_UPDATES_INTERVAL: int(pending_updates_interval),
+            CONF_A161_UPDATES_LIMIT: int(
+                pending_options.get(
+                    CONF_A161_UPDATES_LIMIT,
+                    entry_options.get(CONF_A161_UPDATES_LIMIT, NOTIFY_A161_UPDATES_LIMIT),
+                )
+            ),
             CONF_A161_INACTIVITY_PERIOD_DAYS: self._sanitize_inactivity_days(
                 pending_inactivity_days
                 if pending_inactivity_days is not None
@@ -904,7 +966,10 @@ class NotifyA161IntegrationProvider(MaxNotifyIntegrationProvider):
             ),
         }
         recv_mode = out.get(CONF_RECEIVE_MODE, RECEIVE_MODE_SEND_ONLY)
-        if recv_mode != RECEIVE_MODE_POLLING or out.get(CONF_BUTTONS):
+        if recv_mode == RECEIVE_MODE_POLLING:
+            out[CONF_RECEIVE_MODE] = RECEIVE_MODE_LONG_POLLING
+            recv_mode = RECEIVE_MODE_LONG_POLLING
+        if recv_mode != RECEIVE_MODE_LONG_POLLING or out.get(CONF_BUTTONS):
             out[CONF_A161_POLLING_GRACE_STARTED_AT] = 0
         return out
 

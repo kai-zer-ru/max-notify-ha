@@ -546,6 +546,7 @@ async def async_run_polling_loop(hass: HomeAssistant, entry: ConfigEntry) -> Non
     session = async_get_clientsession(hass)
     _LOGGER.info("Запущен polling обновлений (GET /updates) для записи %s", entry_id)
     next_request_not_before = 0.0
+    logged_query = False
 
     while True:
         provider = get_provider(entry)
@@ -588,6 +589,14 @@ async def async_run_polling_loop(hass: HomeAssistant, entry: ConfigEntry) -> Non
 
         url = provider.updates_poll_url(entry, hass=hass)
         headers = {"Authorization": token}
+        if not logged_query:
+            _LOGGER.info(
+                "GET /updates запись=%s url=%s параметры=%s",
+                entry_id,
+                url,
+                params,
+            )
+            logged_query = True
 
         try:
             await async_acquire_outbound_api_slot(hass)
@@ -596,7 +605,7 @@ async def async_run_polling_loop(hass: HomeAssistant, entry: ConfigEntry) -> Non
                 headers=headers,
                 params=params,
                 timeout=aiohttp.ClientTimeout(
-                    total=provider.updates_poll_http_timeout_total()
+                    total=provider.updates_poll_http_timeout_total(entry, hass=hass)
                 ),
             ) as resp:
                 raw_text = await resp.text()

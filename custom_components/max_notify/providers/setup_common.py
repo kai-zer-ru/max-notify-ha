@@ -20,7 +20,6 @@ from ..const import (
     CONF_WEBHOOK_SECRET,
     DOMAIN,
     RECEIVE_MODE_LONG_POLLING,
-    RECEIVE_MODE_POLLING,
 )
 from ..flow_selectors import _remove_buttons_selector
 from ..flow_ui import async_keyboard_menu_intro
@@ -212,7 +211,11 @@ async def async_step_add_button_setup(
             if flow._wizard_provider().should_restore_polling_after_first_keyboard_button(
                 polling_requested=flow._wizard_polling_requested
             ):
-                flow._receive_mode = RECEIVE_MODE_POLLING
+                flow._receive_mode = (
+                    flow._wizard_provider().receive_mode_restored_after_keyboard(
+                        polling_requested=flow._wizard_polling_requested
+                    )
+                )
             return await flow.async_step_receive_options_menu(None)
     return flow.async_show_form(
         step_id="add_button",

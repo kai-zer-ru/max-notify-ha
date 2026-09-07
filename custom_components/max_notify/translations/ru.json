@@ -171,12 +171,14 @@
         }
       },
       "notify_a161_updates_interval": {
-        "title": "{provider_label} — интервал опроса",
+        "title": "{provider_label} — Long Polling",
         "data": {
-          "updates_interval": "Интервал опроса (с)"
+          "updates_interval": "Ожидание wait (с)",
+          "a161_updates_limit": "Лимит событий (limit)"
         },
         "data_description": {
-          "updates_interval": "По лимиту сервера: от {interval_min} до {interval_max} с."
+          "updates_interval": "Сколько сервер держит GET /updates: от {interval_min} до {interval_max} с (по умолчанию {default_seconds}).",
+          "a161_updates_limit": "Сколько событий забрать за раз (по умолчанию {default_limit}, диапазон {limit_min}–{limit_max})."
         }
       },
       "notify_a161_a161_inactivity_period": {
@@ -200,9 +202,10 @@
       "invalid_button_text": "Введите подпись на кнопке.",
       "invalid_button_url": "Для кнопки-ссылки укажите URL с http:// или https://.",
       "notify_a161_invalid_notify_token_length": "Токен доступа должен содержать {token_length} символов.",
-      "notify_a161_invalid_updates_interval": "Введите интервал опроса от {interval_min} до {interval_max} секунд.",
+      "notify_a161_invalid_updates_interval": "Введите wait от {interval_min} до {interval_max} секунд.",
+      "notify_a161_invalid_updates_limit": "Введите limit от {limit_min} до {limit_max}.",
       "notify_a161_token_inactive": "Токен неактивен или истёк (token_active=false). Обновите/оплатите токен на notify.a161.ru.",
-      "notify_a161_websocket_unavailable": "WebSocket пока недоступен для этого токена (websocket_available=false). Используйте Polling или дождитесь фазы 2 на notify.a161.ru.",
+      "notify_a161_websocket_unavailable": "WebSocket недоступен для этого токена (websocket_available=false). Используйте Long Polling или дождитесь, пока сервер включит WebSocket.",
       "notify_a161_invalid_a161_inactivity_period": "Выберите значение от {days_min} до {days_max} суток.",
       "notify_a161_polling_requires_buttons_switched_send_only": "Кнопки не настроены. Режим приёма автоматически переключен на «Только отправка». Добавьте хотя бы одну кнопку, чтобы использовать Polling.",
       "notify_a161_duplicate_token_not_allowed": "Интеграция MaxNotify с этим токеном уже есть. Для {provider_label} один токен — одна запись: удалите существующую или укажите другой токен."
@@ -360,12 +363,14 @@
         }
       },
       "notify_a161_updates_interval": {
-        "title": "{provider_label} — интервал опроса",
+        "title": "{provider_label} — Long Polling",
         "data": {
-          "updates_interval": "Интервал опроса (с)"
+          "updates_interval": "Ожидание wait (с)",
+          "a161_updates_limit": "Лимит событий (limit)"
         },
         "data_description": {
-          "updates_interval": "По лимиту сервера: от {interval_min} до {interval_max} с."
+          "updates_interval": "Сколько сервер держит GET /updates: от {interval_min} до {interval_max} с (по умолчанию {default_seconds}).",
+          "a161_updates_limit": "Сколько событий забрать за раз (по умолчанию {default_limit}, диапазон {limit_min}–{limit_max})."
         }
       },
       "notify_a161_a161_inactivity_period": {
@@ -379,9 +384,10 @@
       "polling_blocked_by_webhook_other_entry": "Другая интеграция MaxNotify уже использует WebHook с этим токеном бота. Сначала отключите WebHook там или используйте другой токен.",
       "webhook_blocked_by_polling_other_entry": "Другая интеграция MaxNotify уже использует Long Polling с этим токеном бота. Сначала отключите Long Polling там или используйте другой токен.",
       "webhook_requires_external_https_url": "Для WebHook нужен внешний HTTPS-адрес Home Assistant (Настройки → Система → Сеть или Nabu Casa). Сначала настройте URL, затем снова выберите WebHook.",
-      "notify_a161_invalid_updates_interval": "Введите интервал опроса от {interval_min} до {interval_max} секунд.",
+      "notify_a161_invalid_updates_interval": "Введите wait от {interval_min} до {interval_max} секунд.",
+      "notify_a161_invalid_updates_limit": "Введите limit от {limit_min} до {limit_max}.",
       "notify_a161_token_inactive": "Токен неактивен или истёк (token_active=false). Обновите/оплатите токен на notify.a161.ru.",
-      "notify_a161_websocket_unavailable": "WebSocket пока недоступен для этого токена (websocket_available=false). Используйте Polling или дождитесь фазы 2 на notify.a161.ru.",
+      "notify_a161_websocket_unavailable": "WebSocket недоступен для этого токена (websocket_available=false). Используйте Long Polling или дождитесь, пока сервер включит WebSocket.",
       "notify_a161_invalid_a161_inactivity_period": "Выберите значение от {days_min} до {days_max} суток.",
       "notify_a161_polling_requires_buttons_switched_send_only": "Кнопки не настроены. Режим приёма автоматически переключен на «Только отправка». Добавьте хотя бы одну кнопку, чтобы использовать Polling."
     }

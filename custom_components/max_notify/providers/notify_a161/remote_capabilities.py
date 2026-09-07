@@ -37,6 +37,9 @@ from .const import (
     NOTIFY_A161_POLLING_INTERVAL_MIN_SECONDS,
     NOTIFY_A161_POLLING_LIMIT,
     NOTIFY_A161_POLLING_URL_DEFAULT,
+    NOTIFY_A161_LONG_POLL_WAIT_DEFAULT_SECONDS,
+    NOTIFY_A161_LONG_POLL_WAIT_MAX_SECONDS,
+    NOTIFY_A161_LONG_POLL_WAIT_MIN_SECONDS,
     NOTIFY_A161_SMALL_FILE_MAX_SIZE_BYTES,
     NOTIFY_A161_WEBSOCKET_HEARTBEAT_SECONDS,
     NOTIFY_A161_WEBSOCKET_RECONNECT_MAX_SECONDS,
@@ -71,6 +74,9 @@ class A161RemoteCapabilities:
     polling_interval_max_s: int = NOTIFY_A161_POLLING_INTERVAL_MAX_SECONDS
     polling_interval_default_s: int = NOTIFY_A161_POLLING_INTERVAL_DEFAULT_SECONDS
     polling_inactivity_auto_disable_days: int = NOTIFY_A161_INACTIVITY_PERIOD_DAYS_DEFAULT
+    polling_wait_min_s: int = NOTIFY_A161_LONG_POLL_WAIT_MIN_SECONDS
+    polling_wait_max_s: int = NOTIFY_A161_LONG_POLL_WAIT_MAX_SECONDS
+    polling_wait_s: int = NOTIFY_A161_LONG_POLL_WAIT_DEFAULT_SECONDS
 
     support_photo: bool = True
     max_photo_size_mb: int = NOTIFY_A161_MAX_PHOTO_SIZE_MB
@@ -122,6 +128,33 @@ class A161RemoteCapabilities:
 
     def polling_enabled(self) -> bool:
         return self.token_active and self.polling_available
+
+    def long_poll_wait_seconds(self, requested: int | None = None) -> int:
+        """wait для GET /updates: 5–60, сервер сам клампит; клиент тоже."""
+        lo = int(self.polling_wait_min_s or NOTIFY_A161_LONG_POLL_WAIT_MIN_SECONDS)
+        hi = int(self.polling_wait_max_s or NOTIFY_A161_LONG_POLL_WAIT_MAX_SECONDS)
+        if lo > hi:
+            lo, hi = (
+                NOTIFY_A161_LONG_POLL_WAIT_MIN_SECONDS,
+                NOTIFY_A161_LONG_POLL_WAIT_MAX_SECONDS,
+            )
+        raw = self.polling_wait_s if requested is None else requested
+        try:
+            value = int(raw)
+        except (TypeError, ValueError):
+            value = int(self.polling_wait_s or NOTIFY_A161_LONG_POLL_WAIT_DEFAULT_SECONDS)
+        return max(lo, min(hi, value))
+
+    def long_poll_limit(self, requested: int | None = None) -> int:
+        """limit для GET /updates: любое целое ≥ 1."""
+        raw = self.polling_limit_s if requested is None else requested
+        try:
+            value = int(raw)
+        except (TypeError, ValueError):
+            value = int(self.polling_limit_s or NOTIFY_A161_POLLING_LIMIT)
+        if value < 1:
+            return int(self.polling_limit_s or NOTIFY_A161_POLLING_LIMIT)
+        return value
 
     def service_enabled(self) -> bool:
         """token_active=false ⇒ всё выключено."""
@@ -269,6 +302,17 @@ def _int(data: dict[str, Any], name: str, default: int) -> int:
         return default
 
 
+def _first_present_int(data: dict[str, Any], names: tuple[str, ...], default: int) -> int:
+    for name in names:
+        if name not in data or data.get(name) is None or data.get(name) == "":
+            continue
+        try:
+            return int(data[name])
+        except (TypeError, ValueError):
+            continue
+    return default
+
+
 def _optional_int(data: dict[str, Any], name: str) -> int | None:
     if name not in data or data.get(name) is None:
         return None
@@ -359,13 +403,46 @@ def capabilities_from_json(data: dict[str, Any]) -> A161RemoteCapabilities:
     )
     # polling_interval_s — рекомендуемый/текущий интервал; default_s — дефолт UI.
     interval_s = _int(data, "polling_interval_s", interval_default)
+    wait_min = _first_present_int(
+        data,
+        ("polling_wait_min_s", "longpolling_wait_min_s"),
+        NOTIFY_A161_LONG_POLL_WAIT_MIN_SECONDS,
+    )
+    wait_max = _first_present_int(
+        data,
+        ("polling_wait_max_s", "longpolling_wait_max_s"),
+        NOTIFY_A161_LONG_POLL_WAIT_MAX_SECONDS,
+    )
+    wait_s = _first_present_int(
+        data,
+        (
+            "polling_wait_s",
+            "polling_wait_default_s",
+            "longpolling_wait_s",
+            "longpolling_wait_default_s",
+        ),
+        NOTIFY_A161_LONG_POLL_WAIT_DEFAULT_SECONDS,
+    )
+    if wait_min > wait_max:
+        wait_min, wait_max = (
+            NOTIFY_A161_LONG_POLL_WAIT_MIN_SECONDS,
+            NOTIFY_A161_LONG_POLL_WAIT_MAX_SECONDS,
+        )
+    wait_s = max(wait_min, min(wait_max, wait_s))
+    polling_limit = _first_present_int(
+        data,
+        ("polling_limit_s", "polling_limit", "limit"),
+        NOTIFY_A161_POLLING_LIMIT,
+    )
+    if polling_limit < 1:
+        polling_limit = NOTIFY_A161_POLLING_LIMIT
 
     return A161RemoteCapabilities(
         token_active=_bool(data, "token_active", True),
         token_active_days=_optional_int(data, "token_active_days"),
         polling_available=_bool(data, "polling_available", True),
         polling_url=str(data.get("polling_url") or NOTIFY_A161_POLLING_URL_DEFAULT),
-        polling_limit_s=_int(data, "polling_limit_s", NOTIFY_A161_POLLING_LIMIT),
+        polling_limit_s=polling_limit,
         polling_interval_s=interval_s,
         polling_interval_min_s=_int(
             data, "polling_interval_min_s", NOTIFY_A161_POLLING_INTERVAL_MIN_SECONDS
@@ -375,6 +452,9 @@ def capabilities_from_json(data: dict[str, Any]) -> A161RemoteCapabilities:
         ),
         polling_interval_default_s=interval_default,
         polling_inactivity_auto_disable_days=_inactivity_auto_disable_days(data),
+        polling_wait_min_s=wait_min,
+        polling_wait_max_s=wait_max,
+        polling_wait_s=wait_s,
         support_photo=_bool(data, "support_photo", True),
         max_photo_size_mb=_size_mb(
             data, "max_photo_size_mb", "max_photo_size", NOTIFY_A161_MAX_PHOTO_SIZE_MB

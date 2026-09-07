@@ -865,6 +865,8 @@ class MaxNotifyOptionsFlow(OptionsFlow):
             )
             recv_list_compact = [recv_labels_compact[k] for k in recv_keys_compact]
             cur_recv_compact = options.get(CONF_RECEIVE_MODE, RECEIVE_MODE_SEND_ONLY)
+            if cur_recv_compact == RECEIVE_MODE_POLLING:
+                cur_recv_compact = RECEIVE_MODE_LONG_POLLING
             selected_recv_compact = (
                 cur_recv_compact
                 if cur_recv_compact in recv_keys_compact

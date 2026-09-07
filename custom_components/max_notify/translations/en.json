@@ -171,12 +171,14 @@
         }
       },
       "notify_a161_updates_interval": {
-        "title": "{provider_label} — updates polling interval",
+        "title": "{provider_label} — Long Polling",
         "data": {
-          "updates_interval": "Polling interval (seconds)"
+          "updates_interval": "Wait (seconds)",
+          "a161_updates_limit": "Limit"
         },
         "data_description": {
-          "updates_interval": "Server range: {interval_min}–{interval_max} s."
+          "updates_interval": "How long the server holds GET /updates: {interval_min}–{interval_max} s (default {default_seconds}).",
+          "a161_updates_limit": "How many events to take at once (default {default_limit}, range {limit_min}–{limit_max})."
         }
       },
       "notify_a161_a161_inactivity_period": {
@@ -200,9 +202,10 @@
       "invalid_button_text": "Enter a button label.",
       "invalid_button_url": "Enter an http(s) URL for link buttons.",
       "notify_a161_invalid_notify_token_length": "Access token must be {token_length} characters long.",
-      "notify_a161_invalid_updates_interval": "Enter a polling interval from {interval_min} to {interval_max} seconds.",
+      "notify_a161_invalid_updates_interval": "Enter wait from {interval_min} to {interval_max} seconds.",
+      "notify_a161_invalid_updates_limit": "Enter a limit from {limit_min} to {limit_max}.",
       "notify_a161_token_inactive": "Token is inactive or expired (token_active=false). Renew/pay the token on notify.a161.ru.",
-      "notify_a161_websocket_unavailable": "WebSocket is not available for this token yet (websocket_available=false). Use Polling or wait for phase 2 on notify.a161.ru.",
+      "notify_a161_websocket_unavailable": "WebSocket is not available for this token (websocket_available=false). Use Long Polling or wait until the server enables WebSocket.",
       "notify_a161_invalid_a161_inactivity_period": "Choose {days_min}, {days_max}, or a value in between (days).",
       "notify_a161_polling_requires_buttons_switched_send_only": "No buttons configured. Receive mode was switched to Send only. Add at least one button to use Polling.",
       "notify_a161_duplicate_token_not_allowed": "A MaxNotify integration with this token already exists. For {provider_label}, one token means one entry: remove the existing one or use a different token."
@@ -360,12 +363,14 @@
         }
       },
       "notify_a161_updates_interval": {
-        "title": "{provider_label} — updates polling interval",
+        "title": "{provider_label} — Long Polling",
         "data": {
-          "updates_interval": "Polling interval (seconds)"
+          "updates_interval": "Wait (seconds)",
+          "a161_updates_limit": "Limit"
         },
         "data_description": {
-          "updates_interval": "Server range: {interval_min}–{interval_max} s."
+          "updates_interval": "How long the server holds GET /updates: {interval_min}–{interval_max} s (default {default_seconds}).",
+          "a161_updates_limit": "How many events to take at once (default {default_limit}, range {limit_min}–{limit_max})."
         }
       },
       "notify_a161_a161_inactivity_period": {
@@ -379,9 +384,10 @@
       "polling_blocked_by_webhook_other_entry": "Another MaxNotify integration already uses WebHook with this bot token. Stop WebHook there or use another token before enabling Long Polling here.",
       "webhook_blocked_by_polling_other_entry": "Another MaxNotify integration already uses Long Polling with this bot token. Stop Long Polling there or use another token before enabling WebHook here.",
       "webhook_requires_external_https_url": "WebHook requires an external HTTPS URL for Home Assistant (Settings → System → Network, or Home Assistant Cloud). Configure it first, then choose WebHook again.",
-      "notify_a161_invalid_updates_interval": "Enter a polling interval from {interval_min} to {interval_max} seconds.",
+      "notify_a161_invalid_updates_interval": "Enter wait from {interval_min} to {interval_max} seconds.",
+      "notify_a161_invalid_updates_limit": "Enter a limit from {limit_min} to {limit_max}.",
       "notify_a161_token_inactive": "Token is inactive or expired (token_active=false). Renew/pay the token on notify.a161.ru.",
-      "notify_a161_websocket_unavailable": "WebSocket is not available for this token yet (websocket_available=false). Use Polling or wait for phase 2 on notify.a161.ru.",
+      "notify_a161_websocket_unavailable": "WebSocket is not available for this token (websocket_available=false). Use Long Polling or wait until the server enables WebSocket.",
       "notify_a161_invalid_a161_inactivity_period": "Choose {days_min}, {days_max}, or a value in between (days).",
       "notify_a161_polling_requires_buttons_switched_send_only": "No buttons configured. Receive mode was switched to Send only. Add at least one button to use Polling."
     }

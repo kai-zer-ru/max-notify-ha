@@ -282,7 +282,7 @@ Authorization: <access_token>
 | **Назначение**         | Адрес WebSocket для приёма входящих.                                                                                         |
 | **Использование в HA** | При режиме `websocket` клиент **сам** открывает исходящее соединение на этот URL (см. [§6](#6-доставка-входящих-websocket)). |
 | **Зачем API**          | Смена хоста, path, региона без релиза HA.                                                                                    |
-| **Пример**             | `"wss://notify.a161.ru/ws"`                                                                                                  |
+| **Пример**             | `"wss://notify.a161.ru/ws/updates"`                                                                                          |
 
 
 #### `websocket_protocol` / `websocket_api_version`
@@ -547,6 +547,8 @@ WebSocket — **фаза 2**; в фазе 1 `websocket_available: false`, код
 8. На `capability_changed` — немедленно refetch capabilities.
 
 Для polling/webhook: если `update_available != true` или канал ∉ `receive_modes` — не запускать соответствующий приём.
+
+Фактический протокол (2026-09): `wss://notify.a161.ru/ws/updates`, заголовок `Authorization`. При подключении сервер сразу отдаёт накопленное (массив или кадры), дальше — push. Клиент шлёт `{"cmd":"ping"}` (в ответ пустой массив или недошедшие updates). `{"error":"invalid json"}` — лог, соединение живое. `{"type":"closed","reason":"server shutting down"}` — переподключение. `token_active=false` — не коннектиться. Long polling: `GET /updates?limit=&wait=` (`wait` 5–60 с); короткий polling клиент больше не использует.
 
 ### 6.3. Минимальный протокол кадров
 

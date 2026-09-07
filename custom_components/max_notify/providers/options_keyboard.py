@@ -25,7 +25,6 @@ from ..const import (
     CONF_UPDATES_INTERVAL,
     DOMAIN,
     INTEGRATION_TYPE_OFFICIAL,
-    RECEIVE_MODE_POLLING,
     RECEIVE_MODE_SEND_ONLY,
 )
 from ..flow_selectors import _remove_buttons_selector
@@ -154,7 +153,11 @@ async def async_step_opt_add_button(
                 polling_requested=flow._wizard_polling_requested,
                 pending_receive_mode=flow._pending_options.get(CONF_RECEIVE_MODE),
             ):
-                flow._pending_options[CONF_RECEIVE_MODE] = RECEIVE_MODE_POLLING
+                flow._pending_options[CONF_RECEIVE_MODE] = get_provider(
+                    flow.config_entry
+                ).receive_mode_restored_after_keyboard(
+                    polling_requested=flow._wizard_polling_requested
+                )
             return await flow.async_step_buttons_menu(None)
     return flow.async_show_form(
         step_id="opt_add_button",
@@ -347,7 +350,7 @@ async def async_step_opt_next(
         flow.hass, receive_mode=recv_mode, entry_id=entry.entry_id
     )
     flow.hass.config_entries.async_update_entry(
-        entry, data=flow._pending_data, title=new_title
+        entry, data=flow._pending_data, options=new_options, title=new_title
     )
     await flow.hass.config_entries.async_reload(entry.entry_id)
     return flow.async_create_entry(data=new_options)

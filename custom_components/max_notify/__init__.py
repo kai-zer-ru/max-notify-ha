@@ -191,6 +191,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 entry.entry_id,
             )
     receive_mode = (entry.options or {}).get(CONF_RECEIVE_MODE, "send_only")
+    _LOGGER.info(
+        "async_setup_entry: приём режим=%s запись=%s",
+        receive_mode,
+        entry.entry_id,
+    )
     # Сначала снять устаревший polling — режим мог смениться между быстрыми перезагрузками.
     stop_polling(hass, entry)
 

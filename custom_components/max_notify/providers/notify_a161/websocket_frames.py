@@ -15,6 +15,7 @@ class ParsedWsFrame:
 
     kind: str
     update: dict[str, Any] | None = None
+    updates: tuple[dict[str, Any], ...] = ()
     message: str | None = None
     reason: str | None = None
 
@@ -60,6 +61,12 @@ def parse_ws_text_frame(text: str) -> ParsedWsFrame:
             return ParsedWsFrame(kind="update", update=normalized)
         return ParsedWsFrame(kind="ignore")
 
+    if isinstance(data, list):
+        from .updates import extract_updates_from_payload
+
+        batch = tuple(extract_updates_from_payload(data))
+        return ParsedWsFrame(kind="batch", updates=batch)
+
     if not isinstance(data, dict):
         normalized = normalize_reply_update(data)
         if normalized:
@@ -67,11 +74,28 @@ def parse_ws_text_frame(text: str) -> ParsedWsFrame:
         return ParsedWsFrame(kind="ignore")
 
     frame_type = str(data.get("type") or "").strip().lower()
+    error_raw = data.get("error")
+    if isinstance(error_raw, str) and error_raw.strip() and frame_type in ("", "error"):
+        return ParsedWsFrame(kind="error", reason=error_raw.strip())
+
     if not frame_type:
+        if isinstance(data.get("updates"), list):
+            from .updates import extract_updates_from_payload
+
+            return ParsedWsFrame(
+                kind="batch",
+                updates=tuple(extract_updates_from_payload(data)),
+            )
         update = _extract_update_payload(data)
         if update:
             return ParsedWsFrame(kind="update", update=update)
         return ParsedWsFrame(kind="ignore")
+
+    if frame_type == "closed":
+        return ParsedWsFrame(
+            kind="closed",
+            reason=str(data.get("reason") or "closed"),
+        )
 
     if frame_type == "update":
         update = _extract_update_payload(data)

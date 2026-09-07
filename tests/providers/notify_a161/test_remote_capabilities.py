@@ -15,6 +15,12 @@ def test_default_remote_capabilities_phase1() -> None:
     assert caps.polling_enabled() is True
     assert caps.websocket_enabled() is False
     assert caps.polling_url.endswith("/updates")
+    assert caps.websocket_url.endswith("/ws/updates")
+    assert caps.long_poll_wait_seconds() == 60
+    assert caps.long_poll_wait_seconds(2) == 5
+    assert caps.long_poll_wait_seconds(120) == 60
+    assert caps.long_poll_limit() == 5
+    assert caps.long_poll_limit(20) == 20
     assert caps.max_photo_size_mb == 4
     assert caps.polling_interval_min_s == 5
     assert caps.polling_interval_max_s == 360
@@ -428,15 +434,18 @@ def test_updates_and_upload_honor_response_headers(hass, mock_config_entry) -> N
     assert prov.apply_http_rate_limit_headers(
         hass,
         mock_config_entry,
-        {"X-RateLimit-Status": "REJECTED", "X-Retry-After-Seconds": "20"},
+        {"X-RateLimit-Status": "REJECTED", "X-Retry-After-Seconds": "90"},
         kind="updates",
-    ) == 20.0
-    assert prov.apply_http_rate_limit_headers(
-        hass,
-        mock_config_entry,
-        {"X-RateLimit-Status": "DELAYED", "X-Retry-After-Seconds": "3"},
-        kind="updates",
-    ) == 5.0
+    ) == 90.0
+    assert (
+        prov.apply_http_rate_limit_headers(
+            hass,
+            mock_config_entry,
+            {"X-RateLimit-Status": "DELAYED"},
+            kind="updates",
+        )
+        is None
+    )
     assert prov.apply_http_rate_limit_headers(
         hass,
         mock_config_entry,
