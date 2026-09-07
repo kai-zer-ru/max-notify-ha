@@ -14,6 +14,19 @@
 
 ---
 
+# [v2.3.0-beta3] — 2026-09-07
+
+## Добавлено
+
+- В списке интеграций Home Assistant у MaxNotify теперь **своя иконка** (значок мессенджера Max), а не общая заглушка.
+
+## Ссылки
+
+- Текущий релиз: [v2.3.0-beta3](https://github.com/kai-zer-ru/max-notify-ha/releases/tag/v2.3.0-beta3)
+- Сравнение с прошлым релизом: [v2.3.0-beta2…v2.3.0-beta3](https://github.com/kai-zer-ru/max-notify-ha/compare/v2.3.0-beta2...v2.3.0-beta3)
+
+---
+
 # [v2.3.0-beta2] — 2026-09-07
 
 ## Исправлено
