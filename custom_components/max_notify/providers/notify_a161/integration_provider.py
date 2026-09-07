@@ -388,6 +388,54 @@ class NotifyA161IntegrationProvider(MaxNotifyIntegrationProvider):
     def updates_poll_sleep_after_empty_batch_seconds(self) -> float:
         return 0.0
 
+    def apply_http_rate_limit_headers(
+        self,
+        hass: HomeAssistant,
+        entry: ConfigEntry,
+        headers: Any,
+        *,
+        kind: str = "updates",
+        size_bytes: int | None = None,
+    ) -> float | None:
+        """PASSED / DELAYED / REJECTED и X-Retry-After-Seconds."""
+        from ...log import get_logger
+        from .rate_headers import parse_rate_limit_headers, wait_seconds_from_rate_headers
+        from .remote_capabilities import resolve_remote_capabilities
+        from .upload_rate import note_upload_retry_after
+
+        status, retry = parse_rate_limit_headers(headers)
+        if kind == "upload":
+            caps = resolve_remote_capabilities(hass, entry)
+            rpm = caps.upload_requests_per_minute_for_size(size_bytes)
+            local = (60.0 / float(rpm)) if rpm > 0 else 0.0
+        elif kind == "messages":
+            local = resolve_remote_capabilities(hass, entry).message_min_interval_seconds()
+        elif kind == "capabilities":
+            local = resolve_remote_capabilities(
+                hass, entry
+            ).capabilities_request_min_interval_seconds()
+        else:
+            local = self.updates_poll_interval_seconds(entry, hass=hass)
+
+        if retry is None and status not in ("DELAYED", "REJECTED"):
+            return None
+        wait = wait_seconds_from_rate_headers(
+            local_interval=local,
+            retry_after_seconds=retry,
+        )
+        if kind == "upload" and wait > 0:
+            note_upload_retry_after(
+                hass, entry, wait_seconds=wait, size_bytes=size_bytes
+            )
+        get_logger().debug(
+            "a161 rate headers kind=%s status=%s retry_after=%s wait=%.1fs",
+            kind,
+            status or "PASSED",
+            retry,
+            wait,
+        )
+        return wait
+
     def build_delete_message_url(
         self, base_url: str, api_path_messages: str, message_id: str
     ) -> str:

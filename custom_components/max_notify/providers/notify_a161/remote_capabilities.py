@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import asyncio
 import time
 from typing import Any
 
@@ -42,10 +43,12 @@ from .const import (
     NOTIFY_A161_WEBSOCKET_RECONNECT_MIN_SECONDS,
     NOTIFY_A161_WEBSOCKET_URL_DEFAULT,
 )
+from .rate_headers import parse_rate_limit_headers
 
 _LOGGER = get_logger()
 
 _HASS_DATA_KEY = "a161_remote_capabilities"
+_INFLIGHT_KEY = "_a161_capabilities_inflight"
 
 
 def _mb_to_bytes(mb: int) -> int:
@@ -471,6 +474,106 @@ def set_cached_remote_capabilities(
     _cache_bucket(hass)[entry.entry_id] = caps
 
 
+def _previous_or_defaults(
+    hass: HomeAssistant, entry: ConfigEntry
+) -> A161RemoteCapabilities:
+    previous = peek_cached_remote_capabilities(hass, entry)
+    if previous is not None:
+        return previous
+    caps = default_remote_capabilities()
+    set_cached_remote_capabilities(hass, entry, caps)
+    return caps
+
+
+def _inflight_root(hass: HomeAssistant) -> dict[str, Any]:
+    root = hass.data.setdefault(DOMAIN, {})
+    return root.setdefault(
+        _INFLIGHT_KEY, {"lock": asyncio.Lock(), "tasks": {}}
+    )
+
+
+def _apply_capabilities_cooldown(
+    hass: HomeAssistant,
+    *,
+    caps: A161RemoteCapabilities,
+    retry_after_seconds: float | None,
+    force: bool,
+    entry: ConfigEntry | None = None,
+    token: str | None = None,
+    bucket_key: str | None = None,
+) -> None:
+    from .capabilities_rate import (
+        effective_capabilities_wait_seconds,
+        note_capabilities_cooldown,
+    )
+
+    wait = effective_capabilities_wait_seconds(
+        caps.capabilities_request_min_interval_seconds(force=force),
+        retry_after_seconds,
+    )
+    note_capabilities_cooldown(
+        hass,
+        wait_seconds=wait,
+        entry=entry,
+        token=token,
+        bucket_key=bucket_key,
+    )
+
+
+def _log_rate_limit_status(
+    *,
+    rate_status: str,
+    http_status: int,
+    retry_after: float | None,
+    elapsed: float,
+    where: str,
+) -> None:
+    if rate_status == "DELAYED":
+        _LOGGER.debug(
+            "a161 capabilities DELAYED %s http=%s retry_after=%s elapsed=%.2fs",
+            where,
+            http_status,
+            retry_after,
+            elapsed,
+        )
+    elif rate_status == "REJECTED" or http_status == 429:
+        _LOGGER.warning(
+            "a161 capabilities REJECTED %s http=%s retry_after=%s elapsed=%.2fs — keep previous",
+            where,
+            http_status,
+            retry_after,
+            elapsed,
+        )
+
+
+async def _http_get_me_capabilities(
+    hass: HomeAssistant,
+    token: str,
+) -> tuple[int, str, float | None, A161RemoteCapabilities | None]:
+    """GET /me/capabilities. Не 200 / не JSON → caps=None (кэш не трогаем)."""
+    url = f"{API_BASE_URL.rstrip('/')}{API_PATH_ME_CAPABILITIES}"
+    session = async_get_clientsession(hass)
+    timeout = aiohttp.ClientTimeout(total=NOTIFY_A161_CAPABILITIES_HTTP_TIMEOUT)
+    t0 = time.monotonic()
+    async with session.get(
+        url,
+        headers={"Authorization": token},
+        timeout=timeout,
+    ) as resp:
+        elapsed = time.monotonic() - t0
+        rate_status, retry_after = parse_rate_limit_headers(resp.headers)
+        if resp.status != 200:
+            return resp.status, rate_status, retry_after, None
+        payload = await resp.json(content_type=None)
+        if not isinstance(payload, dict):
+            _LOGGER.debug(
+                "a161 capabilities non-dict payload elapsed=%.2fs",
+                elapsed,
+            )
+            return resp.status, rate_status, retry_after, None
+        return resp.status, rate_status, retry_after, capabilities_from_json(payload)
+
+
 async def async_fetch_capabilities_for_token(
     hass: HomeAssistant,
     token: str,
@@ -484,7 +587,7 @@ async def async_fetch_capabilities_for_token(
 
     acquired = await async_acquire_capabilities_slot(
         hass,
-        bucket_key=f"token:{normalized}",
+        token=normalized,
         min_interval_seconds=float(
             NOTIFY_A161_CAPABILITIES_RATE_DEFAULT_INTERVAL_SECONDS
         ),
@@ -494,51 +597,55 @@ async def async_fetch_capabilities_for_token(
         _LOGGER.debug("a161 capabilities: token check rate-limited — defaults")
         return default_remote_capabilities()
 
-    url = f"{API_BASE_URL.rstrip('/')}{API_PATH_ME_CAPABILITIES}"
-    session = async_get_clientsession(hass)
-    timeout = aiohttp.ClientTimeout(total=NOTIFY_A161_CAPABILITIES_HTTP_TIMEOUT)
     t0 = time.monotonic()
-    _LOGGER.debug("a161 capabilities GET (token check) %s", url)
+    _LOGGER.debug("a161 capabilities GET (token check)")
     try:
-        async with session.get(
-            url,
-            headers={"Authorization": normalized},
-            timeout=timeout,
-        ) as resp:
-            elapsed = time.monotonic() - t0
-            if resp.status != 200:
+        http_status, rate_status, retry_after, caps = await _http_get_me_capabilities(
+            hass, normalized
+        )
+        elapsed = time.monotonic() - t0
+        _log_rate_limit_status(
+            rate_status=rate_status,
+            http_status=http_status,
+            retry_after=retry_after,
+            elapsed=elapsed,
+            where="token-check",
+        )
+        used = caps if caps is not None else default_remote_capabilities()
+        _apply_capabilities_cooldown(
+            hass,
+            caps=used,
+            retry_after_seconds=retry_after,
+            force=False,
+            token=normalized,
+        )
+        if caps is None:
+            if http_status != 200:
                 _LOGGER.warning(
                     "a161 capabilities HTTP %s при проверке токена за %.2fs — defaults",
-                    resp.status,
+                    http_status,
                     elapsed,
                 )
-                return default_remote_capabilities()
-            payload = await resp.json(content_type=None)
-            if isinstance(payload, dict):
-                caps = capabilities_from_json(payload)
-                _LOGGER.info(
-                    "a161 capabilities: token_active=%s days=%s polling=%s "
-                    "interval=%s-%ss upload=%s/%s MiB msg_rate=%s/s|%s/m "
-                    "refresh=%ss rate=%s/m from_remote=%s elapsed=%.2fs",
-                    caps.token_active,
-                    caps.token_active_days,
-                    caps.polling_available,
-                    caps.polling_interval_min_s,
-                    caps.polling_interval_max_s,
-                    caps.max_photo_size_mb,
-                    caps.max_video_size_mb,
-                    caps.max_message_per_second,
-                    caps.max_message_per_minute,
-                    caps.cache_ttl_seconds(),
-                    caps.rate_limit_capabilities_per_minute,
-                    caps.from_remote,
-                    elapsed,
-                )
-                return caps
-            _LOGGER.debug(
-                "a161 capabilities token check non-dict payload за %.2fs",
-                elapsed,
-            )
+            return default_remote_capabilities()
+        _LOGGER.info(
+            "a161 capabilities: token_active=%s days=%s polling=%s "
+            "interval=%s-%ss upload=%s/%s MiB msg_rate=%s/s|%s/m "
+            "refresh=%ss rate=%s/m from_remote=%s elapsed=%.2fs",
+            caps.token_active,
+            caps.token_active_days,
+            caps.polling_available,
+            caps.polling_interval_min_s,
+            caps.polling_interval_max_s,
+            caps.max_photo_size_mb,
+            caps.max_video_size_mb,
+            caps.max_message_per_second,
+            caps.max_message_per_minute,
+            caps.cache_ttl_seconds(),
+            caps.rate_limit_capabilities_per_minute,
+            caps.from_remote,
+            elapsed,
+        )
+        return caps
     except Exception as err:
         _LOGGER.warning(
             "a161 capabilities fetch failed при проверке токена за %.2fs: %s",
@@ -554,8 +661,9 @@ async def async_fetch_remote_capabilities(
     *,
     force: bool = False,
 ) -> A161RemoteCapabilities:
-    """GET /me/capabilities: успех всегда перезаписывает кэш; ошибка — оставить прошлый снимок.
+    """GET /me/capabilities: успех перезаписывает кэш; не 200 — прошлый снимок или defaults.
 
+    Параллельные вызовы на один токен делят один HTTP-запрос.
     Rate-limit не блокирует UI: нет слота — сразу прошлый снимок.
     """
     t0 = time.monotonic()
@@ -577,22 +685,72 @@ async def async_fetch_remote_capabilities(
 
     token = normalize_access_token(entry.data.get(CONF_ACCESS_TOKEN))
     if not token:
-        previous = peek_cached_remote_capabilities(hass, entry)
-        _LOGGER.debug(
-            "a161 capabilities no token entry=%s cache=%s",
-            entry.entry_id,
-            previous is not None,
-        )
-        if previous is not None:
-            return previous
-        caps = default_remote_capabilities()
-        set_cached_remote_capabilities(hass, entry, caps)
-        return caps
+        _LOGGER.debug("a161 capabilities no token entry=%s", entry.entry_id)
+        return _previous_or_defaults(hass, entry)
 
+    from .capabilities_rate import capabilities_rate_bucket_key
+
+    key = capabilities_rate_bucket_key(entry=entry, token=token)
+    inflight = _inflight_root(hass)
+    my_fut: asyncio.Future[A161RemoteCapabilities] | None = None
+    async with inflight["lock"]:
+        if not force:
+            fresh = get_cached_remote_capabilities(hass, entry)
+            if fresh is not None:
+                return fresh
+        current = inflight["tasks"].get(key)
+        if current is not None:
+            waiter = current
+        else:
+            waiter = None
+            my_fut = asyncio.get_running_loop().create_future()
+            inflight["tasks"][key] = my_fut
+
+    if waiter is not None:
+        _LOGGER.debug(
+            "a161 capabilities join in-flight entry=%s key=%s",
+            entry.entry_id,
+            key,
+        )
+        return await waiter
+
+    assert my_fut is not None
+    try:
+        result = await _fetch_remote_capabilities_http(
+            hass, entry, token=token, force=force, started_at=t0
+        )
+        if not my_fut.done():
+            my_fut.set_result(result)
+        return result
+    except Exception as err:
+        fallback = _previous_or_defaults(hass, entry)
+        if not my_fut.done():
+            my_fut.set_result(fallback)
+        _LOGGER.debug(
+            "a161 capabilities fetch failed entry=%s elapsed=%.2fs: %s — keep previous cache",
+            entry.entry_id,
+            time.monotonic() - t0,
+            err,
+        )
+        return fallback
+    finally:
+        async with inflight["lock"]:
+            if inflight["tasks"].get(key) is my_fut:
+                del inflight["tasks"][key]
+
+
+async def _fetch_remote_capabilities_http(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    *,
+    token: str,
+    force: bool,
+    started_at: float,
+) -> A161RemoteCapabilities:
     from .capabilities_rate import async_acquire_capabilities_slot
 
     acquired = await async_acquire_capabilities_slot(
-        hass, entry=entry, wait=False, force=force
+        hass, entry=entry, token=token, wait=False, force=force
     )
     if not acquired:
         previous = peek_cached_remote_capabilities(hass, entry)
@@ -600,72 +758,62 @@ async def async_fetch_remote_capabilities(
             "a161 capabilities rate-limited entry=%s using=%s elapsed=%.3fs",
             entry.entry_id,
             "cache" if previous is not None else "defaults",
-            time.monotonic() - t0,
+            time.monotonic() - started_at,
         )
-        if previous is not None:
-            return previous
-        caps = default_remote_capabilities()
-        set_cached_remote_capabilities(hass, entry, caps)
-        return caps
+        return _previous_or_defaults(hass, entry)
 
-    url = f"{API_BASE_URL.rstrip('/')}{API_PATH_ME_CAPABILITIES}"
-    session = async_get_clientsession(hass)
-    timeout = aiohttp.ClientTimeout(total=NOTIFY_A161_CAPABILITIES_HTTP_TIMEOUT)
-    _LOGGER.debug("a161 capabilities GET %s entry=%s", url, entry.entry_id)
-    try:
-        async with session.get(
-            url,
-            headers={"Authorization": token},
-            timeout=timeout,
-        ) as resp:
-            elapsed = time.monotonic() - t0
-            if resp.status != 200:
-                _LOGGER.debug(
-                    "a161 capabilities HTTP %s entry=%s elapsed=%.2fs — keep previous cache",
-                    resp.status,
-                    entry.entry_id,
-                    elapsed,
-                )
-                previous = peek_cached_remote_capabilities(hass, entry)
-                if previous is not None:
-                    return previous
-                caps = default_remote_capabilities()
-            else:
-                payload = await resp.json(content_type=None)
-                if isinstance(payload, dict):
-                    caps = capabilities_from_json(payload)
-                    set_cached_remote_capabilities(hass, entry, caps)
-                    _LOGGER.debug(
-                        "a161 capabilities ok entry=%s elapsed=%.2fs "
-                        "token_active=%s inactivity=%s refresh=%ss rate=%s/m",
-                        entry.entry_id,
-                        elapsed,
-                        caps.token_active,
-                        caps.inactivity_limit_days(),
-                        caps.cache_ttl_seconds(),
-                        caps.rate_limit_capabilities_per_minute,
-                    )
-                    return caps
-                _LOGGER.debug(
-                    "a161 capabilities non-dict payload entry=%s elapsed=%.2fs — keep previous cache",
-                    entry.entry_id,
-                    elapsed,
-                )
-                previous = peek_cached_remote_capabilities(hass, entry)
-                if previous is not None:
-                    return previous
-                caps = default_remote_capabilities()
-    except Exception as err:
-        _LOGGER.debug(
-            "a161 capabilities fetch failed entry=%s elapsed=%.2fs: %s — keep previous cache",
-            entry.entry_id,
-            time.monotonic() - t0,
-            err,
+    _LOGGER.debug(
+        "a161 capabilities GET entry=%s",
+        entry.entry_id,
+    )
+    http_status, rate_status, retry_after, caps = await _http_get_me_capabilities(
+        hass, token
+    )
+    elapsed = time.monotonic() - started_at
+    _log_rate_limit_status(
+        rate_status=rate_status,
+        http_status=http_status,
+        retry_after=retry_after,
+        elapsed=elapsed,
+        where=f"entry={entry.entry_id}",
+    )
+    if caps is None:
+        used = _previous_or_defaults(hass, entry)
+        _apply_capabilities_cooldown(
+            hass,
+            caps=used,
+            retry_after_seconds=retry_after,
+            force=force,
+            entry=entry,
+            token=token,
         )
-        previous = peek_cached_remote_capabilities(hass, entry)
-        if previous is not None:
-            return previous
-        caps = default_remote_capabilities()
+        if http_status != 200:
+            _LOGGER.debug(
+                "a161 capabilities HTTP %s entry=%s elapsed=%.2fs — keep previous cache",
+                http_status,
+                entry.entry_id,
+                elapsed,
+            )
+        return used
 
     set_cached_remote_capabilities(hass, entry, caps)
+    _apply_capabilities_cooldown(
+        hass,
+        caps=caps,
+        retry_after_seconds=retry_after,
+        force=force,
+        entry=entry,
+        token=token,
+    )
+    _LOGGER.debug(
+        "a161 capabilities ok entry=%s elapsed=%.2fs "
+        "token_active=%s inactivity=%s refresh=%ss rate=%s/m status=%s",
+        entry.entry_id,
+        elapsed,
+        caps.token_active,
+        caps.inactivity_limit_days(),
+        caps.cache_ttl_seconds(),
+        caps.rate_limit_capabilities_per_minute,
+        rate_status or "PASSED",
+    )
     return caps

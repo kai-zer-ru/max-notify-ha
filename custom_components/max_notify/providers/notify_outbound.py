@@ -832,6 +832,8 @@ async def _request_upload_url_json_with_retry(
     disable_ssl: bool,
     timeout_s: int,
     op_label: str,
+    entry: ConfigEntry | None = None,
+    size_bytes: int | None = None,
 ) -> dict[str, Any]:
     """POST на upload-url с повторами и ошибками, видимыми в UI."""
     delays = list(API_REQUEST_RETRY_DELAYS)
@@ -846,6 +848,11 @@ async def _request_upload_url_json_with_retry(
                 ssl=_request_ssl(disable_ssl),
             ) as resp:
                 text = await resp.text()
+                header_wait = None
+                if entry is not None:
+                    header_wait = get_provider(entry).apply_http_rate_limit_headers(
+                        hass, entry, resp.headers, kind="upload", size_bytes=size_bytes
+                    )
                 if resp.status == 200:
                     _LOGGER.info(
                         "%s HTTP ответ: код=%s тело=%s",
@@ -870,6 +877,8 @@ async def _request_upload_url_json_with_retry(
                     and attempt < max_attempts - 1
                 ):
                     wait_s = delays[attempt]
+                    if header_wait is not None:
+                        wait_s = max(wait_s, header_wait)
                     _LOGGER.warning(
                         "%s попытка %s/%s не удалась: код=%s, повтор через %s с; тело=%s",
                         op_label,
@@ -1128,6 +1137,23 @@ async def _post_message_with_retry(
                             on_success(body)
                         _LOGGER.info("%s отправлено успешно (код=%s)", log_label, resp.status)
                         return True
+                    if (
+                        resp.status in API_REQUEST_RETRYABLE_STATUSES
+                        and attempt < n - 1
+                        and entry is not None
+                    ):
+                        header_wait = get_provider(entry).apply_http_rate_limit_headers(
+                            hass, entry, resp.headers, kind="messages"
+                        )
+                        if header_wait is not None:
+                            _LOGGER.warning(
+                                "%s лимит сервера (код=%s), повтор через %s с",
+                                log_label,
+                                resp.status,
+                                header_wait,
+                            )
+                            await asyncio.sleep(header_wait)
+                            continue
                     if (
                         resp.status == 400
                         and "attachment.not.ready" in body
@@ -1929,6 +1955,8 @@ async def _upload_media_and_send(
                 disable_ssl=disable_ssl,
                 timeout_s=15,
                 op_label=f"{prov.label} upload URL request",
+                entry=entry,
+                size_bytes=len(body),
             )
             upload_url = data.get("url")
             if not upload_url:
@@ -1956,6 +1984,13 @@ async def _upload_media_and_send(
                         upload_body[:500],
                     )
                     if resp.status >= 400:
+                        prov.apply_http_rate_limit_headers(
+                            hass,
+                            entry,
+                            resp.headers,
+                            kind="upload",
+                            size_bytes=len(body),
+                        )
                         _LOGGER.error(
                             "%s загрузка файла не удалась: код=%s тело=%s",
                             prov.label,
@@ -2046,6 +2081,7 @@ async def _upload_media_and_send(
             disable_ssl=disable_ssl,
             timeout_s=10,
             op_label="Max API upload URL request",
+            entry=entry,
         )
 
         upload_url = data.get("url")
@@ -2422,6 +2458,8 @@ async def upload_video_and_send(
                 if not prov.shares_platform_bot_token_pool
                 else "Max API video upload URL request"
             ),
+            entry=entry,
+            size_bytes=len(body),
         )
         upload_url = data.get("url")
         video_token = data.get("token")
@@ -2458,6 +2496,13 @@ async def upload_video_and_send(
                     upload_body[:500],
                 )
                 if resp.status >= 400:
+                    prov.apply_http_rate_limit_headers(
+                        hass,
+                        entry,
+                        resp.headers,
+                        kind="upload",
+                        size_bytes=len(body),
+                    )
                     _LOGGER.error(
                         "Загрузка видео не удалась: код=%s тело=%s", resp.status, upload_body[:300]
                     )

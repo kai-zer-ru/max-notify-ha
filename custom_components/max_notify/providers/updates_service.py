@@ -600,6 +600,14 @@ async def async_run_polling_loop(hass: HomeAssistant, entry: ConfigEntry) -> Non
                 ),
             ) as resp:
                 raw_text = await resp.text()
+                header_wait = provider.apply_http_rate_limit_headers(
+                    hass, entry, resp.headers, kind="updates"
+                )
+                if header_wait is not None:
+                    next_request_not_before = max(
+                        next_request_not_before,
+                        time.monotonic() + header_wait,
+                    )
 
                 if resp.status != 200:
                     summary = _summarize_updates_http_error(resp.status, raw_text)
@@ -617,7 +625,11 @@ async def async_run_polling_loop(hass: HomeAssistant, entry: ConfigEntry) -> Non
                     _set_updates_polling_issue(
                         hass, entry, summary, severity=sev
                     )
-                    await asyncio.sleep(POLLING_RETRY_DELAY)
+                    await asyncio.sleep(
+                        header_wait
+                        if header_wait is not None
+                        else POLLING_RETRY_DELAY
+                    )
                     continue
 
                 data = _parse_json_response_text(

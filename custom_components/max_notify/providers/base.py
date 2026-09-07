@@ -875,6 +875,19 @@ class MaxNotifyIntegrationProvider:
         _ = hass, entry, size_bytes
         return None
 
+    def apply_http_rate_limit_headers(
+        self,
+        hass: HomeAssistant,
+        entry: ConfigEntry,
+        headers: Any,
+        *,
+        kind: str = "updates",
+        size_bytes: int | None = None,
+    ) -> float | None:
+        """Разобрать X-RateLimit-Status / X-Retry-After-Seconds. None — заголовков нет."""
+        _ = hass, entry, headers, kind, size_bytes
+        return None
+
     def max_attachments_per_message(self, entry: ConfigEntry) -> int | None:
         """Лимит количества вложений на сообщение; None — без проверки."""
         _ = entry

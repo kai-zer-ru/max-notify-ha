@@ -92,7 +92,9 @@ Authorization: <access_token>
 | -------------- | ------------------------------------------------------------------------------------------------------------------ |
 | Per-token      | Лимиты и флаги считаются для токена из `Authorization`, а не глобально «на всех»                                   |
 | Актуальность   | `update_available`, `websocket_available` и флаги пересчитываются на каждый запрос                               |
-| Кэш на клиенте | HA будет кэшировать ответ (ориентир 5–60 мин) и обновлять при setup/reload, по таймеру и при `402` / `403` / `429` |
+| Кэш на клиенте | HA кэширует ответ и обновляет при setup/reload, по TTL (`refresh_capabilities`) и при `402` / `403` / `429`. Статус **не 200** — оставить прошлый снимок; если снимка не было — безопасные defaults. |
+| Заголовки лимита | `X-RateLimit-Status`: `PASSED` (сразу), `DELAYED` (200, но запрос стоял в очереди), `REJECTED` (вместе с **429**). `X-Retry-After-Seconds` — **минимальная** пауза до следующего GET. Основной интервал — `rate_limit_capabilities_per_minute` из JSON: он приоритетнее, если строже заголовка. |
+| Один запрос | На один токен клиент не шлёт параллельные GET: второй вызывающий ждёт тот же ответ. |
 
 
 ### 3.3. Обязательные поля схемы
@@ -589,8 +591,8 @@ JSON внутри кадра `update` **должен совпадать** с JSO
 
 ## 7. Поведение клиента Home Assistant
 
-1. **Fetch** capabilities при setup entry, reload, по TTL кэша и при `402` / `403` / `429` (и по `capability_changed` с WS).
-2. **Кэш** в runtime данных config entry; UI options и валидация сервисов читают кэш.
+1. **Fetch** capabilities при setup entry, reload, по TTL кэша и при `402` / `403` / `429` (и по `capability_changed` с WS). Параллельные вызовы на один токен — один HTTP.
+2. **Кэш** в runtime данных config entry; UI options и валидация сервисов читают кэш. Ответ не 200 — прошлый снимок или defaults. Паузу берём из JSON (`rate_limit_capabilities_per_minute`), `X-Retry-After-Seconds` только как пол.
 3. **Лимиты файлов** — из `max_*_size` (+ локальный fallback, если поля нет).
 4. **Feature flags** — гейты сервисов edit/delete/send_*.
 5. **`update_available: false`** — остановить polling и webhook; **`websocket_available: false`** — остановить WS. Если оба `false` — send-only по входящим; repair + `status_message`.

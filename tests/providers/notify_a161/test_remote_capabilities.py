@@ -217,6 +217,235 @@ async def test_fetch_keeps_previous_on_http_error(hass, mock_config_entry) -> No
     assert peek_cached_remote_capabilities(hass, mock_config_entry) is good
 
 
+def test_parse_rate_limit_headers() -> None:
+    from custom_components.max_notify.providers.notify_a161.remote_capabilities import (
+        parse_rate_limit_headers,
+    )
+
+    status, retry = parse_rate_limit_headers(
+        {"X-RateLimit-Status": "DELAYED", "X-Retry-After-Seconds": "8"}
+    )
+    assert status == "DELAYED"
+    assert retry == 8.0
+    rejected, retry_std = parse_rate_limit_headers(
+        {"X-RateLimit-Status": "rejected", "Retry-After": "3"}
+    )
+    assert rejected == "REJECTED"
+    assert retry_std == 3.0
+    empty, none_retry = parse_rate_limit_headers({})
+    assert empty == ""
+    assert none_retry is None
+
+
+@pytest.mark.asyncio
+async def test_fetch_429_keeps_previous(hass, mock_config_entry) -> None:
+    from unittest.mock import AsyncMock, MagicMock, patch
+
+    from custom_components.max_notify.providers.notify_a161.remote_capabilities import (
+        async_fetch_remote_capabilities,
+        capabilities_from_json,
+        peek_cached_remote_capabilities,
+        set_cached_remote_capabilities,
+    )
+
+    mock_config_entry.data = {
+        **dict(mock_config_entry.data),
+        "access_token": "token-aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+    }
+    good = capabilities_from_json(
+        {"supports_html": True, "refresh_capabilities": 3600}
+    )
+    set_cached_remote_capabilities(hass, mock_config_entry, good)
+
+    resp = MagicMock()
+    resp.status = 429
+    resp.headers = {
+        "X-RateLimit-Status": "REJECTED",
+        "X-Retry-After-Seconds": "5",
+    }
+    resp.__aenter__ = AsyncMock(return_value=resp)
+    resp.__aexit__ = AsyncMock(return_value=None)
+
+    session = MagicMock()
+    session.get = MagicMock(return_value=resp)
+
+    with patch(
+        "custom_components.max_notify.providers.notify_a161.remote_capabilities.async_get_clientsession",
+        return_value=session,
+    ), patch(
+        "custom_components.max_notify.providers.notify_a161.capabilities_rate.async_acquire_capabilities_slot",
+        new=AsyncMock(return_value=True),
+    ):
+        out = await async_fetch_remote_capabilities(
+            hass, mock_config_entry, force=True
+        )
+    assert out.supports_html is True
+    assert peek_cached_remote_capabilities(hass, mock_config_entry) is good
+
+
+@pytest.mark.asyncio
+async def test_fetch_single_flight_one_http(hass, mock_config_entry) -> None:
+    import asyncio
+    from unittest.mock import patch
+
+    from custom_components.max_notify.providers.notify_a161.remote_capabilities import (
+        async_fetch_remote_capabilities,
+    )
+
+    mock_config_entry.data = {
+        **dict(mock_config_entry.data),
+        "access_token": "token-aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+    }
+    calls = {"n": 0}
+
+    class _Resp:
+        status = 200
+        headers = {"X-RateLimit-Status": "PASSED"}
+
+        async def __aenter__(self):
+            calls["n"] += 1
+            await asyncio.sleep(0.05)
+            return self
+
+        async def __aexit__(self, *args):
+            return None
+
+        async def json(self, content_type=None):
+            return {
+                "supports_markdown": True,
+                "rate_limit_capabilities_per_minute": 15,
+                "refresh_capabilities": 3600,
+            }
+
+    session = type("S", (), {"get": staticmethod(lambda *a, **k: _Resp())})()
+
+    with patch(
+        "custom_components.max_notify.providers.notify_a161.remote_capabilities.async_get_clientsession",
+        return_value=session,
+    ):
+        first, second = await asyncio.gather(
+            async_fetch_remote_capabilities(hass, mock_config_entry, force=True),
+            async_fetch_remote_capabilities(hass, mock_config_entry, force=True),
+        )
+    assert calls["n"] == 1
+    assert first.supports_markdown is True
+    assert second.supports_markdown is True
+
+
+@pytest.mark.asyncio
+async def test_fetch_applies_retry_after_header_to_cooldown(
+    hass, mock_config_entry
+) -> None:
+    from unittest.mock import AsyncMock, MagicMock, patch
+
+    from custom_components.max_notify.providers.notify_a161.capabilities_rate import (
+        async_acquire_capabilities_slot,
+    )
+    from custom_components.max_notify.providers.notify_a161.remote_capabilities import (
+        async_fetch_remote_capabilities,
+        capabilities_from_json,
+        set_cached_remote_capabilities,
+    )
+
+    mock_config_entry.data = {
+        **dict(mock_config_entry.data),
+        "access_token": "token-aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+    }
+    set_cached_remote_capabilities(
+        hass,
+        mock_config_entry,
+        capabilities_from_json(
+            {
+                "supports_html": True,
+                "rate_limit_capabilities_per_minute": 15,
+                "refresh_capabilities": 3600,
+            }
+        ),
+    )
+    resp = MagicMock()
+    resp.status = 429
+    resp.headers = {
+        "X-RateLimit-Status": "REJECTED",
+        "X-Retry-After-Seconds": "30",
+    }
+    resp.__aenter__ = AsyncMock(return_value=resp)
+    resp.__aexit__ = AsyncMock(return_value=None)
+    session = MagicMock()
+    session.get = MagicMock(return_value=resp)
+
+    with patch(
+        "custom_components.max_notify.providers.notify_a161.remote_capabilities.async_get_clientsession",
+        return_value=session,
+    ):
+        await async_fetch_remote_capabilities(hass, mock_config_entry, force=True)
+
+    blocked = await async_acquire_capabilities_slot(
+        hass, entry=mock_config_entry, wait=False, force=True
+    )
+    assert blocked is False
+
+
+def test_updates_and_upload_honor_response_headers(hass, mock_config_entry) -> None:
+    from custom_components.max_notify.providers.notify_a161.integration_provider import (
+        NotifyA161IntegrationProvider,
+    )
+    from custom_components.max_notify.providers.notify_a161.remote_capabilities import (
+        capabilities_from_json,
+        set_cached_remote_capabilities,
+    )
+
+    mock_config_entry.data = {
+        **dict(mock_config_entry.data),
+        "integration_type": "notify_a161",
+    }
+    mock_config_entry.options = {"updates_interval": 5}
+    set_cached_remote_capabilities(
+        hass,
+        mock_config_entry,
+        capabilities_from_json(
+            {
+                "polling_interval_min_s": 5,
+                "polling_interval_max_s": 360,
+                "polling_interval_default_s": 5,
+                "max_upload_requests_per_minute": 4,
+                "max_message_per_second": 1,
+                "max_message_per_minute": 0,
+            }
+        ),
+    )
+    prov = NotifyA161IntegrationProvider(
+        integration_type="notify_a161",
+        label="notify.a161.ru",
+        api_base_url="https://notify.a161.ru",
+        api_version="1.0.0",
+    )
+    assert (
+        prov.apply_http_rate_limit_headers(
+            hass, mock_config_entry, {"X-RateLimit-Status": "PASSED"}
+        )
+        is None
+    )
+    assert prov.apply_http_rate_limit_headers(
+        hass,
+        mock_config_entry,
+        {"X-RateLimit-Status": "REJECTED", "X-Retry-After-Seconds": "20"},
+        kind="updates",
+    ) == 20.0
+    assert prov.apply_http_rate_limit_headers(
+        hass,
+        mock_config_entry,
+        {"X-RateLimit-Status": "DELAYED", "X-Retry-After-Seconds": "3"},
+        kind="updates",
+    ) == 5.0
+    assert prov.apply_http_rate_limit_headers(
+        hass,
+        mock_config_entry,
+        {"X-RateLimit-Status": "REJECTED", "X-Retry-After-Seconds": "40"},
+        kind="upload",
+        size_bytes=1_000_000,
+    ) == 40.0
+
+
 def test_apply_remote_capabilities_merges_feature_flags(hass, mock_config_entry) -> None:
     from custom_components.max_notify.providers.notify_a161.capabilities import (
         NOTIFY_A161_CAPABILITIES,
