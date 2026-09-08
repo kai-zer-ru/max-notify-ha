@@ -16,7 +16,8 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from ...const import CONF_ACCESS_TOKEN, normalize_access_token
 from ...log import get_logger
-from .const import CONF_A161_WEBSOCKET_URL
+from .client_version import integration_major_minor_version
+from .const import A161_CLIENT_VERSION_HEADER, CONF_A161_WEBSOCKET_URL
 from .remote_capabilities import (
     A161RemoteCapabilities,
     async_fetch_remote_capabilities,
@@ -46,12 +47,16 @@ def build_websocket_connect_kwargs(
 ) -> dict[str, Any]:
     """Заголовки/params для aiohttp ws_connect."""
     kwargs: dict[str, Any] = {}
+    headers = {
+        A161_CLIENT_VERSION_HEADER: integration_major_minor_version(),
+    }
     method = (caps.websocket_auth_method or "header").lower()
     if method == "header":
         header = caps.websocket_auth_header or "Authorization"
-        kwargs["headers"] = {header: token}
+        headers[header] = token
     elif method == "query":
         kwargs["params"] = {"access_token": token}
+    kwargs["headers"] = headers
     return kwargs
 
 
@@ -70,6 +75,10 @@ def _format_ws_debug_connect(
     """Команда для DEBUG (как curl у GET /updates), с токеном."""
     method = (caps.websocket_auth_method or "header").lower()
     parts = ["websocat", shlex.quote(url)]
+    version = integration_major_minor_version()
+    parts.extend(
+        ["-H", shlex.quote(f"{A161_CLIENT_VERSION_HEADER}: {version}")]
+    )
     if method == "header":
         header = caps.websocket_auth_header or "Authorization"
         parts.extend(["-H", shlex.quote(f"{header}: {token}")])

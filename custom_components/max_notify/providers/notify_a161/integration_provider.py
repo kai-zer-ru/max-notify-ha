@@ -27,6 +27,7 @@ from ..setup_common import (
     is_primary_config_shared_step,
 )
 from .api import sync_bot_commands, validate_token
+from .client_version import a161_request_headers
 from .config_flow import (
     async_run_inactivity_period_step,
     async_run_updates_interval_step,
@@ -319,6 +320,9 @@ class NotifyA161IntegrationProvider(MaxNotifyIntegrationProvider):
         self, *, polling_requested: bool
     ) -> bool:
         return polling_requested
+
+    def api_request_headers(self, token: str) -> dict[str, str]:
+        return a161_request_headers(token)
 
     def extract_updates_from_poll_json(self, data: Any) -> list[dict[str, Any]]:
         return a161_extract_updates_from_payload(data)

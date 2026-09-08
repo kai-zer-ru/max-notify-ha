@@ -897,6 +897,10 @@ class MaxNotifyIntegrationProvider:
         _ = hass, entry, headers, kind, size_bytes
         return None
 
+    def api_request_headers(self, token: str) -> dict[str, str]:
+        """Заголовки к API: токен как ввёл пользователь, без ``Bearer ``."""
+        return {"Authorization": token}
+
     def max_attachments_per_message(self, entry: ConfigEntry) -> int | None:
         """Лимит количества вложений на сообщение; None — без проверки."""
         _ = entry

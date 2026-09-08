@@ -7,7 +7,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from custom_components.max_notify.const import INTEGRATION_TYPE_NOTIFY_A161
+from custom_components.max_notify.providers.notify_a161.client_version import (
+    integration_major_minor_version,
+)
 from custom_components.max_notify.providers.notify_a161.const import (
+    A161_CLIENT_VERSION_HEADER,
     API_BASE_URL as API_BASE_URL_NOTIFY_A161,
 )
 from custom_components.max_notify.notify import delete_message, edit_message
@@ -42,6 +46,9 @@ class TestDeleteMessageNotifyA161:
             assert called_url.startswith(API_BASE_URL_NOTIFY_A161)
             assert "message_id=mid.abc" in called_url
             assert "v=" not in called_url
+            headers = mock_ctx.delete.call_args.kwargs["headers"]
+            assert headers["Authorization"] == "token"
+            assert headers[A161_CLIENT_VERSION_HEADER] == integration_major_minor_version()
 
 
 @pytest.mark.asyncio

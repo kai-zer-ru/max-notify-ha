@@ -72,6 +72,13 @@ _LOGGER = get_logger()
 _CHAT_ID_KEY = "chat_id"
 _USER_ID_KEY = "user_id"
 
+
+def _api_headers(entry: ConfigEntry, token: str, **extra: str) -> dict[str, str]:
+    """Authorization и доп. заголовки провайдера (a161 — версия клиента)."""
+    headers = dict(get_provider(entry).api_request_headers(token))
+    headers.update(extra)
+    return headers
+
 _EXT_TO_CONTENT_TYPE = {
     ".png": "image/png",
     ".jpg": "image/jpeg",
@@ -1274,7 +1281,7 @@ async def delete_message(
     base = _api_base_url_for_entry(entry)
     prov = get_provider(entry)
     url = prov.build_delete_message_url(base, API_PATH_MESSAGES, mid)
-    headers = {"Authorization": token}
+    headers = _api_headers(entry, token)
     session = async_get_clientsession(hass)
     await async_acquire_outbound_api_slot(hass)
     try:
@@ -1339,7 +1346,8 @@ async def edit_message(
     if not mid:
         _LOGGER.error("edit_message: пустой message_id")
         return False
-    headers = {"Authorization": token, "Content-Type": "application/json"}
+    headers = _api_headers(entry, token)
+    headers["Content-Type"] = "application/json"
     payload: dict[str, Any] = {}
     msg_format = format or entry.data.get(CONF_MESSAGE_FORMAT, "text")
     if text is not None:
@@ -1663,7 +1671,7 @@ async def list_message_ids_in_period(
     else:
         variants.append({**params_ms, "count": "100"})
     url = f"{parsed.scheme}://{parsed.netloc}{parsed.path}"
-    headers = {"Authorization": token}
+    headers = _api_headers(entry, token)
     session = async_get_clientsession(hass)
     seen: set[str] = set()
     out: list[str] = []
@@ -1753,7 +1761,7 @@ async def send_message(
     if not notify:
         apply_notify_false(payload)
 
-    headers = {"Authorization": token}
+    headers = _api_headers(entry, token)
     session = async_get_clientsession(hass)
     store_rid = _coerce_recipient_id_for_message_store(recipient)
 
@@ -1888,7 +1896,7 @@ async def _upload_media_and_send(
     msg_url, _ = result
 
     session = async_get_clientsession(hass)
-    headers = {"Authorization": token}
+    headers = _api_headers(entry, token)
 
     upload_type = attachment_type
 
@@ -2118,7 +2126,7 @@ async def _upload_media_and_send(
             async with session.post(
                 upload_url,
                 data=form,
-                headers={"Authorization": token},
+                headers=_api_headers(entry, token),
                 timeout=aiohttp.ClientTimeout(total=60),
                 ssl=_request_ssl(disable_ssl),
             ) as resp:
@@ -2400,7 +2408,7 @@ async def upload_video_and_send(
     store_vid = _coerce_recipient_id_for_message_store(recipient)
 
     session = async_get_clientsession(hass)
-    headers = {"Authorization": token}
+    headers = _api_headers(entry, token)
 
     prov = get_provider(entry)
     max_vid = _effective_upload_limit_bytes(hass, entry, media_kind="video")
@@ -2764,7 +2772,8 @@ async def entity_send_plain_message(
     url, _ = resolved
     store_rid = _coerce_recipient_id_for_message_store(recipient)
 
-    headers = {"Authorization": token, "Content-Type": "application/json"}
+    headers = _api_headers(entry, token)
+    headers["Content-Type"] = "application/json"
     session = async_get_clientsession(hass)
 
     _LOGGER.debug(

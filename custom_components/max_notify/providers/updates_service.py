@@ -588,7 +588,7 @@ async def async_run_polling_loop(hass: HomeAssistant, entry: ConfigEntry) -> Non
         )
 
         url = provider.updates_poll_url(entry, hass=hass)
-        headers = {"Authorization": token}
+        headers = provider.api_request_headers(token)
         if not logged_query:
             _LOGGER.info(
                 "GET /updates запись=%s url=%s параметры=%s",

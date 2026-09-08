@@ -46,6 +46,7 @@ from .const import (
     NOTIFY_A161_WEBSOCKET_RECONNECT_MIN_SECONDS,
     NOTIFY_A161_WEBSOCKET_URL_DEFAULT,
 )
+from .client_version import a161_request_headers
 from .rate_headers import parse_rate_limit_headers
 
 _LOGGER = get_logger()
@@ -628,7 +629,7 @@ async def _http_get_me_capabilities(
     t0 = time.monotonic()
     async with session.get(
         url,
-        headers={"Authorization": token},
+        headers=a161_request_headers(token),
         timeout=timeout,
     ) as resp:
         elapsed = time.monotonic() - t0

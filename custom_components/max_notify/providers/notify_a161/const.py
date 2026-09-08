@@ -80,6 +80,8 @@ NOTIFY_A161_CAPABILITIES_RATE_DEFAULT_INTERVAL_SECONDS = 15 * 60
 # Reload / настройки (force): не чаще 1 раза в минуту, если rpm с сервера нет.
 NOTIFY_A161_CAPABILITIES_FORCE_MIN_INTERVAL_SECONDS = 60.0
 NOTIFY_A161_CAPABILITIES_HTTP_TIMEOUT = 15.0
+# Версия клиента в запросах: только МАЖОР.МИНОР из manifest.json.
+A161_CLIENT_VERSION_HEADER = "X-Client-Version"
 
 TITLE_FALLBACK_SUBSTRINGS: tuple[str, ...] = (
     "notify.a161.ru",
