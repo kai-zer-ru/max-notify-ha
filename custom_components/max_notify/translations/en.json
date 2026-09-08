@@ -172,18 +172,17 @@
       },
       "notify_a161_updates_interval": {
         "title": "{provider_label} — Long Polling",
+        "description": "The poll interval comes from the server: {default_seconds} s (allowed {interval_min}–{interval_max}).",
         "data": {
-          "updates_interval": "Wait (seconds)",
           "a161_updates_limit": "Limit"
         },
         "data_description": {
-          "updates_interval": "How long the server holds GET /updates: {interval_min}–{interval_max} s (default {default_seconds}).",
           "a161_updates_limit": "How many events to take at once (default {default_limit}, range {limit_min}–{limit_max})."
         }
       },
       "notify_a161_a161_inactivity_period": {
         "title": "{provider_label}: inactivity period",
-        "description": "The period comes from the server. If there are no incoming messages and no sends with buttons for {inactivity_days} day(s), receive mode becomes Send only."
+        "description": "Long Polling only — WebSocket is never switched off this way. The period comes from the server: if there are no incoming messages and no sends with buttons for {inactivity_days} day(s), receive mode becomes Send only."
       }
     },
     "error": {
@@ -364,18 +363,17 @@
       },
       "notify_a161_updates_interval": {
         "title": "{provider_label} — Long Polling",
+        "description": "The poll interval comes from the server: {default_seconds} s (allowed {interval_min}–{interval_max}).",
         "data": {
-          "updates_interval": "Wait (seconds)",
           "a161_updates_limit": "Limit"
         },
         "data_description": {
-          "updates_interval": "How long the server holds GET /updates: {interval_min}–{interval_max} s (default {default_seconds}).",
           "a161_updates_limit": "How many events to take at once (default {default_limit}, range {limit_min}–{limit_max})."
         }
       },
       "notify_a161_a161_inactivity_period": {
         "title": "{provider_label}: inactivity period",
-        "description": "The period comes from the server. If there are no incoming messages and no sends with buttons for {inactivity_days} day(s), receive mode becomes Send only."
+        "description": "Long Polling only — WebSocket is never switched off this way. The period comes from the server: if there are no incoming messages and no sends with buttons for {inactivity_days} day(s), receive mode becomes Send only."
       }
     },
     "error": {

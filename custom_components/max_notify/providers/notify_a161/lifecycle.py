@@ -7,7 +7,15 @@ import time
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 
-from ...const import CONF_BUTTONS, CONF_RECEIVE_MODE, DOMAIN, RECEIVE_MODE_LONG_POLLING, RECEIVE_MODE_POLLING, RECEIVE_MODE_SEND_ONLY
+from ...const import (
+    CONF_BUTTONS,
+    CONF_RECEIVE_MODE,
+    DOMAIN,
+    RECEIVE_MODE_LONG_POLLING,
+    RECEIVE_MODE_POLLING,
+    RECEIVE_MODE_SEND_ONLY,
+    RECEIVE_MODE_WEBSOCKET,
+)
 from .const import (
     CONF_A161_LAST_BUTTON_SEND_AT,
     CONF_A161_LAST_INCOMING_AT,
@@ -71,18 +79,18 @@ def last_activity_ts(hass: HomeAssistant, entry: ConfigEntry) -> int:
 
 
 async def ensure_polling_grace(hass: HomeAssistant, entry: ConfigEntry) -> None:
-    """Переключить polling на «только отправка» после периода без отправок с кнопками.
+    """Переключить Long Polling на «только отправка» после периода без активности.
 
-    Только для notify.a161.ru; для остальных типов записи — без действий.
+    Только notify.a161.ru и только Long Polling (или старый short polling).
+    WebSocket не отключаем: соединение дешёвое, сервер сам держит сессию.
     """
     if not entry_matches_notify_a161(entry):
         return
     options = dict(entry.options or {})
-    incoming = options.get(CONF_RECEIVE_MODE) in (
-        RECEIVE_MODE_POLLING,
-        RECEIVE_MODE_LONG_POLLING,
-    )
-    if not incoming:
+    mode = options.get(CONF_RECEIVE_MODE)
+    if mode == RECEIVE_MODE_WEBSOCKET:
+        return
+    if mode not in (RECEIVE_MODE_POLLING, RECEIVE_MODE_LONG_POLLING):
         return
 
     buttons = options.get(CONF_BUTTONS)

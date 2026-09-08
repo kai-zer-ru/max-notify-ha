@@ -130,19 +130,25 @@ class A161RemoteCapabilities:
         return self.token_active and self.polling_available
 
     def long_poll_wait_seconds(self, requested: int | None = None) -> int:
-        """wait для GET /updates: 5–60, сервер сам клампит; клиент тоже."""
-        lo = int(self.polling_wait_min_s or NOTIFY_A161_LONG_POLL_WAIT_MIN_SECONDS)
-        hi = int(self.polling_wait_max_s or NOTIFY_A161_LONG_POLL_WAIT_MAX_SECONDS)
+        """wait для GET /updates: всегда polling_interval_default_s в пределах min–max.
+
+        ``polling_interval_s`` — старый короткий опрос, не используем.
+        ``requested`` оставлен для совместимости вызовов и игнорируется.
+        """
+        del requested
+        lo = int(self.polling_interval_min_s or NOTIFY_A161_POLLING_INTERVAL_MIN_SECONDS)
+        hi = int(self.polling_interval_max_s or NOTIFY_A161_POLLING_INTERVAL_MAX_SECONDS)
         if lo > hi:
             lo, hi = (
-                NOTIFY_A161_LONG_POLL_WAIT_MIN_SECONDS,
-                NOTIFY_A161_LONG_POLL_WAIT_MAX_SECONDS,
+                NOTIFY_A161_POLLING_INTERVAL_MIN_SECONDS,
+                NOTIFY_A161_POLLING_INTERVAL_MAX_SECONDS,
             )
-        raw = self.polling_wait_s if requested is None else requested
         try:
-            value = int(raw)
+            value = int(self.polling_interval_default_s)
         except (TypeError, ValueError):
-            value = int(self.polling_wait_s or NOTIFY_A161_LONG_POLL_WAIT_DEFAULT_SECONDS)
+            value = NOTIFY_A161_POLLING_INTERVAL_DEFAULT_SECONDS
+        if value < 1:
+            value = NOTIFY_A161_POLLING_INTERVAL_DEFAULT_SECONDS
         return max(lo, min(hi, value))
 
     def long_poll_limit(self, requested: int | None = None) -> int:
@@ -263,7 +269,7 @@ class A161RemoteCapabilities:
         return True
 
     def inactivity_limit_days(self) -> int:
-        """Лимит автоотключения polling в днях из capabilities (для UI и clamp)."""
+        """Лимит автоотключения Long Polling в днях (WebSocket не отключаем)."""
         raw = int(self.polling_inactivity_auto_disable_days or 0)
         if raw < NOTIFY_A161_INACTIVITY_PERIOD_DAYS_MIN:
             return NOTIFY_A161_INACTIVITY_PERIOD_DAYS_DEFAULT
@@ -398,37 +404,26 @@ def capabilities_from_json(data: dict[str, Any]) -> A161RemoteCapabilities:
     if isinstance(maintenance_message, str) and maintenance_message.strip():
         msg_text = maintenance_message.strip()
 
+    interval_min = _int(
+        data, "polling_interval_min_s", NOTIFY_A161_POLLING_INTERVAL_MIN_SECONDS
+    )
+    interval_max = _int(
+        data, "polling_interval_max_s", NOTIFY_A161_POLLING_INTERVAL_MAX_SECONDS
+    )
     interval_default = _int(
         data, "polling_interval_default_s", NOTIFY_A161_POLLING_INTERVAL_DEFAULT_SECONDS
     )
-    # polling_interval_s — рекомендуемый/текущий интервал; default_s — дефолт UI.
+    # polling_interval_s — старый короткий опрос; в LP не используем.
     interval_s = _int(data, "polling_interval_s", interval_default)
-    wait_min = _first_present_int(
-        data,
-        ("polling_wait_min_s", "longpolling_wait_min_s"),
-        NOTIFY_A161_LONG_POLL_WAIT_MIN_SECONDS,
-    )
-    wait_max = _first_present_int(
-        data,
-        ("polling_wait_max_s", "longpolling_wait_max_s"),
-        NOTIFY_A161_LONG_POLL_WAIT_MAX_SECONDS,
-    )
-    wait_s = _first_present_int(
-        data,
-        (
-            "polling_wait_s",
-            "polling_wait_default_s",
-            "longpolling_wait_s",
-            "longpolling_wait_default_s",
-        ),
-        NOTIFY_A161_LONG_POLL_WAIT_DEFAULT_SECONDS,
-    )
-    if wait_min > wait_max:
-        wait_min, wait_max = (
-            NOTIFY_A161_LONG_POLL_WAIT_MIN_SECONDS,
-            NOTIFY_A161_LONG_POLL_WAIT_MAX_SECONDS,
+    if interval_min > interval_max:
+        interval_min, interval_max = (
+            NOTIFY_A161_POLLING_INTERVAL_MIN_SECONDS,
+            NOTIFY_A161_POLLING_INTERVAL_MAX_SECONDS,
         )
-    wait_s = max(wait_min, min(wait_max, wait_s))
+    interval_default = max(interval_min, min(interval_max, interval_default))
+    wait_min = interval_min
+    wait_max = interval_max
+    wait_s = interval_default
     polling_limit = _first_present_int(
         data,
         ("polling_limit_s", "polling_limit", "limit"),
@@ -444,12 +439,8 @@ def capabilities_from_json(data: dict[str, Any]) -> A161RemoteCapabilities:
         polling_url=str(data.get("polling_url") or NOTIFY_A161_POLLING_URL_DEFAULT),
         polling_limit_s=polling_limit,
         polling_interval_s=interval_s,
-        polling_interval_min_s=_int(
-            data, "polling_interval_min_s", NOTIFY_A161_POLLING_INTERVAL_MIN_SECONDS
-        ),
-        polling_interval_max_s=_int(
-            data, "polling_interval_max_s", NOTIFY_A161_POLLING_INTERVAL_MAX_SECONDS
-        ),
+        polling_interval_min_s=interval_min,
+        polling_interval_max_s=interval_max,
         polling_interval_default_s=interval_default,
         polling_inactivity_auto_disable_days=_inactivity_auto_disable_days(data),
         polling_wait_min_s=wait_min,

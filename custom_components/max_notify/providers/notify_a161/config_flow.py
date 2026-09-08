@@ -6,7 +6,7 @@ from typing import Any, Awaitable, Callable
 
 import voluptuous as vol
 
-from ...const import CONF_UPDATES_INTERVAL, RECEIVE_MODE_LONG_POLLING, RECEIVE_MODE_POLLING, RECEIVE_MODE_SEND_ONLY, RECEIVE_MODE_WEBSOCKET
+from ...const import RECEIVE_MODE_LONG_POLLING, RECEIVE_MODE_POLLING, RECEIVE_MODE_SEND_ONLY, RECEIVE_MODE_WEBSOCKET
 from ...translations import (
     merge_description_placeholders,
     prefixed_error_key,
@@ -14,9 +14,8 @@ from ...translations import (
 )
 from .const import (
     CONF_A161_UPDATES_LIMIT,
-    NOTIFY_A161_LONG_POLL_WAIT_DEFAULT_SECONDS,
-    NOTIFY_A161_LONG_POLL_WAIT_MAX_SECONDS,
-    NOTIFY_A161_LONG_POLL_WAIT_MIN_SECONDS,
+    NOTIFY_A161_POLLING_INTERVAL_MAX_SECONDS,
+    NOTIFY_A161_POLLING_INTERVAL_MIN_SECONDS,
     NOTIFY_A161_UPDATES_LIMIT_MAX,
     NOTIFY_A161_UPDATES_LIMIT_MIN,
 )
@@ -68,17 +67,14 @@ def caps_from_flow(flow: Any) -> A161RemoteCapabilities:
 
 
 def _wait_bounds(caps: A161RemoteCapabilities) -> tuple[int, int, int]:
-    wait_min = int(caps.polling_wait_min_s or NOTIFY_A161_LONG_POLL_WAIT_MIN_SECONDS)
-    wait_max = int(caps.polling_wait_max_s or NOTIFY_A161_LONG_POLL_WAIT_MAX_SECONDS)
-    wait_default = int(
-        caps.polling_wait_s or NOTIFY_A161_LONG_POLL_WAIT_DEFAULT_SECONDS
-    )
+    wait_min = int(caps.polling_interval_min_s or NOTIFY_A161_POLLING_INTERVAL_MIN_SECONDS)
+    wait_max = int(caps.polling_interval_max_s or NOTIFY_A161_POLLING_INTERVAL_MAX_SECONDS)
     if wait_min > wait_max:
         wait_min, wait_max = (
-            NOTIFY_A161_LONG_POLL_WAIT_MIN_SECONDS,
-            NOTIFY_A161_LONG_POLL_WAIT_MAX_SECONDS,
+            NOTIFY_A161_POLLING_INTERVAL_MIN_SECONDS,
+            NOTIFY_A161_POLLING_INTERVAL_MAX_SECONDS,
         )
-    wait_default = max(wait_min, min(wait_max, wait_default))
+    wait_default = int(caps.long_poll_wait_seconds())
     return wait_min, wait_max, wait_default
 
 
@@ -103,11 +99,11 @@ async def async_run_updates_interval_step(
     suggested_limit: int,
     on_valid: Callable[[int, int], Awaitable[Any]],
 ) -> Any:
-    """Форма Long Polling: wait (5–60 с) и limit (≥ 1)."""
+    """Форма Long Polling: wait с сервера, пользователь задаёт только limit."""
+    del suggested_wait
     step_iv = prefixed_step_id(flow, "updates_interval")
     caps = caps_from_flow(flow)
-    wait_min, wait_max, wait_default = _wait_bounds(caps)
-    suggested_wait = max(wait_min, min(wait_max, int(suggested_wait or wait_default)))
+    wait_default = int(caps.long_poll_wait_seconds())
     limit_default = int(caps.long_poll_limit())
     try:
         suggested_limit = int(suggested_limit or limit_default)
@@ -120,31 +116,18 @@ async def async_run_updates_interval_step(
     errors: dict[str, str] = {}
     if user_input is not None:
         try:
-            wait = int(user_input.get(CONF_UPDATES_INTERVAL))
-        except (TypeError, ValueError):
-            wait = 0
-        try:
             limit = int(user_input.get(CONF_A161_UPDATES_LIMIT))
         except (TypeError, ValueError):
             limit = 0
-        if wait < wait_min or wait > wait_max:
-            errors["base"] = prefixed_error_key(flow, "invalid_updates_interval")
-        elif limit < NOTIFY_A161_UPDATES_LIMIT_MIN or limit > NOTIFY_A161_UPDATES_LIMIT_MAX:
+        if limit < NOTIFY_A161_UPDATES_LIMIT_MIN or limit > NOTIFY_A161_UPDATES_LIMIT_MAX:
             errors["base"] = prefixed_error_key(flow, "invalid_updates_limit")
         else:
-            return await on_valid(wait, limit)
+            return await on_valid(wait_default, limit)
     return flow.async_show_form(
         step_id=step_iv,
         data_schema=flow.add_suggested_values_to_schema(
             vol.Schema(
                 {
-                    vol.Required(
-                        CONF_UPDATES_INTERVAL,
-                        default=wait_default,
-                    ): vol.All(
-                        vol.Coerce(int),
-                        vol.Range(min=wait_min, max=wait_max),
-                    ),
                     vol.Required(
                         CONF_A161_UPDATES_LIMIT,
                         default=limit_default,
@@ -158,7 +141,6 @@ async def async_run_updates_interval_step(
                 }
             ),
             {
-                CONF_UPDATES_INTERVAL: suggested_wait,
                 CONF_A161_UPDATES_LIMIT: suggested_limit,
             },
         ),

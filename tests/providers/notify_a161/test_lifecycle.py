@@ -6,7 +6,11 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from custom_components.max_notify.const import CONF_RECEIVE_MODE, RECEIVE_MODE_LONG_POLLING
+from custom_components.max_notify.const import (
+    CONF_RECEIVE_MODE,
+    RECEIVE_MODE_LONG_POLLING,
+    RECEIVE_MODE_WEBSOCKET,
+)
 from custom_components.max_notify.providers.notify_a161.lifecycle import (
     ensure_polling_grace,
     last_activity_ts,
@@ -47,6 +51,19 @@ async def test_ensure_polling_grace_seeds_memory_without_reload(
         await ensure_polling_grace(hass, mock_config_entry)
     hass.config_entries.async_update_entry.assert_not_called()
     assert last_activity_ts(hass, mock_config_entry) > 0
+
+
+@pytest.mark.asyncio
+async def test_ensure_polling_grace_skips_websocket(hass, mock_config_entry) -> None:
+    mock_config_entry.options = {CONF_RECEIVE_MODE: RECEIVE_MODE_WEBSOCKET}
+    mock_config_entry.data = {"integration_type": "notify_a161"}
+    mock_config_entry.title = "MaxNotify (notify.a161.ru, WebSocket)"
+    with patch(
+        "custom_components.max_notify.providers.notify_a161.lifecycle.resolve_remote_capabilities"
+    ) as caps_fn:
+        await ensure_polling_grace(hass, mock_config_entry)
+    caps_fn.assert_not_called()
+    hass.config_entries.async_update_entry.assert_not_called()
 
 
 @pytest.mark.asyncio

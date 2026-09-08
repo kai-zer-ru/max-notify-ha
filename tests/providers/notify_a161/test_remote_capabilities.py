@@ -16,14 +16,14 @@ def test_default_remote_capabilities_phase1() -> None:
     assert caps.websocket_enabled() is False
     assert caps.polling_url.endswith("/updates")
     assert caps.websocket_url.endswith("/ws/updates")
-    assert caps.long_poll_wait_seconds() == 60
+    assert caps.long_poll_wait_seconds() == 5
     assert caps.long_poll_wait_seconds(2) == 5
-    assert caps.long_poll_wait_seconds(120) == 60
+    assert caps.long_poll_wait_seconds(120) == 5
     assert caps.long_poll_limit() == 5
     assert caps.long_poll_limit(20) == 20
     assert caps.max_photo_size_mb == 4
     assert caps.polling_interval_min_s == 5
-    assert caps.polling_interval_max_s == 360
+    assert caps.polling_interval_max_s == 60
     assert caps.polling_inactivity_auto_disable_days == 2
     assert caps.small_file_max_size_bytes == 199_999
     assert caps.message_min_interval_seconds() == 1.0
@@ -68,6 +68,8 @@ def test_capabilities_from_json_author_live_schema() -> None:
     assert caps.from_remote is True
     assert caps.token_active_days == 999
     assert caps.polling_interval_max_s == 360
+    assert caps.long_poll_wait_seconds() == 5
+    assert caps.long_poll_wait_seconds(30) == 5
     assert caps.maintenance_message is None
     assert caps.websocket_enabled() is False
     assert caps.max_upload_bytes_for_kind("photo") == 4 * 1024 * 1024
@@ -523,6 +525,27 @@ def test_caps_summary_placeholders_hide_unsupported_sizes() -> None:
     )
     ph = _caps_summary_placeholders(caps)
     assert ph["inactivity_days"] == "2"
+
+
+def test_long_poll_wait_always_uses_interval_default() -> None:
+    caps = capabilities_from_json(
+        {
+            "polling_interval_s": 5,
+            "polling_interval_min_s": 5,
+            "polling_interval_max_s": 60,
+            "polling_interval_default_s": 5,
+        }
+    )
+    assert caps.long_poll_wait_seconds() == 5
+    assert caps.long_poll_wait_seconds(45) == 5
+    wide = capabilities_from_json(
+        {
+            "polling_interval_min_s": 5,
+            "polling_interval_max_s": 60,
+            "polling_interval_default_s": 90,
+        }
+    )
+    assert wide.long_poll_wait_seconds() == 60
 
 
 def test_inactivity_limit_uses_remote_days() -> None:

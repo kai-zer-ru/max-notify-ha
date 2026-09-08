@@ -429,9 +429,9 @@ Authorization: <access_token>
 |                        |                                                                                                                                      |
 | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
 | **Тип**                | `integer` (дни) или `null`                                                                                                           |
-| **Назначение**         | Через сколько дней без входящей активности / без кнопок имеет смысл отключить приём (send-only). `null` — не требовать auto-disable. |
-| **Использование в HA** | Сейчас похожая логика частично на клиенте (1–3 дня). Поле с API выровняет политику с биллингом/нагрузкой.                            |
-| **Зачем API**          | Меньше вечных idle polling/WS у забытых установок.                                                                                   |
+| **Назначение**         | Через сколько дней без входящей активности / без кнопок отключить **Long Polling** (send-only). `null` — не требовать auto-disable. WebSocket этим полем не трогаем. |
+| **Использование в HA** | Только режим Long Polling. Срок с сервера (`polling_inactivity_auto_disable_days` или этот alias). WebSocket не переключаем. |
+| **Зачем API**          | Меньше вечных idle GET /updates у забытых установок.                                                                                   |
 
 
 #### `maintenance` / `status_message`
@@ -548,7 +548,7 @@ WebSocket — **фаза 2**; в фазе 1 `websocket_available: false`, код
 
 Для polling/webhook: если `update_available != true` или канал ∉ `receive_modes` — не запускать соответствующий приём.
 
-Фактический протокол (2026-09): `wss://notify.a161.ru/ws/updates`, заголовок `Authorization`. При подключении сервер сразу отдаёт накопленное (массив или кадры), дальше — push. Клиент шлёт `{"cmd":"ping"}` (в ответ пустой массив или недошедшие updates). `{"error":"invalid json"}` — лог, соединение живое. `{"type":"closed","reason":"server shutting down"}` — переподключение. `token_active=false` — не коннектиться. Long polling: `GET /updates?limit=&wait=` (`wait` 5–60 с); короткий polling клиент больше не использует.
+Фактический протокол (2026-09): `wss://notify.a161.ru/ws/updates`, заголовок `Authorization`. При подключении сервер сразу отдаёт накопленное (массив или кадры), дальше — push. Клиент шлёт `{"cmd":"ping"}` (в ответ пустой массив или недошедшие updates). `{"error":"invalid json"}` — лог, соединение живое. `{"type":"closed","reason":"server shutting down"}` — переподключение. `token_active=false` — не коннектиться. Long polling: `GET /updates?limit=&wait=`; `wait` всегда `polling_interval_default_s` в пределах `polling_interval_min_s`…`polling_interval_max_s`. `polling_interval_s` — старый короткий опрос, клиент его не использует. Автоотключение на send-only (`polling_inactivity_auto_disable_days`) — только для Long Polling, не для WebSocket.
 
 ### 6.3. Минимальный протокол кадров
 

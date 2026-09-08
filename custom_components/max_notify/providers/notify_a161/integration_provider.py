@@ -334,24 +334,15 @@ class NotifyA161IntegrationProvider(MaxNotifyIntegrationProvider):
         caps = self._remote_caps(hass, entry) if hass is not None else None
         stored = entry.options or {}
         stored_limit = stored.get(CONF_A161_UPDATES_LIMIT)
-        stored_wait = stored.get(CONF_UPDATES_INTERVAL)
         if caps is not None:
             params["limit"] = int(caps.long_poll_limit(stored_limit))
-            requested_wait: int | None
-            try:
-                requested_wait = int(stored_wait) if stored_wait is not None else None
-            except (TypeError, ValueError):
-                requested_wait = None
-            params["wait"] = int(caps.long_poll_wait_seconds(requested_wait))
+            params["wait"] = int(caps.long_poll_wait_seconds())
         else:
             try:
                 params["limit"] = int(stored_limit or self.updates_poll_limit or NOTIFY_A161_UPDATES_LIMIT)
             except (TypeError, ValueError):
                 params["limit"] = int(self.updates_poll_limit or NOTIFY_A161_UPDATES_LIMIT)
-            try:
-                params["wait"] = int(stored_wait) if stored_wait is not None else 60
-            except (TypeError, ValueError):
-                params["wait"] = 60
+            params["wait"] = int(self.updates_interval_default)
         return params
 
     def updates_poll_url(
@@ -383,32 +374,17 @@ class NotifyA161IntegrationProvider(MaxNotifyIntegrationProvider):
     def updates_poll_interval_seconds(
         self, entry: ConfigEntry, *, hass: HomeAssistant | None = None
     ) -> float:
-        iv_min = float(self.updates_interval_min)
-        iv_max = float(self.updates_interval_max)
-        iv_default = float(self.updates_interval_default)
+        _ = entry
         if hass is not None:
-            caps = self._remote_caps(hass, entry)
-            iv_min = float(caps.polling_interval_min_s)
-            iv_max = float(caps.polling_interval_max_s)
-            iv_default = float(caps.polling_interval_default_s or caps.polling_interval_s)
-        raw = (entry.options or {}).get(CONF_UPDATES_INTERVAL, iv_default)
-        try:
-            iv = float(raw)
-        except (TypeError, ValueError):
-            iv = iv_default
-        return max(iv_min, min(iv_max, iv))
+            return float(self._remote_caps(hass, entry).long_poll_wait_seconds())
+        return float(self.updates_interval_default)
 
     def updates_poll_http_timeout_total(
         self, entry: ConfigEntry | None = None, *, hass: HomeAssistant | None = None
     ) -> float:
-        wait = 60.0
+        wait = float(self.updates_interval_default)
         if hass is not None and entry is not None:
-            stored = (entry.options or {}).get(CONF_UPDATES_INTERVAL)
-            try:
-                requested = int(stored) if stored is not None else None
-            except (TypeError, ValueError):
-                requested = None
-            wait = float(self._remote_caps(hass, entry).long_poll_wait_seconds(requested))
+            wait = float(self._remote_caps(hass, entry).long_poll_wait_seconds())
         return wait + 15.0
 
     def updates_poll_uses_request_pacing(self) -> bool:

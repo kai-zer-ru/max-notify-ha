@@ -128,9 +128,10 @@ def test_long_poll_params_include_wait_and_limit(hass, mock_config_entry) -> Non
         capabilities_from_json(
             {
                 "polling_limit_s": 7,
-                "polling_wait_min_s": 5,
-                "polling_wait_max_s": 60,
-                "polling_wait_s": 60,
+                "polling_interval_min_s": 5,
+                "polling_interval_max_s": 60,
+                "polling_interval_default_s": 5,
+                "polling_interval_s": 5,
             }
         ),
     )
@@ -148,11 +149,11 @@ def test_long_poll_params_include_wait_and_limit(hass, mock_config_entry) -> Non
 
     mock_config_entry.options = {"updates_interval": 120}
     params_hi = prov.build_updates_poll_params(mock_config_entry, None, hass=hass)
-    assert params_hi["wait"] == 60
+    assert params_hi["wait"] == 5
 
     mock_config_entry.options = {"updates_interval": 30, "a161_updates_limit": 20}
     params_user = prov.build_updates_poll_params(mock_config_entry, None, hass=hass)
-    assert params_user["wait"] == 30
+    assert params_user["wait"] == 5
     assert params_user["limit"] == 20
 
 

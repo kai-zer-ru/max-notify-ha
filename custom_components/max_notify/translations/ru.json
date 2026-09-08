@@ -172,18 +172,17 @@
       },
       "notify_a161_updates_interval": {
         "title": "{provider_label} — Long Polling",
+        "description": "Интервал опроса задаёт сервер: {default_seconds} с (допустимо {interval_min}–{interval_max}).",
         "data": {
-          "updates_interval": "Ожидание wait (с)",
           "a161_updates_limit": "Лимит событий (limit)"
         },
         "data_description": {
-          "updates_interval": "Сколько сервер держит GET /updates: от {interval_min} до {interval_max} с (по умолчанию {default_seconds}).",
           "a161_updates_limit": "Сколько событий забрать за раз (по умолчанию {default_limit}, диапазон {limit_min}–{limit_max})."
         }
       },
       "notify_a161_a161_inactivity_period": {
         "title": "{provider_label}: период неактивности",
-        "description": "Срок задаёт сервер. Если {inactivity_days} сут. не будет входящих и отправок с кнопками, режим станет «Только отправка»."
+        "description": "Только для Long Polling — WebSocket так не отключается. Срок задаёт сервер: если {inactivity_days} сут. не будет входящих и отправок с кнопками, режим станет «Только отправка»."
       }
     },
     "error": {
@@ -364,18 +363,17 @@
       },
       "notify_a161_updates_interval": {
         "title": "{provider_label} — Long Polling",
+        "description": "Интервал опроса задаёт сервер: {default_seconds} с (допустимо {interval_min}–{interval_max}).",
         "data": {
-          "updates_interval": "Ожидание wait (с)",
           "a161_updates_limit": "Лимит событий (limit)"
         },
         "data_description": {
-          "updates_interval": "Сколько сервер держит GET /updates: от {interval_min} до {interval_max} с (по умолчанию {default_seconds}).",
           "a161_updates_limit": "Сколько событий забрать за раз (по умолчанию {default_limit}, диапазон {limit_min}–{limit_max})."
         }
       },
       "notify_a161_a161_inactivity_period": {
         "title": "{provider_label}: период неактивности",
-        "description": "Срок задаёт сервер. Если {inactivity_days} сут. не будет входящих и отправок с кнопками, режим станет «Только отправка»."
+        "description": "Только для Long Polling — WebSocket так не отключается. Срок задаёт сервер: если {inactivity_days} сут. не будет входящих и отправок с кнопками, режим станет «Только отправка»."
       }
     },
     "error": {
