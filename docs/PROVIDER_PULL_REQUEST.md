@@ -36,7 +36,7 @@
 
 | Файл | Назначение |
 |------|------------|
-| `const.py` | `API_BASE_URL`, `API_VERSION`, режимы приёма, типы апдейтов, при необходимости `TITLE_FALLBACK_SUBSTRINGS` для старых записей. |
+| `const.py` | `API_BASE_URL`, режимы приёма, типы апдейтов, при необходимости `TITLE_FALLBACK_SUBSTRINGS` для старых записей. |
 | `capabilities.py` | Frozen-экземпляр `IntegrationCapabilities` из `providers/capabilities.py`. |
 | `integration_provider.py` | Подкласс `MaxNotifyIntegrationProvider` с переопределёнными методами. |
 | `api.py` | `async_validate_access_token`, при необходимости синхронизация команд бота. |
@@ -55,7 +55,7 @@
 ## 4. Регистрация в `registry.py`
 
 - Импорт констант и класса провайдера.
-- Создание экземпляра со всеми полями конструктора: `integration_type`, `label`, `api_base_url`, `api_version`, `receive_modes`, `update_types_receive`, флаги приёма и групп, `access_token_length`, `translation_prefix_keys`, лимиты polling, `shares_platform_bot_token_pool`, `is_add_chat_available`, `allow_multiple_config_entries_same_token`, `max_attachments_per_message_limit` и т.д.
+- Создание экземпляра со всеми полями конструктора: `integration_type`, `label`, `api_base_url`, `receive_modes`, `update_types_receive`, флаги приёма и групп, `access_token_length`, `translation_prefix_keys`, лимиты polling, `shares_platform_bot_token_pool`, `is_add_chat_available`, `allow_multiple_config_entries_same_token`, `max_attachments_per_message_limit` и т.д.
 - Добавление типа в **`INTEGRATION_TYPES`** (порядок = порядок пунктов в первом шаге мастера).
 - Запись в **`_BY_INTEGRATION_TYPE`** и **`_CAPABILITIES`**.
 

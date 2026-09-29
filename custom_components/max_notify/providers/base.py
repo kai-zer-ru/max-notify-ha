@@ -43,7 +43,6 @@ class MaxNotifyIntegrationProvider:
         "integration_type",
         "label",
         "api_base_url",
-        "api_version",
         "update_types_receive",
         "receive_modes",
         "title_fallback_substrings",
@@ -71,7 +70,6 @@ class MaxNotifyIntegrationProvider:
         integration_type: str,
         label: str,
         api_base_url: str,
-        api_version: str,
         update_types_receive: tuple[str, ...] = (),
         receive_modes: tuple[str, ...] = (),
         title_fallback_substrings: tuple[str, ...] = (),
@@ -95,7 +93,6 @@ class MaxNotifyIntegrationProvider:
         self.integration_type = integration_type
         self.label = label
         self.api_base_url = api_base_url
-        self.api_version = api_version
         self.update_types_receive = update_types_receive
         self.receive_modes = receive_modes
         self.title_fallback_substrings = title_fallback_substrings
@@ -744,7 +741,6 @@ class MaxNotifyIntegrationProvider:
     ) -> dict[str, Any]:
         """Параметры query для long polling (официальный API: marker, types, timeout)."""
         params: dict[str, Any] = {
-            "v": self.api_version,
             "timeout": POLLING_TIMEOUT,
             "limit": POLLING_LIMIT,
             "types": ",".join(self.update_types_receive),
@@ -803,12 +799,12 @@ class MaxNotifyIntegrationProvider:
     def build_delete_message_url(
         self, base_url: str, api_path_messages: str, message_id: str
     ) -> str:
-        return f"{base_url}{api_path_messages}?message_id={message_id}&v={self.api_version}"
+        return f"{base_url}{api_path_messages}?message_id={message_id}"
 
     def build_edit_message_url(
         self, base_url: str, api_path_messages: str, message_id: str
     ) -> str:
-        return f"{base_url}{api_path_messages}?message_id={message_id}&v={self.api_version}"
+        return f"{base_url}{api_path_messages}?message_id={message_id}"
 
     def resolve_simple_message_post_url(
         self,
@@ -951,7 +947,7 @@ class MaxNotifyIntegrationProvider:
     def build_upload_url(
         self, base_url: str, api_path_uploads: str, upload_type: str
     ) -> str:
-        return f"{base_url}{api_path_uploads}?type={upload_type}&v={self.api_version}"
+        return f"{base_url}{api_path_uploads}?type={upload_type}"
 
     def build_media_message_payload(
         self,

@@ -319,7 +319,7 @@ send_document:
                 - html
               mode: dropdown
         send_keyboard:
-          default: true
+          default: false
           selector:
             boolean:
         config_entry_id:

@@ -653,11 +653,11 @@
         },
         "send_keyboard": {
           "name": "Send keyboard",
-          "description": "When enabled (default), the integration default inline keyboard is used if you omit Buttons or leave it empty; non-empty Buttons replace it. When disabled, only non-empty Buttons from this call are attached."
+          "description": "Not supported with documents (Max allows only the file as the attachment). Leave disabled. Enabling or passing Buttons will fail the call."
         },
         "buttons": {
           "name": "Buttons",
-          "description": "Custom inline buttons. Formats: object map (Text -> payload), list of objects (text, payload), or rows of objects (type: callback|message|link, text, payload/url). Link buttons require http(s) URLs only. How they combine with the default keyboard is controlled by Send keyboard."
+          "description": "Not supported with send_document. Max requires the file to be the only attachment; leave empty."
         },
         "notify": {
           "name": "Notify",
@@ -985,6 +985,9 @@
     },
     "service_send_document_one_file_only": {
       "message": "send_document: attach exactly one file (path or URL)."
+    },
+    "service_send_document_no_inline_keyboard": {
+      "message": "Cannot send an inline keyboard with a document: Max allows only the file as the attachment. Disable «Send keyboard» or clear Buttons."
     },
     "delete_message_permission_denied": {
       "message": "No permission to delete messages. In a group chat, make the bot an administrator and grant it permission to delete messages."

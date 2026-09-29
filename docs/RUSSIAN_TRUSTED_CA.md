@@ -290,7 +290,7 @@ sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keyc
 
 ```bash
 docker exec homeassistant curl -sS -o /dev/null -w "%{http_code}\n" \
-  "https://platform-api2.max.ru/me?v=1.2.5" \
+  "https://platform-api2.max.ru/me" \
   -H "Authorization: <ваш_токен>"
 ```
 
@@ -323,7 +323,7 @@ docker exec homeassistant grep -i "Russian Trusted" /etc/ssl/certs/ca-certificat
 ### 3. Home Assistant Core (venv на хосте Linux)
 
 ```bash
-curl -v "https://platform-api2.max.ru/me?v=1.2.5" 2>&1 | grep -E "SSL|subject|issuer|error"
+curl -v "https://platform-api2.max.ru/me" 2>&1 | grep -E "SSL|subject|issuer|error"
 trust list | grep -i russian
 ```
 

@@ -374,6 +374,65 @@ class TestDeleteMessages:
 
 
 @pytest.mark.asyncio
+class TestListMessageIdsInPeriod:
+    """GET /messages для удаления по периоду: after/before (не deprecated from/to)."""
+
+    async def test_uses_after_before_not_from_to(
+        self, hass, mock_config_entry
+    ) -> None:
+        from custom_components.max_notify.providers.notify_outbound import (
+            list_message_ids_in_period as outbound_list,
+        )
+
+        mock_config_entry.data = {"access_token": "token", "message_format": "text"}
+        with (
+            patch(
+                "custom_components.max_notify.providers.notify_outbound._get_message_url_and_recipient",
+                new=AsyncMock(
+                    return_value=(
+                        "https://platform-api2.max.ru/messages?chat_id=-100",
+                        {"chat_id": -100},
+                    )
+                ),
+            ),
+            patch(
+                "custom_components.max_notify.providers.notify_outbound.async_get_clientsession"
+            ) as mock_session,
+            patch(
+                "custom_components.max_notify.providers.notify_outbound.async_acquire_outbound_api_slot",
+                new=AsyncMock(),
+            ),
+        ):
+            mock_resp = AsyncMock()
+            mock_resp.status = 200
+            mock_resp.text = AsyncMock(
+                return_value='{"messages":[{"body":{"mid":"mid.abc123"}}]}'
+            )
+            mock_resp.__aenter__ = AsyncMock(return_value=mock_resp)
+            mock_resp.__aexit__ = AsyncMock(return_value=None)
+
+            mock_ctx = MagicMock()
+            mock_ctx.get = MagicMock(return_value=mock_resp)
+            mock_session.return_value = mock_ctx
+
+            ids = await outbound_list(
+                hass,
+                mock_config_entry,
+                {CONF_RECIPIENT_ID: -100},
+                ts_from=1_000,
+                ts_to=2_000,
+            )
+            assert ids == ["abc123"]
+            params = mock_ctx.get.call_args.kwargs["params"]
+            assert params["after"] == "1000"
+            assert params["before"] == "2000"
+            assert "from" not in params
+            assert "to" not in params
+            assert params.get("chat_id") == "-100"
+            assert params.get("count") == "100"
+
+
+@pytest.mark.asyncio
 class TestNotifyA161DeleteRestrictions:
     """notify.a161.ru: без удаления по периоду и без delete_last_outgoing."""
 

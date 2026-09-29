@@ -21,7 +21,6 @@ CONF_A161_WEBSOCKET_URL = "a161_websocket_url"
 API_PATH_ME_CAPABILITIES = "/me/capabilities"
 
 API_BASE_URL = "https://notify.a161.ru"
-API_VERSION = "1.2.5"
 
 ACCESS_TOKEN_EXPECTED_LENGTH = 36
 

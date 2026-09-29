@@ -182,6 +182,17 @@ def _validate_attachments_count_limit(
         raise ServiceValidationError(
             "send_document supports only one file in a single message"
         )
+    # Max API: file attachment MUST be the only attachment (no inline_keyboard).
+    if is_document and has_inline_keyboard:
+        _LOGGER.error(
+            "Документ нельзя отправить с inline-клавиатурой: запись=%s провайдер=%s",
+            entry.entry_id,
+            prov.label,
+        )
+        raise ServiceValidationError(
+            translation_domain=DOMAIN,
+            translation_key="service_send_document_no_inline_keyboard",
+        )
     actual_with_keyboard = len(file_sources) + (1 if has_inline_keyboard else 0)
     if actual_with_keyboard > MAX_ATTACHMENTS_PER_MESSAGE:
         _LOGGER.error(
@@ -1654,16 +1665,13 @@ async def list_message_ids_in_period(
     msg_url, _ = resolved
     parsed = urlparse(msg_url)
     base_params = dict(parse_qsl(parsed.query, keep_blank_values=False))
-    # MAX API range uses reverse bounds semantics in practice for /messages:
-    # user-facing [from..to] -> API query from=to, to=from (milliseconds).
-    api_from = ts_to if ts_from is not None and ts_to is not None else ts_from
-    api_to = ts_from if ts_from is not None and ts_to is not None else ts_to
-
+    # OpenAPI: after/before (from/to deprecated). Chronological period:
+    # messages after ts_from and before ts_to (milliseconds).
     params_ms = dict(base_params)
-    if api_from is not None:
-        params_ms["from"] = str(api_from)
-    if api_to is not None:
-        params_ms["to"] = str(api_to)
+    if ts_from is not None:
+        params_ms["after"] = str(ts_from)
+    if ts_to is not None:
+        params_ms["before"] = str(ts_to)
 
     variants: list[dict[str, str]] = []
     if "count" in params_ms or "limit" in params_ms:

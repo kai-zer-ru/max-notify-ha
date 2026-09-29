@@ -334,7 +334,7 @@ class NotifyA161IntegrationProvider(MaxNotifyIntegrationProvider):
         *,
         hass: HomeAssistant | None = None,
     ) -> dict[str, Any]:
-        params: dict[str, Any] = {"v": self.api_version}
+        params: dict[str, Any] = {}
         caps = self._remote_caps(hass, entry) if hass is not None else None
         stored = entry.options or {}
         stored_limit = stored.get(CONF_A161_UPDATES_LIMIT)

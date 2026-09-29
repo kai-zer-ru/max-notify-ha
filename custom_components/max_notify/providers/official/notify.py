@@ -23,7 +23,6 @@ async def resolve_message_url(
     *,
     base_url: str,
     api_path_messages: str,
-    api_version: str,
     user_id: int | None,
     chat_id: int | None,
 ) -> str | None:
@@ -37,27 +36,27 @@ async def resolve_message_url(
     """
     _ = (hass, entry, token)
     if user_id is not None and int(user_id) != 0:
-        return f"{base_url}{api_path_messages}?user_id={int(user_id)}&v={api_version}"
+        return f"{base_url}{api_path_messages}?user_id={int(user_id)}"
 
     if chat_id is not None and int(chat_id) != 0:
-        return f"{base_url}{api_path_messages}?chat_id={int(chat_id)}&v={api_version}"
+        return f"{base_url}{api_path_messages}?chat_id={int(chat_id)}"
 
     return None
 
 
-def build_delete_url(base_url: str, api_path_messages: str, api_version: str, message_id: str) -> str:
+def build_delete_url(base_url: str, api_path_messages: str, message_id: str) -> str:
     """URL DELETE /messages для официального API."""
-    return f"{base_url}{api_path_messages}?message_id={message_id}&v={api_version}"
+    return f"{base_url}{api_path_messages}?message_id={message_id}"
 
 
-def build_edit_url(base_url: str, api_path_messages: str, api_version: str, message_id: str) -> str:
+def build_edit_url(base_url: str, api_path_messages: str, message_id: str) -> str:
     """URL PUT /messages для официального API."""
-    return f"{base_url}{api_path_messages}?message_id={message_id}&v={api_version}"
+    return f"{base_url}{api_path_messages}?message_id={message_id}"
 
 
-def build_upload_url(base_url: str, api_path_uploads: str, api_version: str, upload_type: str) -> str:
+def build_upload_url(base_url: str, api_path_uploads: str, upload_type: str) -> str:
     """URL POST /uploads для официального API и типа медиа."""
-    return f"{base_url}{api_path_uploads}?type={upload_type}&v={api_version}"
+    return f"{base_url}{api_path_uploads}?type={upload_type}"
 
 
 def _extract_message_id_from_item(message: dict[str, Any]) -> str | None:
@@ -96,9 +95,8 @@ async def _get_bot_user_id(
     token: str,
     *,
     base_url: str,
-    api_version: str,
 ) -> int | None:
-    url = f"{base_url}{API_PATH_ME}?v={api_version}"
+    url = f"{base_url}{API_PATH_ME}"
     session = async_get_clientsession(hass)
     headers = {"Authorization": token}
     try:
@@ -147,9 +145,8 @@ def _messages_query_variants(
     *,
     chat_ids: list[int],
     scan_count: int,
-    api_version: str,
 ) -> list[dict[str, Any]]:
-    base_params = [{"v": api_version, "count": scan_count}, {"v": api_version, "limit": scan_count}]
+    base_params = [{"count": scan_count}, {"limit": scan_count}]
     variants: list[dict[str, Any]] = []
     for params in base_params:
         for chat_id in chat_ids:
@@ -163,7 +160,6 @@ async def find_last_outgoing_message_id(
     token: str,
     *,
     base_url: str,
-    api_version: str,
     recipient_id: int,
     scan_count: int,
 ) -> str | None:
@@ -190,7 +186,6 @@ async def find_last_outgoing_message_id(
         hass,
         token,
         base_url=base_url,
-        api_version=api_version,
     )
     if bot_user_id is None:
         return None
@@ -199,7 +194,6 @@ async def find_last_outgoing_message_id(
     for params in _messages_query_variants(
         chat_ids=chat_ids,
         scan_count=scan_count,
-        api_version=api_version,
     ):
         try:
             await async_acquire_outbound_api_slot(hass)

@@ -87,7 +87,6 @@ class OfficialIntegrationProvider(MaxNotifyIntegrationProvider):
             token,
             base_url=base_url,
             api_path_messages=API_PATH_MESSAGES,
-            api_version=self.api_version,
             user_id=user_id,
             chat_id=chat_id,
         )
@@ -238,7 +237,6 @@ class OfficialIntegrationProvider(MaxNotifyIntegrationProvider):
             hass,
             token,
             api_base_url=self.api_base_url,
-            api_version=self.api_version,
         )
 
     async def async_webhook_register(
@@ -335,7 +333,6 @@ class OfficialIntegrationProvider(MaxNotifyIntegrationProvider):
                 entry,
                 token,
                 base_url=self.api_base_url,
-                api_version=self.api_version,
                 recipient_id=recipient_id,
                 scan_count=scan_count,
             )
