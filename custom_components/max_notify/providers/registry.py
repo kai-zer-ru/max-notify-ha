@@ -25,7 +25,6 @@ from .notify_a161.integration_provider import NotifyA161IntegrationProvider
 from .notify_a161.const import (
     ACCESS_TOKEN_EXPECTED_LENGTH as NOTIFY_A161_ACCESS_TOKEN_LENGTH,
     API_BASE_URL as NOTIFY_A161_API_BASE_URL,
-    API_VERSION as NOTIFY_A161_API_VERSION,
     NOTIFY_A161_UPDATES_INTERVAL_MAX_SECONDS,
     NOTIFY_A161_UPDATES_INTERVAL_MIN_SECONDS,
     NOTIFY_A161_UPDATES_INTERVAL_SECONDS,
@@ -36,7 +35,6 @@ from .notify_a161.const import (
 )
 from .official.const import (
     API_BASE_URL as OFFICIAL_API_BASE_URL,
-    API_VERSION as OFFICIAL_API_VERSION,
     RECEIVE_MODES as OFFICIAL_RECEIVE_MODES,
     UPDATE_TYPES_RECEIVE as OFFICIAL_UPDATE_TYPES_RECEIVE,
 )
@@ -68,7 +66,6 @@ NOTIFY_A161_PROVIDER = NotifyA161IntegrationProvider(
     integration_type=INTEGRATION_TYPE_NOTIFY_A161,
     label="notify.a161.ru",
     api_base_url=NOTIFY_A161_API_BASE_URL,
-    api_version=NOTIFY_A161_API_VERSION,
     update_types_receive=NOTIFY_A161_UPDATE_TYPES_RECEIVE,
     receive_modes=NOTIFY_A161_RECEIVE_MODES,
     title_fallback_substrings=NOTIFY_A161_TITLE_FALLBACK,
@@ -94,7 +91,6 @@ OFFICIAL_PROVIDER = OfficialIntegrationProvider(
     integration_type=INTEGRATION_TYPE_OFFICIAL,
     label="Official Max API (platform-api2.max.ru)",
     api_base_url=OFFICIAL_API_BASE_URL,
-    api_version=OFFICIAL_API_VERSION,
     update_types_receive=OFFICIAL_UPDATE_TYPES_RECEIVE,
     receive_modes=OFFICIAL_RECEIVE_MODES,
     shares_platform_bot_token_pool=True,

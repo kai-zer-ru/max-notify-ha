@@ -78,7 +78,6 @@ async def test_process_incoming_does_not_update_config_entry(
         integration_type="notify_a161",
         label="notify.a161.ru",
         api_base_url="https://notify.a161.ru",
-        api_version="1.2.5",
     )
     with patch(
         "custom_components.max_notify.providers.updates_service.async_process_incoming_update_impl",

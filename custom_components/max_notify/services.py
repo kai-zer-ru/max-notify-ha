@@ -748,6 +748,16 @@ async def async_delete_message_handler(service: ServiceCall) -> ServiceResponse:
         recipient = recipient_dict_from_subentry(
             subentry, hass=hass, entry_id=entry_for_entity.entry_id
         )
+        rid_raw = recipient.get(CONF_RECIPIENT_ID)
+        try:
+            period_recipient_id = int(rid_raw)
+        except (TypeError, ValueError):
+            period_recipient_id = 0
+        if period_recipient_id >= 0:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="delete_by_period_group_only",
+            )
         while True:
             batch_ids = await list_message_ids_in_period(
                 hass,
@@ -1478,7 +1488,8 @@ async def _send_document(
     caption = data.get("caption")
     message_format = data.get("format")
     disable_ssl = data.get(CONF_DISABLE_SSL, False)
-    send_kb = data.get(CONF_SEND_KEYBOARD, True)
+    # Default false: Max API forbids inline keyboard with file attachment.
+    send_kb = data.get(CONF_SEND_KEYBOARD, False)
     notify_flag = data.get("notify", True)
     buttons_provided = "buttons" in data
     count_requests = data.get(CONF_COUNT_REQUESTS)
@@ -1513,6 +1524,27 @@ async def _send_document(
     if not resolved:
         return
 
+    reg = er.async_get(hass)
+    # Max API: документ — единственное вложение; клавиатуру отклоняем до скачивания файла.
+    for eid in resolved:
+        entity_entry = reg.async_get(eid)
+        if not entity_entry or not entity_entry.config_entry_id:
+            continue
+        entry = hass.config_entries.async_get_entry(entity_entry.config_entry_id)
+        if not entry or entry.domain != DOMAIN:
+            continue
+        pending_buttons = resolve_service_inline_keyboard(
+            entry.options,
+            send_keyboard=send_kb,
+            buttons_provided=buttons_provided,
+            buttons_raw=data.get("buttons"),
+        )
+        if pending_buttons:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="service_send_document_no_inline_keyboard",
+            )
+
     materialized = await async_materialize_remote_file_sources(
         hass,
         file_paths_or_urls,
@@ -1527,7 +1559,6 @@ async def _send_document(
         return
     local_sources, temp_paths = materialized
 
-    reg = er.async_get(hass)
     try:
         for eid in resolved:
             entity_entry = reg.async_get(eid)
@@ -1543,14 +1574,6 @@ async def _send_document(
                 continue
             caps = get_capabilities(entry, hass)
             _ensure_capability(entry, caps.supports_send_document, feature="send_document")
-            all_buttons = resolve_service_inline_keyboard(
-                entry.options,
-                send_keyboard=send_kb,
-                buttons_provided=buttons_provided,
-                buttons_raw=data.get("buttons"),
-            )
-            if all_buttons:
-                _ensure_capability(entry, caps.supports_inline_keyboard, feature="inline_keyboard")
             await upload_document_and_send(
                 hass,
                 entry,
@@ -1560,7 +1583,7 @@ async def _send_document(
                 local_sources[0],
                 file_paths_or_urls=local_sources,
                 caption=caption,
-                buttons=all_buttons,
+                buttons=None,
                 count_requests=count_requests,
                 notify=notify_flag,
                 disable_ssl=disable_ssl,

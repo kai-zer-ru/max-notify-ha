@@ -425,7 +425,6 @@ def test_updates_and_upload_honor_response_headers(hass, mock_config_entry) -> N
         integration_type="notify_a161",
         label="notify.a161.ru",
         api_base_url="https://notify.a161.ru",
-        api_version="1.0.0",
     )
     assert (
         prov.apply_http_rate_limit_headers(
@@ -491,13 +490,14 @@ def test_apply_remote_capabilities_merges_feature_flags(hass, mock_config_entry)
         integration_type="notify_a161",
         label="notify.a161.ru",
         api_base_url="https://notify.a161.ru",
-        api_version="1.0.0",
     )
     merged = prov.apply_remote_capabilities(
         hass, mock_config_entry, NOTIFY_A161_CAPABILITIES
     )
     assert merged.supports_edit_message is False
     assert merged.supports_delete_message is False
+    assert merged.supports_delete_message_by_period is False
+    assert merged.supports_delete_last_outgoing_message is False
     assert merged.supports_group_chats is False
     assert merged.supports_inline_keyboard is False
     assert merged.supports_send_photo is False

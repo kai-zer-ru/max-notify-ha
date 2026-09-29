@@ -88,20 +88,17 @@ async def async_list_subscription_urls(
     token: str,
     *,
     api_base_url: str,
-    api_version: str,
 ) -> tuple[list[str], str | None]:
     """URL WebHook, зарегистрированные для токена бота. Второе значение — ключ ошибки или None."""
     if not token:
         return [], None
     api_url = f"{api_base_url}{API_PATH_SUBSCRIPTIONS}"
-    params = {"v": api_version}
     headers = {"Authorization": token}
     try:
         await async_acquire_outbound_api_slot(hass)
         session = async_get_clientsession(hass)
         async with session.get(
             api_url,
-            params=params,
             headers=headers,
             timeout=aiohttp.ClientTimeout(total=15),
         ) as resp:
@@ -128,13 +125,12 @@ async def async_delete_subscription_url(
     webhook_url: str,
     *,
     api_base_url: str,
-    api_version: str,
 ) -> bool:
     """DELETE /subscriptions?url=... — снять одну подписку WebHook. True при успехе API."""
     if not webhook_url or not token:
         return False
     api_url = f"{api_base_url}{API_PATH_SUBSCRIPTIONS}"
-    params = {"url": webhook_url, "v": api_version}
+    params = {"url": webhook_url}
     headers = {"Authorization": token}
     try:
         await async_acquire_outbound_api_slot(hass)
@@ -160,21 +156,20 @@ async def async_clear_subscriptions_for_long_polling(
     token: str,
     *,
     api_base_url: str,
-    api_version: str,
 ) -> tuple[bool, str | None]:
     """Удалить все подписки WebHook, чтобы работал Long Polling (в Max API взаимоисключающе)."""
     urls, err = await async_list_subscription_urls(
-        hass, token, api_base_url=api_base_url, api_version=api_version
+        hass, token, api_base_url=api_base_url
     )
     if err:
         return False, err
     for u in urls:
         if not await async_delete_subscription_url(
-            hass, token, u, api_base_url=api_base_url, api_version=api_version
+            hass, token, u, api_base_url=api_base_url
         ):
             _LOGGER.warning("Не удалось удалить подписку WebHook по URL: %s", u[:80])
     urls2, err2 = await async_list_subscription_urls(
-        hass, token, api_base_url=api_base_url, api_version=api_version
+        hass, token, api_base_url=api_base_url
     )
     if err2:
         return False, err2
@@ -276,13 +271,12 @@ async def async_unregister_platform_webhook(
             token,
             webhook_public_url,
             api_base_url=provider.api_base_url,
-            api_version=provider.api_version,
         ):
             _LOGGER.info("WebHook снят в Max API: запись=%s", entry.entry_id)
         return True
 
     urls, err = await async_list_subscription_urls(
-        hass, token, api_base_url=provider.api_base_url, api_version=provider.api_version
+        hass, token, api_base_url=provider.api_base_url
     )
     if err:
         _LOGGER.warning("Снятие WebHook: не удалось получить список подписок: %s", err)
@@ -294,7 +288,6 @@ async def async_unregister_platform_webhook(
                 token,
                 u,
                 api_base_url=provider.api_base_url,
-                api_version=provider.api_version,
             ):
                 _LOGGER.info(
                     "WebHook снят (по URL из списка): запись=%s",

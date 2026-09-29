@@ -14,7 +14,7 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from ...const import API_PATH_ME, API_PATH_ME_COMMANDS, CONF_COMMANDS
 from ...outbound_rate import async_acquire_outbound_api_slot
-from .const import API_BASE_URL, API_VERSION
+from .const import API_BASE_URL
 
 _LOGGER = get_logger()
 _SYNC_COMMANDS_RETRY_DELAYS_SECONDS: tuple[float, ...] = (1.0, 2.0, 4.0)
@@ -24,7 +24,7 @@ _MAX_BOT_COMMANDS = 32
 
 async def validate_token(hass: HomeAssistant, token: str) -> str | None:
     """Проверить токен официального API запросом GET /me."""
-    url = f"{API_BASE_URL}{API_PATH_ME}?v={API_VERSION}"
+    url = f"{API_BASE_URL}{API_PATH_ME}"
     headers = {"Authorization": token}
     try:
         await async_acquire_outbound_api_slot(hass)
@@ -66,7 +66,7 @@ async def sync_bot_commands(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             break
 
     # Empty commands[] clears bot commands (per Max API docs).
-    url = f"{API_BASE_URL}{API_PATH_ME_COMMANDS}?v={API_VERSION}"
+    url = f"{API_BASE_URL}{API_PATH_ME_COMMANDS}"
     payload: dict[str, Any] = {"commands": body_commands}
     headers = {"Authorization": token, "Content-Type": "application/json"}
     session = async_get_clientsession(hass)

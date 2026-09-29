@@ -6,8 +6,6 @@ from ...log import get_logger
 import logging
 from typing import TYPE_CHECKING, Any
 
-from homeassistant.exceptions import ServiceValidationError
-
 from ...const import normalize_access_token
 from ...const import (
     API_PATH_MESSAGES,
@@ -87,7 +85,6 @@ class OfficialIntegrationProvider(MaxNotifyIntegrationProvider):
             token,
             base_url=base_url,
             api_path_messages=API_PATH_MESSAGES,
-            api_version=self.api_version,
             user_id=user_id,
             chat_id=chat_id,
         )
@@ -238,7 +235,6 @@ class OfficialIntegrationProvider(MaxNotifyIntegrationProvider):
             hass,
             token,
             api_base_url=self.api_base_url,
-            api_version=self.api_version,
         )
 
     async def async_webhook_register(
@@ -298,84 +294,6 @@ class OfficialIntegrationProvider(MaxNotifyIntegrationProvider):
         from .. import notify_outbound
 
         return await notify_outbound.delete_message(hass, entry, message_id)
-
-    async def async_delete_last_outgoing_message(
-        self,
-        hass: HomeAssistant,
-        entry: ConfigEntry,
-        recipient: dict[str, Any],
-        *,
-        scan_count: int,
-    ) -> bool:
-        from .. import notify_outbound
-        from .notify import find_last_outgoing_message_id
-
-        token = entry.data.get(CONF_ACCESS_TOKEN)
-        if not token:
-            return False
-        rid_raw = recipient.get(CONF_RECIPIENT_ID)
-        try:
-            recipient_id = int(rid_raw)
-        except (TypeError, ValueError):
-            _LOGGER.info(
-                "delete_last_outgoing_message: недопустимый recipient_id=%r для записи %s",
-                rid_raw,
-                entry.entry_id,
-            )
-            return False
-        _LOGGER.info(
-            "delete_last_outgoing_message: начато запись=%s recipient_id=%s глубина_поиска=%s",
-            entry.entry_id,
-            recipient_id,
-            scan_count,
-        )
-        if recipient_id < 0:
-            message_id = await find_last_outgoing_message_id(
-                hass,
-                entry,
-                token,
-                base_url=self.api_base_url,
-                api_version=self.api_version,
-                recipient_id=recipient_id,
-                scan_count=scan_count,
-            )
-            _LOGGER.info(
-                "delete_last_outgoing_message групповой чат: recipient_id=%s глубина=%s message_id=%s",
-                recipient_id,
-                scan_count,
-                message_id,
-            )
-        else:
-            _LOGGER.info(
-                "delete_last_outgoing_message личный чат отклонён: recipient_id=%s",
-                recipient_id,
-            )
-            raise ServiceValidationError(
-                translation_domain=DOMAIN,
-                translation_key="delete_last_outgoing_group_only",
-            )
-        if not message_id:
-            _LOGGER.info(
-                "delete_last_outgoing_message: исходящее сообщение бота не найдено "
-                "(запись=%s recipient_id=%s глубина=%s)",
-                entry.entry_id,
-                recipient_id,
-                scan_count,
-            )
-            return False
-        _LOGGER.info(
-            "delete_last_outgoing_message: найден message_id=%s запись=%s",
-            message_id,
-            entry.entry_id,
-        )
-        result = await notify_outbound.delete_message(hass, entry, message_id)
-        _LOGGER.info(
-            "delete_last_outgoing_message завершено: запись=%s message_id=%s удалено=%s",
-            entry.entry_id,
-            message_id,
-            result,
-        )
-        return result
 
     async def async_edit_message(
         self,

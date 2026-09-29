@@ -118,3 +118,23 @@ def test_validate_attachment_count_limit_document_is_single_only(mock_config_ent
                 is_document=True,
             )
 
+
+def test_validate_attachment_count_limit_document_rejects_keyboard(
+    mock_config_entry,
+) -> None:
+    provider = MagicMock()
+    provider.label = "Test provider"
+    provider.max_attachments_per_message.return_value = None
+    with patch(
+        "custom_components.max_notify.providers.notify_outbound.get_provider",
+        return_value=provider,
+    ):
+        with pytest.raises(ServiceValidationError) as exc:
+            _validate_attachments_count_limit(
+                mock_config_entry,
+                file_sources=["/tmp/report.pdf"],
+                has_inline_keyboard=True,
+                is_document=True,
+            )
+        assert exc.value.translation_key == "service_send_document_no_inline_keyboard"
+

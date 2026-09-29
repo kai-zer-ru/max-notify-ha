@@ -11,7 +11,6 @@ from ...const import (
 )
 
 API_BASE_URL = "https://platform-api2.max.ru"
-API_VERSION = "1.2.5"
 OFFICIAL_MAX_UPLOAD_BYTES = 4 * 1024 * 1024 * 1024
 
 UPDATE_TYPES_RECEIVE: tuple[str, ...] = (

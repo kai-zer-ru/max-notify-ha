@@ -8,6 +8,8 @@ venv/
 .venv/
 .venv*/
 env/
+.env
+.env.local
 .env/
 *.egg-info/
 .eggs/
@@ -33,7 +35,16 @@ Thumbs.db
 htmlcov/
 *.log
 
+# Локальный анализ OpenAPI (не в репозитории)
+OPENAPI_MAX_API_GAP_ANALYSIS.md
+
 # Локальный act / релиз
 .artifacts/
 .release-notes.md
 max_notify.zip
+
+
+# BMad Method
+/_bmad/
+/bmad_docs/
+/.agents/

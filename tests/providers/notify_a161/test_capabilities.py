@@ -39,10 +39,10 @@ def test_resolve_a161_by_data(mock_config_entry) -> None:
     assert get_capabilities(mock_config_entry).supports_receive_webhook is False
     assert get_capabilities(mock_config_entry).supports_receive_websocket is True
     assert (
-        get_capabilities(mock_config_entry).supports_delete_last_outgoing_message is False
+        get_capabilities(mock_config_entry).supports_delete_last_outgoing_message is True
     )
     assert (
-        get_capabilities(mock_config_entry).supports_delete_message_by_period is False
+        get_capabilities(mock_config_entry).supports_delete_message_by_period is True
     )
     assert (
         get_capabilities(mock_config_entry).supports_slash_command_allowlist_ui is False

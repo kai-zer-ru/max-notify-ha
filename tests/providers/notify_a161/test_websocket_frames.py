@@ -139,7 +139,6 @@ def test_long_poll_params_include_wait_and_limit(hass, mock_config_entry) -> Non
         integration_type="notify_a161",
         label="notify.a161.ru",
         api_base_url="https://notify.a161.ru",
-        api_version="1.2.5",
     )
     params = prov.build_updates_poll_params(mock_config_entry, None, hass=hass)
     assert params["limit"] == 7
@@ -183,7 +182,6 @@ async def test_prepare_migrates_short_polling_to_long_polling(
         integration_type="notify_a161",
         label="notify.a161.ru",
         api_base_url="https://notify.a161.ru",
-        api_version="1.2.5",
     )
     with (
         patch(

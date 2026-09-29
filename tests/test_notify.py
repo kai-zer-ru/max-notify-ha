@@ -374,10 +374,98 @@ class TestDeleteMessages:
 
 
 @pytest.mark.asyncio
-class TestNotifyA161DeleteRestrictions:
-    """notify.a161.ru: без удаления по периоду и без delete_last_outgoing."""
+class TestListMessageIdsInPeriod:
+    """Период удаления: HA from/to → GET /messages after/before."""
 
-    async def test_list_message_ids_in_period_not_supported(
+    async def test_maps_ha_from_to_to_api_after_before(
+        self, hass, mock_config_entry
+    ) -> None:
+        from custom_components.max_notify.providers.notify_outbound import (
+            list_message_ids_in_period as outbound_list,
+        )
+
+        mock_config_entry.data = {"access_token": "token", "message_format": "text"}
+        with (
+            patch(
+                "custom_components.max_notify.providers.notify_outbound._get_message_url_and_recipient",
+                new=AsyncMock(
+                    return_value=(
+                        "https://platform-api2.max.ru/messages?chat_id=-100",
+                        {"chat_id": -100},
+                    )
+                ),
+            ),
+            patch(
+                "custom_components.max_notify.providers.notify_outbound.async_get_clientsession"
+            ) as mock_session,
+            patch(
+                "custom_components.max_notify.providers.notify_outbound.async_acquire_outbound_api_slot",
+                new=AsyncMock(),
+            ),
+        ):
+            mock_resp = AsyncMock()
+            mock_resp.status = 200
+            mock_resp.text = AsyncMock(
+                return_value='{"messages":[{"body":{"mid":"mid.abc123"}}]}'
+            )
+            mock_resp.__aenter__ = AsyncMock(return_value=mock_resp)
+            mock_resp.__aexit__ = AsyncMock(return_value=None)
+
+            mock_ctx = MagicMock()
+            mock_ctx.get = MagicMock(return_value=mock_resp)
+            mock_session.return_value = mock_ctx
+
+            ids = await outbound_list(
+                hass,
+                mock_config_entry,
+                {CONF_RECIPIENT_ID: -100},
+                ts_from=1_000,
+                ts_to=2_000,
+            )
+            assert ids == ["abc123"]
+            params = mock_ctx.get.call_args.kwargs["params"]
+            assert params["after"] == "1000"
+            assert params["before"] == "2000"
+            assert "from" not in params
+            assert "to" not in params
+            assert params.get("chat_id") == "-100"
+            assert params.get("count") == "100"
+
+    async def test_personal_chat_rejected_before_http(
+        self, hass, mock_config_entry
+    ) -> None:
+        from custom_components.max_notify.providers.notify_outbound import (
+            list_message_ids_in_period as outbound_list,
+        )
+
+        mock_config_entry.data = {"access_token": "token", "message_format": "text"}
+        with (
+            patch(
+                "custom_components.max_notify.providers.notify_outbound._get_message_url_and_recipient",
+                new=AsyncMock(),
+            ) as mock_resolve,
+            patch(
+                "custom_components.max_notify.providers.notify_outbound.async_get_clientsession"
+            ) as mock_session,
+        ):
+            with pytest.raises(ServiceValidationError) as exc:
+                await outbound_list(
+                    hass,
+                    mock_config_entry,
+                    {CONF_RECIPIENT_ID: 3391555},
+                    ts_from=1_000,
+                    ts_to=2_000,
+                )
+        assert exc.value.translation_key == "delete_by_period_group_only"
+        mock_resolve.assert_not_called()
+        mock_session.assert_not_called()
+
+
+@pytest.mark.asyncio
+class TestNotifyA161DeletePeriodAndLastOutgoing:
+    """notify.a161.ru: удаление по периоду и последнее исходящее доступны."""
+
+    async def test_list_message_ids_in_period_delegates(
         self, hass, mock_config_entry
     ) -> None:
         mock_config_entry.data = {
@@ -385,17 +473,21 @@ class TestNotifyA161DeleteRestrictions:
             "message_format": "text",
             CONF_INTEGRATION_TYPE: INTEGRATION_TYPE_NOTIFY_A161,
         }
-        with pytest.raises(ServiceValidationError) as exc:
-            await list_message_ids_in_period(
+        with patch(
+            "custom_components.max_notify.providers.notify_outbound.list_message_ids_in_period",
+            new=AsyncMock(return_value=["mid.1"]),
+        ) as mock_list:
+            ids = await list_message_ids_in_period(
                 hass,
                 mock_config_entry,
                 {CONF_RECIPIENT_ID: -1},
                 ts_from=1,
                 ts_to=2,
             )
-        assert exc.value.translation_key == "provider_delete_by_period_not_supported"
+        assert ids == ["mid.1"]
+        mock_list.assert_awaited_once()
 
-    async def test_delete_last_outgoing_not_supported(
+    async def test_delete_last_outgoing_group_delegates(
         self, hass, mock_config_entry
     ) -> None:
         mock_config_entry.data = {
@@ -403,14 +495,24 @@ class TestNotifyA161DeleteRestrictions:
             "message_format": "text",
             CONF_INTEGRATION_TYPE: INTEGRATION_TYPE_NOTIFY_A161,
         }
-        with pytest.raises(ServiceValidationError) as exc:
-            await delete_last_outgoing_message(
+        with (
+            patch(
+                "custom_components.max_notify.providers.notify_outbound.find_last_outgoing_message_id",
+                new=AsyncMock(return_value="mid.last"),
+            ),
+            patch(
+                "custom_components.max_notify.providers.notify_outbound.delete_message",
+                new=AsyncMock(return_value=True),
+            ) as mock_delete,
+        ):
+            result = await delete_last_outgoing_message(
                 hass,
                 mock_config_entry,
                 {CONF_RECIPIENT_ID: -100},
                 scan_count=5,
             )
-        assert exc.value.translation_key == "provider_delete_last_outgoing_not_supported"
+        assert result is True
+        mock_delete.assert_awaited_once_with(hass, mock_config_entry, "mid.last")
 
 
 @pytest.mark.asyncio

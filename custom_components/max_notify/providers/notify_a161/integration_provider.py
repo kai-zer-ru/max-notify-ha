@@ -102,11 +102,14 @@ class NotifyA161IntegrationProvider(MaxNotifyIntegrationProvider):
         max_upload = (
             max(size_mb) * 1024 * 1024 if size_mb else base.max_client_upload_bytes
         )
+        can_delete = caps.supports_delete_by_id
         return replace(
             base,
             supports_group_chats=caps.supports_groups,
             supports_inline_keyboard=caps.supports_inline_keyboard,
-            supports_delete_message=caps.supports_delete_by_id,
+            supports_delete_message=can_delete,
+            supports_delete_message_by_period=can_delete,
+            supports_delete_last_outgoing_message=can_delete and caps.supports_groups,
             supports_edit_message=caps.supports_edit_message,
             supports_send_photo=caps.support_photo,
             supports_send_document=caps.support_document,
@@ -187,6 +190,18 @@ class NotifyA161IntegrationProvider(MaxNotifyIntegrationProvider):
     ) -> None:
         self._raise_if_remote_unavailable(entry, self._remote_caps(hass, entry))
         super().ensure_can_delete_message(hass, entry)
+
+    def ensure_can_delete_message_by_period(
+        self, hass: HomeAssistant, entry: ConfigEntry
+    ) -> None:
+        self._raise_if_remote_unavailable(entry, self._remote_caps(hass, entry))
+        super().ensure_can_delete_message_by_period(hass, entry)
+
+    def ensure_can_delete_last_outgoing_message(
+        self, hass: HomeAssistant, entry: ConfigEntry
+    ) -> None:
+        self._raise_if_remote_unavailable(entry, self._remote_caps(hass, entry))
+        super().ensure_can_delete_last_outgoing_message(hass, entry)
 
     def ensure_can_edit_message(
         self, hass: HomeAssistant, entry: ConfigEntry
@@ -334,7 +349,7 @@ class NotifyA161IntegrationProvider(MaxNotifyIntegrationProvider):
         *,
         hass: HomeAssistant | None = None,
     ) -> dict[str, Any]:
-        params: dict[str, Any] = {"v": self.api_version}
+        params: dict[str, Any] = {}
         caps = self._remote_caps(hass, entry) if hass is not None else None
         stored = entry.options or {}
         stored_limit = stored.get(CONF_A161_UPDATES_LIMIT)

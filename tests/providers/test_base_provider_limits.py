@@ -10,7 +10,6 @@ def _mk_provider() -> MaxNotifyIntegrationProvider:
         integration_type="test_provider",
         label="Test provider",
         api_base_url="https://example.invalid",
-        api_version="1",
     )
 
 
@@ -24,7 +23,6 @@ def test_max_attachments_per_message_from_provider_code(mock_config_entry) -> No
         integration_type="test_provider",
         label="Test provider",
         api_base_url="https://example.invalid",
-        api_version="1",
         max_attachments_per_message_limit=5,
     )
     assert prov.max_attachments_per_message(mock_config_entry) == 5

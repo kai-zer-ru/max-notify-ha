@@ -28,6 +28,7 @@ from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from ..const import (
+    API_PATH_ME,
     API_PATH_MESSAGES,
     API_PATH_UPLOADS,
     API_REQUEST_RETRY_DELAYS,
@@ -181,6 +182,17 @@ def _validate_attachments_count_limit(
         )
         raise ServiceValidationError(
             "send_document supports only one file in a single message"
+        )
+    # Max API: file attachment MUST be the only attachment (no inline_keyboard).
+    if is_document and has_inline_keyboard:
+        _LOGGER.error(
+            "Документ нельзя отправить с inline-клавиатурой: запись=%s провайдер=%s",
+            entry.entry_id,
+            prov.label,
+        )
+        raise ServiceValidationError(
+            translation_domain=DOMAIN,
+            translation_key="service_send_document_no_inline_keyboard",
         )
     actual_with_keyboard = len(file_sources) + (1 if has_inline_keyboard else 0)
     if actual_with_keyboard > MAX_ATTACHMENTS_PER_MESSAGE:
@@ -1635,6 +1647,165 @@ def _extract_message_id_from_messages_item(item: dict[str, Any]) -> str | None:
     return None
 
 
+def _extract_sender_user_id_from_item(message: dict[str, Any]) -> int | None:
+    sender = message.get("sender")
+    if isinstance(sender, dict):
+        for key in ("user_id", "userId", "id"):
+            value = sender.get(key)
+            if value is not None:
+                try:
+                    return int(value)
+                except (TypeError, ValueError):
+                    return None
+    return None
+
+
+async def _get_bot_user_id(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    token: str,
+    *,
+    base_url: str,
+) -> int | None:
+    url = f"{base_url}{API_PATH_ME}"
+    session = async_get_clientsession(hass)
+    headers = _api_headers(entry, token)
+    try:
+        await async_acquire_outbound_api_slot(hass)
+        async with session.get(
+            url,
+            headers=headers,
+            timeout=aiohttp.ClientTimeout(total=10),
+        ) as resp:
+            body_text = await resp.text()
+            _LOGGER.info(
+                "GET /me: код=%s тело=%s",
+                resp.status,
+                body_text[:500],
+            )
+            if resp.status != 200:
+                return None
+            try:
+                data = await resp.json()
+            except ValueError:
+                return None
+    except (aiohttp.ClientError, ValueError):
+        return None
+
+    if isinstance(data, dict):
+        for key in ("user_id", "userId", "id"):
+            value = data.get(key)
+            if value is not None:
+                try:
+                    return int(value)
+                except (TypeError, ValueError):
+                    return None
+        me_obj = data.get("user") or data.get("me")
+        if isinstance(me_obj, dict):
+            for key in ("user_id", "userId", "id"):
+                value = me_obj.get(key)
+                if value is not None:
+                    try:
+                        return int(value)
+                    except (TypeError, ValueError):
+                        return None
+    return None
+
+
+def _messages_query_variants_for_scan(
+    *,
+    chat_ids: list[int],
+    scan_count: int,
+) -> list[dict[str, Any]]:
+    base_params = [{"count": scan_count}, {"limit": scan_count}]
+    variants: list[dict[str, Any]] = []
+    for params in base_params:
+        for chat_id in chat_ids:
+            variants.append({**params, "chat_id": chat_id})
+    return variants
+
+
+async def find_last_outgoing_message_id(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    token: str,
+    *,
+    base_url: str,
+    recipient_id: int,
+    scan_count: int,
+) -> str | None:
+    """Найти id последнего исходящего сообщения бота в групповом чате.
+
+    GET /messages принимает только chat_id (или message_ids). Список чатов через
+    GET /chats с июня 2026 недоступен — для лички этот поиск не используется
+    (delete_last_outgoing только для групп). Заголовки — через провайдера записи
+    (официальный API и notify.a161.ru).
+    """
+    if recipient_id >= 0:
+        _LOGGER.info(
+            "Поиск сообщений пропущен: recipient_id=%s — личный чат; "
+            "нужен chat_id группы (отрицательный).",
+            recipient_id,
+        )
+        return None
+
+    session = async_get_clientsession(hass)
+    headers = _api_headers(entry, token)
+    chat_ids = [recipient_id]
+
+    bot_user_id = await _get_bot_user_id(
+        hass,
+        entry,
+        token,
+        base_url=base_url,
+    )
+    if bot_user_id is None:
+        return None
+
+    url = f"{base_url}{API_PATH_MESSAGES}"
+    for params in _messages_query_variants_for_scan(
+        chat_ids=chat_ids,
+        scan_count=scan_count,
+    ):
+        try:
+            await async_acquire_outbound_api_slot(hass)
+            async with session.get(
+                url,
+                headers=headers,
+                params=params,
+                timeout=aiohttp.ClientTimeout(total=10),
+            ) as resp:
+                body_text = await resp.text()
+                _LOGGER.info(
+                    "GET /messages: код=%s параметры=%s тело=%s",
+                    resp.status,
+                    params,
+                    body_text[:500],
+                )
+                if resp.status != 200:
+                    continue
+                try:
+                    data = await resp.json()
+                except ValueError:
+                    continue
+        except (aiohttp.ClientError, ValueError):
+            continue
+
+        messages = data.get("messages") if isinstance(data, dict) else None
+        if not isinstance(messages, list):
+            continue
+
+        for item in messages:
+            if not isinstance(item, dict):
+                continue
+            if _extract_sender_user_id_from_item(item) != bot_user_id:
+                continue
+            message_id = _extract_message_id_from_messages_item(item)
+            if message_id:
+                return message_id
+    return None
+
+
 async def list_message_ids_in_period(
     hass: HomeAssistant,
     entry: ConfigEntry,
@@ -1643,7 +1814,23 @@ async def list_message_ids_in_period(
     ts_from: int | None,
     ts_to: int | None,
 ) -> list[str]:
-    """GET /messages для получателя и извлечение message_id за период."""
+    """GET /messages: id сообщений за период.
+
+    На стороне действия HA период задаётся полями ``from`` / ``to`` (или ``date``);
+    сюда уже приходят миллисекунды ``ts_from`` / ``ts_to``. В запрос к Max API
+    уходят актуальные query-параметры ``after`` / ``before`` (``from`` / ``to`` в
+    API устарели).
+
+    GET /messages принимает только ``chat_id`` (группы/каналы) — для лички
+    ``user_id`` API отвечает ошибкой; отклоняем до HTTP.
+    """
+    user_id, chat_id = _recipient_to_user_chat(recipient)
+    if chat_id is None or int(chat_id) >= 0:
+        raise ServiceValidationError(
+            translation_domain=DOMAIN,
+            translation_key="delete_by_period_group_only",
+        )
+    _ = user_id
     token = entry.data.get(CONF_ACCESS_TOKEN)
     if not token:
         _LOGGER.error("В записи конфигурации нет токена доступа")
@@ -1654,16 +1841,17 @@ async def list_message_ids_in_period(
     msg_url, _ = resolved
     parsed = urlparse(msg_url)
     base_params = dict(parse_qsl(parsed.query, keep_blank_values=False))
-    # MAX API range uses reverse bounds semantics in practice for /messages:
-    # user-facing [from..to] -> API query from=to, to=from (milliseconds).
-    api_from = ts_to if ts_from is not None and ts_to is not None else ts_from
-    api_to = ts_from if ts_from is not None and ts_to is not None else ts_to
-
+    if "chat_id" not in base_params:
+        raise ServiceValidationError(
+            translation_domain=DOMAIN,
+            translation_key="delete_by_period_group_only",
+        )
+    # HA from/to (ts_from/ts_to) → Max OpenAPI after/before (не deprecated from/to).
     params_ms = dict(base_params)
-    if api_from is not None:
-        params_ms["from"] = str(api_from)
-    if api_to is not None:
-        params_ms["to"] = str(api_to)
+    if ts_from is not None:
+        params_ms["after"] = str(ts_from)
+    if ts_to is not None:
+        params_ms["before"] = str(ts_to)
 
     variants: list[dict[str, str]] = []
     if "count" in params_ms or "limit" in params_ms:

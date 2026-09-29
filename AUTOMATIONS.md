@@ -652,8 +652,7 @@ actions:
       file: "/config/reports/daily.pdf"
       caption: "Ежедневный отчет"
       count_requests: 8
-      buttons:
-        "Подтвердить": "report_ok"
+      # Кнопки с документом нельзя — ограничение API Max (см. ACTIONS.md).
 mode: single
 ```
 
