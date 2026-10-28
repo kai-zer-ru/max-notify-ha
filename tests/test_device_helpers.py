@@ -114,6 +114,18 @@ def test_linked_subentry_ids_from_legacy_multi_link() -> None:
     assert _linked_subentry_ids(device, "e1") == {"s1", "s2"}
 
 
+def test_linked_subentry_ids_modern_device_entry() -> None:
+    """Проверка, что на современном DeviceEntry не дергается config_entries_subentries."""
+    from homeassistant.helpers import device_registry as dr
+
+    device = dr.DeviceEntry(config_entry_id="e1", config_subentry_id="s1")
+    assert _linked_subentry_ids(device, "e1") == {"s1"}
+    assert _linked_subentry_ids(device, "other_entry") == set()
+
+    parent_device = dr.DeviceEntry(config_entry_id="e1", config_subentry_id=None)
+    assert _linked_subentry_ids(parent_device, "e1") == set()
+
+
 def test_detach_removes_legacy_entry_then_readds_without_subentry() -> None:
     registry = MagicMock()
     device = SimpleNamespace(
