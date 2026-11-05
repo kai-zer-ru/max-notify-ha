@@ -1,7 +1,6 @@
 # Общие python-проверки для ci.yml и release.yml.
-# Версии HA — те же ряды, что tests/test-matrix.sh, пины ==X.Y.0 (не latest с PyPI).
-# Первая ячейка = MINIMUM_HA_VERSION. Python: HA 2026.2 ещё на 3.13,
-# с 2026.3 PyPI требует >=3.14.2.
+# Матрица HA: от MINIMUM_HA_VERSION (hacs.json / const.py) до текущего
+# стабильного Core на PyPI. На месяц — последний патч + точный минимум.
 
 name: python-checks
 
@@ -23,20 +22,33 @@ jobs:
       - name: Compare translation key paths
         run: bash scripts/check-translation-keys.sh
 
+  ha-matrix:
+    name: HA matrix
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      include: ${{ steps.gen.outputs.include }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build pytest matrix from PyPI
+        id: gen
+        run: |
+          set -euo pipefail
+          {
+            echo "include<<EOF"
+            python3 scripts/ha-ci-matrix.py
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
   tests:
     name: Tests (HA ${{ matrix.ha }})
+    needs: ha-matrix
     runs-on: ubuntu-latest
     timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - ha: "2026.2.0"
-            python: "3.13"
-          - ha: "2026.3.0"
-            python: "3.14.2"
-          - ha: "2026.4.0"
-            python: "3.14.2"
+        include: ${{ fromJson(needs.ha-matrix.outputs.include) }}
     steps:
       - uses: actions/checkout@v4
       - name: Set up Python
