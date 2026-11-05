@@ -83,13 +83,13 @@ def recipient_device_info(
             via_id = get_id(
                 hass, parent_ident, config_entry_id=entry.entry_id
             )
-        except (TypeError, RuntimeError, KeyError):
+        except (TypeError, RuntimeError, ValueError):
             via_id = None
-        if via_id and isinstance(via_id, str):
+        if via_id:
             info["via_device_id"] = via_id
             return DeviceInfo(**info)
 
-    # HA < 2026.8 и fallback, если родительский device ещё не создан.
+    # HA < 2026.8; на 2026.8+ — если реестр не готов или родителя ещё нет.
     info["via_device"] = parent_ident
     return DeviceInfo(**info)
 
@@ -147,21 +147,18 @@ def _linked_subentry_ids(device: dr.DeviceEntry, entry_id: str) -> set[str]:
     """Subentry id, к которым привязан device (старый и новый формат реестра)."""
     linked: set[str] = set()
 
-    # HA 2026.8+: a device belongs to a single config entry and subentry.
-    # Accessing `config_entries_subentries` on modern DeviceEntry raises a deprecation
-    # warning unless the device is a composite device.
-    is_prop = isinstance(
-        getattr(type(device), "config_entries_subentries", None), property
-    )
-    if is_prop and not getattr(device, "is_composite_device", False):
-        if getattr(device, "config_entry_id", None) == entry_id:
+    # HA 2026.8+: одна запись на устройство. Не читаем deprecated
+    # config_entries_subentries (предупреждение, с 2027.10 свойство уберут).
+    device_entry_id = getattr(device, "config_entry_id", None)
+    if isinstance(device_entry_id, str):
+        if device_entry_id == entry_id:
             single = getattr(device, "config_subentry_id", None)
-            if single is not None and isinstance(single, (str, int)):
-                linked.add(str(single))
+            if isinstance(single, str) and single:
+                linked.add(single)
         return linked
 
     single = getattr(device, "config_subentry_id", None)
-    if single is not None and isinstance(single, (str, int)):
+    if single:
         linked.add(str(single))
 
     ces = getattr(device, "config_entries_subentries", None) or {}
@@ -170,7 +167,7 @@ def _linked_subentry_ids(device: dr.DeviceEntry, entry_id: str) -> set[str]:
         bucket = ces.get(entry_id)
     if bucket:
         for sid in bucket:
-            if sid is not None and isinstance(sid, (str, int)):
+            if sid is not None:
                 linked.add(str(sid))
     return linked
 

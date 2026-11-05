@@ -5,6 +5,8 @@ from __future__ import annotations
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from custom_components.max_notify.const import DOMAIN
 from custom_components.max_notify.device_helpers import (
     _async_detach_subentries_from_device,
@@ -73,6 +75,29 @@ def test_recipient_device_info_falls_back_when_parent_unresolved() -> None:
     assert "via_device_id" not in info
 
 
+@pytest.mark.parametrize(
+    "exc",
+    [
+        TypeError("unexpected keyword"),
+        RuntimeError("Device registry not set up"),
+        ValueError("no device with identifier"),
+    ],
+)
+def test_recipient_device_info_falls_back_when_helper_raises(exc: Exception) -> None:
+    """HA 2026.8+: нет родителя / нет реестра / старая сигнатура → via_device."""
+    hass = MagicMock()
+    entry = SimpleNamespace(entry_id="e1", title="Bot")
+    subentry = SimpleNamespace(subentry_id="s1", title="Chat A")
+    with patch(
+        "custom_components.max_notify.device_helpers.dr.async_get_device_id_by_identifier",
+        side_effect=exc,
+        create=True,
+    ):
+        info = recipient_device_info(hass, entry, subentry)
+    assert info["via_device"] == (DOMAIN, "e1")
+    assert "via_device_id" not in info
+
+
 def test_async_ensure_integration_device_calls_registry() -> None:
     hass = MagicMock()
     entry = SimpleNamespace(entry_id="e1", title="MaxNotify")
@@ -114,16 +139,29 @@ def test_linked_subentry_ids_from_legacy_multi_link() -> None:
     assert _linked_subentry_ids(device, "e1") == {"s1", "s2"}
 
 
-def test_linked_subentry_ids_modern_device_entry() -> None:
-    """Проверка, что на современном DeviceEntry не дергается config_entries_subentries."""
-    from homeassistant.helpers import device_registry as dr
-
-    device = dr.DeviceEntry(config_entry_id="e1", config_subentry_id="s1")
+def test_linked_subentry_ids_modern_singular_fields() -> None:
+    """HA 2026.8+: config_entry_id / config_subentry_id, как у соседей через SimpleNamespace."""
+    device = SimpleNamespace(config_entry_id="e1", config_subentry_id="s1")
     assert _linked_subentry_ids(device, "e1") == {"s1"}
     assert _linked_subentry_ids(device, "other_entry") == set()
 
-    parent_device = dr.DeviceEntry(config_entry_id="e1", config_subentry_id=None)
-    assert _linked_subentry_ids(parent_device, "e1") == set()
+    parent = SimpleNamespace(config_entry_id="e1", config_subentry_id=None)
+    assert _linked_subentry_ids(parent, "e1") == set()
+
+
+def test_linked_subentry_ids_modern_does_not_read_deprecated_mapping() -> None:
+    """Форма 2026.8: устаревший mapping не читаем (без конструктора DeviceEntry)."""
+
+    class _Ha20268Device:
+        config_entry_id = "e1"
+        config_subentry_id = "s1"
+
+        @property
+        def config_entries_subentries(self) -> dict:
+            raise AssertionError("deprecated config_entries_subentries")
+
+    assert _linked_subentry_ids(_Ha20268Device(), "e1") == {"s1"}
+    assert _linked_subentry_ids(_Ha20268Device(), "other_entry") == set()
 
 
 def test_detach_removes_legacy_entry_then_readds_without_subentry() -> None:
