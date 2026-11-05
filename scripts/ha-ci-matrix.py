@@ -44,17 +44,13 @@ def _minimum() -> str:
 
 
 def _python_for_requires(requires: str | None) -> str:
-    """Минимальный CPython, который setup-python может поставить под requires_python."""
+    """Ветка CPython для actions/setup-python (без патча: 3.14.2 нет в манифесте)."""
     if not requires:
         return "3.13"
-    match = re.search(r">=\s*3\.(\d+)(?:\.(\d+))?", requires)
+    match = re.search(r">=\s*3\.(\d+)", requires)
     if not match:
         return "3.13"
-    minor = int(match.group(1))
-    patch = int(match.group(2) or 0)
-    if minor >= 14:
-        return f"3.{minor}.{patch}" if patch else f"3.{minor}"
-    return f"3.{minor}"
+    return f"3.{int(match.group(1))}"
 
 
 def _requires_python(files: list[dict]) -> str | None:
