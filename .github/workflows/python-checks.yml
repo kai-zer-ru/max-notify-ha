@@ -1,0 +1,69 @@
+# Общие python-проверки для ci.yml и release.yml.
+# Версии HA — те же ряды, что tests/test-matrix.sh, пины ==X.Y.0 (не latest с PyPI).
+# Первая ячейка матрицы = MINIMUM_HA_VERSION в const.py / hacs.json.
+
+name: python-checks
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+  checks: write
+  pull-requests: write
+
+jobs:
+  translations:
+    name: Translation keys
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compare translation key paths
+        run: bash scripts/check-translation-keys.sh
+
+  tests:
+    name: Tests (HA ${{ matrix.ha }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        ha:
+          - "2026.2.0"
+          - "2026.3.0"
+          - "2026.4.0"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: requirements-test.txt
+      - name: Install test dependencies
+        run: |
+          python -m venv .venv
+          .venv/bin/python -m pip install -U pip
+          .venv/bin/python -m pip install -r requirements-test.txt \
+            "homeassistant==${{ matrix.ha }}" \
+            pytest-github-actions-annotate-failures
+      - name: Tests
+        env:
+          PYTEST_ADDOPTS: --junitxml=junit.xml
+        run: make test
+      - name: Upload JUnit
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: junit-ha-${{ matrix.ha }}
+          path: junit.xml
+          if-no-files-found: ignore
+      - name: Publish test results
+        if: always()
+        continue-on-error: true
+        uses: EnricoMi/publish-unit-test-result-action@v2
+        with:
+          files: junit.xml
+          check_name: Test results (HA ${{ matrix.ha }})
+          comment_mode: off

@@ -5,13 +5,20 @@ on:
     tags:
       - "v*"
 
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 permissions:
   contents: write
+  checks: write
+  pull-requests: write
 
 jobs:
   validate:
     name: Validate
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - name: Hassfest
@@ -29,9 +36,16 @@ jobs:
           echo "HACS skipped under act (remote tag ${GITHUB_REF_NAME:-?} not required to exist)."
           echo "Covered by make act-push / ci.yml against the default branch."
 
+  python-checks:
+    uses: ./.github/workflows/python-checks.yml
+    permissions:
+      contents: read
+      checks: write
+      pull-requests: write
+
   release:
     name: GitHub Release
-    needs: [validate]
+    needs: [validate, python-checks]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
