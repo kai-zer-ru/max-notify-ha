@@ -83,9 +83,9 @@ def recipient_device_info(
             via_id = get_id(
                 hass, parent_ident, config_entry_id=entry.entry_id
             )
-        except TypeError:
+        except (TypeError, RuntimeError, KeyError):
             via_id = None
-        if via_id:
+        if via_id and isinstance(via_id, str):
             info["via_device_id"] = via_id
             return DeviceInfo(**info)
 
@@ -146,8 +146,22 @@ def _subentry_views(
 def _linked_subentry_ids(device: dr.DeviceEntry, entry_id: str) -> set[str]:
     """Subentry id, к которым привязан device (старый и новый формат реестра)."""
     linked: set[str] = set()
+
+    # HA 2026.8+: a device belongs to a single config entry and subentry.
+    # Accessing `config_entries_subentries` on modern DeviceEntry raises a deprecation
+    # warning unless the device is a composite device.
+    is_prop = isinstance(
+        getattr(type(device), "config_entries_subentries", None), property
+    )
+    if is_prop and not getattr(device, "is_composite_device", False):
+        if getattr(device, "config_entry_id", None) == entry_id:
+            single = getattr(device, "config_subentry_id", None)
+            if single is not None and isinstance(single, (str, int)):
+                linked.add(str(single))
+        return linked
+
     single = getattr(device, "config_subentry_id", None)
-    if single:
+    if single is not None and isinstance(single, (str, int)):
         linked.add(str(single))
 
     ces = getattr(device, "config_entries_subentries", None) or {}
@@ -156,7 +170,7 @@ def _linked_subentry_ids(device: dr.DeviceEntry, entry_id: str) -> set[str]:
         bucket = ces.get(entry_id)
     if bucket:
         for sid in bucket:
-            if sid is not None:
+            if sid is not None and isinstance(sid, (str, int)):
                 linked.add(str(sid))
     return linked
 
