@@ -28,6 +28,11 @@ _LOGGER = get_logger()
 _CLIENT_PING = {"cmd": "ping"}
 _IDLE_MISSES_BEFORE_RECONNECT = 2
 _DEBUG_BODY_LIMIT = 800
+# Источник кадра для DEBUG: сервер шлёт updates сразу (push), «недошедшие» в ответ на
+# наш ping и «накопленное» сразу после подключения.
+_SOURCE_PUSH = "push"
+_SOURCE_AFTER_PING = "после ping"
+_SOURCE_AFTER_CONNECT = "после connect"
 
 
 def resolve_websocket_url(
@@ -123,6 +128,7 @@ async def _handle_ws_frame(
     *,
     caps: A161RemoteCapabilities,
     raw_text: str,
+    source: str = _SOURCE_PUSH,
 ) -> str | None:
     """Обработать кадр. Возвращает stop_reason или None."""
     from ..registry import get_provider
@@ -132,8 +138,9 @@ async def _handle_ws_frame(
 
     if parsed.kind == "update" and parsed.update:
         _LOGGER.debug(
-            "a161 WS кадр update запись=%s тип=%s",
+            "a161 WS кадр update запись=%s источник=%s тип=%s",
             entry_id,
+            source,
             (parsed.update or {}).get("update_type"),
         )
         await get_provider(entry).async_process_incoming_update(
@@ -143,8 +150,9 @@ async def _handle_ws_frame(
 
     if parsed.kind == "batch":
         _LOGGER.debug(
-            "a161 WS кадр batch запись=%s событий=%s",
+            "a161 WS кадр batch запись=%s источник=%s событий=%s",
             entry_id,
+            source,
             len(parsed.updates),
         )
         for one in parsed.updates:
@@ -288,9 +296,10 @@ async def async_run_websocket_loop(hass: HomeAssistant, entry: ConfigEntry) -> N
                     heartbeat,
                 )
                 idle_misses = 0
+                frame_source = _SOURCE_AFTER_CONNECT
                 while True:
                     try:
-                        msg = await asyncio.wait_for(ws.receive(), timeout=heartbeat)
+                        msg = await ws.receive(timeout=heartbeat)
                     except asyncio.TimeoutError:
                         idle_misses += 1
                         _LOGGER.debug(
@@ -310,6 +319,7 @@ async def async_run_websocket_loop(hass: HomeAssistant, entry: ConfigEntry) -> N
                             ws, entry_id, reason="heartbeat"
                         ):
                             break
+                        frame_source = _SOURCE_AFTER_PING
                         continue
                     idle_misses = 0
                     if msg.type == WSMsgType.TEXT:
@@ -343,7 +353,12 @@ async def async_run_websocket_loop(hass: HomeAssistant, entry: ConfigEntry) -> N
                             ws,
                             caps=caps,
                             raw_text=raw_text,
+                            source=frame_source,
                         )
+                        if parsed.kind == "ping":
+                            frame_source = _SOURCE_AFTER_PING
+                        elif parsed.kind not in ("pong", "auth_ok"):
+                            frame_source = _SOURCE_PUSH
                         if stop_reason == "auth_fail":
                             await async_fetch_remote_capabilities(hass, entry, force=True)
                             break

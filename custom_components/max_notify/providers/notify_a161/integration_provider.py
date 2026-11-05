@@ -19,6 +19,7 @@ from ...const import (
 )
 from ...translations import get_receive_mode_title
 from ...unique_title import get_unique_entry_title
+from ...update_dedupe import UpdateDedupePolicy
 from ..base import MaxNotifyIntegrationProvider
 from ..capabilities import IntegrationCapabilities
 from ..entry_kind import entry_matches_notify_a161
@@ -42,6 +43,8 @@ from .const import (
     NOTIFY_A161_INACTIVITY_PERIOD_DAYS_DEFAULT,
     NOTIFY_A161_INACTIVITY_PERIOD_DAYS_MIN,
     NOTIFY_A161_MAX_UPLOAD_BYTES,
+    NOTIFY_A161_DEDUPE_MAX_KEYS,
+    NOTIFY_A161_DEDUPE_WINDOW_SECONDS,
     NOTIFY_A161_UPDATES_LIMIT,
 )
 from .lifecycle import ensure_polling_grace
@@ -815,6 +818,15 @@ class NotifyA161IntegrationProvider(MaxNotifyIntegrationProvider):
         from ..updates_service import async_process_incoming_update_impl
 
         await async_process_incoming_update_impl(hass, entry, update)
+
+    def update_dedupe_policy(self, entry: ConfigEntry) -> UpdateDedupePolicy:
+        _ = entry
+        return UpdateDedupePolicy(
+            window_seconds=NOTIFY_A161_DEDUPE_WINDOW_SECONDS,
+            callback_id_window_seconds=NOTIFY_A161_DEDUPE_WINDOW_SECONDS,
+            max_keys_per_entry=NOTIFY_A161_DEDUPE_MAX_KEYS,
+            persist=True,
+        )
 
     async def async_updates_polling_loop(
         self, hass: HomeAssistant, entry: ConfigEntry

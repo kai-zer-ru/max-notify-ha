@@ -1,4 +1,4 @@
-"""Состояние интеграции в памяти и в Store (.storage): id сообщений, маркеры polling."""
+"""Состояние интеграции в памяти и в Store (.storage): id сообщений, маркеры polling, ключи дедупа."""
 
 from __future__ import annotations
 
@@ -6,6 +6,7 @@ from .log import get_logger
 import json
 import logging
 import asyncio
+import time
 from copy import deepcopy
 from typing import Any
 
@@ -14,6 +15,7 @@ from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.storage import Store
 
 from .const import DOMAIN
+from .update_dedupe import export_seen_keys, restore_seen_keys
 
 _LOGGER = get_logger()
 
@@ -26,6 +28,7 @@ SIGNAL_MESSAGE_STATE_UPDATED = f"{DOMAIN}_message_state_updated"
 _PERSIST_MESSAGES = "messages"
 _PERSIST_POLLING_MARKERS = "polling_markers"
 _PERSIST_RECIPIENT_IDS = "recipient_ids"
+_PERSIST_DEDUPE_SEEN = "dedupe_seen"
 
 
 def message_state_scope_key(entry_id: str, recipient_id: int | None) -> str:
@@ -97,6 +100,7 @@ def _build_persist_payload(hass: HomeAssistant) -> dict[str, Any]:
         _PERSIST_MESSAGES: messages,
         _PERSIST_POLLING_MARKERS: markers,
         _PERSIST_RECIPIENT_IDS: recipients,
+        _PERSIST_DEDUPE_SEEN: export_seen_keys(hass, time.time()),
     }
 
 
@@ -166,6 +170,7 @@ async def async_load_integration_store(hass: HomeAssistant) -> None:
     if not isinstance(loaded, dict):
         return
     messages, markers, recipients = _split_loaded_blob(loaded)
+    restore_seen_keys(hass, loaded.get(_PERSIST_DEDUPE_SEEN), time.time())
     for scope_key, payload in messages.items():
         if not isinstance(scope_key, str) or not isinstance(payload, dict):
             continue

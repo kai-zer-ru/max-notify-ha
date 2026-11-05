@@ -31,6 +31,7 @@ from ..const import (
 )
 from ..translations import get_receive_mode_title
 from ..unique_title import get_unique_entry_title
+from ..update_dedupe import UpdateDedupePolicy
 from .capabilities import IntegrationCapabilities
 
 
@@ -206,6 +207,11 @@ class MaxNotifyIntegrationProvider:
     ) -> None:
         """Разобрать один update и сгенерировать события HA."""
         return None
+
+    def update_dedupe_policy(self, entry: ConfigEntry) -> UpdateDedupePolicy:
+        """Сколько помнить ключи входящих updates записи (повторная доставка сервером)."""
+        _ = entry
+        return UpdateDedupePolicy()
 
     async def async_updates_polling_loop(
         self, hass: HomeAssistant, entry: ConfigEntry

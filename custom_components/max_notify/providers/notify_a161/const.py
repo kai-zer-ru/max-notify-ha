@@ -20,6 +20,11 @@ CONF_A161_WEBSOCKET_URL = "a161_websocket_url"
 
 API_PATH_ME_CAPABILITIES = "/me/capabilities"
 
+# Сервер повторно отдаёт «недошедшие» updates на ping и «накопленное» при connect —
+# ключи дедупа держим сутки и сохраняем между перезапусками HA.
+NOTIFY_A161_DEDUPE_WINDOW_SECONDS = 24 * 60 * 60
+NOTIFY_A161_DEDUPE_MAX_KEYS = 2000
+
 API_BASE_URL = "https://notify.a161.ru"
 
 ACCESS_TOKEN_EXPECTED_LENGTH = 36

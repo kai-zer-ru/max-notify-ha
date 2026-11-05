@@ -24,6 +24,8 @@ from custom_components.max_notify.providers.updates_service import (
 def mock_entry() -> MagicMock:
     entry = MagicMock()
     entry.entry_id = "test-entry"
+    entry.data = {}
+    entry.options = {}
     return entry
 
 
@@ -281,3 +283,195 @@ async def test_incoming_message_id_updates_only_for_message_created(hass, mock_e
 
         await async_process_incoming_update_impl(hass, mock_entry, message_update)
         mock_set.assert_called_once()
+
+
+def _dedupe_hass() -> MagicMock:
+    h = MagicMock()
+    h.data = {"max_notify": {}}
+    h.bus.async_fire = MagicMock()
+    return h
+
+
+def _official_entry(entry_id: str = "official-entry") -> MagicMock:
+    entry = MagicMock()
+    entry.entry_id = entry_id
+    entry.data = {"integration_type": "official"}
+    entry.options = {}
+    return entry
+
+
+async def _process_at(hass, entry, update, now: float) -> None:
+    with patch(
+        "custom_components.max_notify.providers.updates_service.time.time",
+        return_value=now,
+    ), patch(
+        "custom_components.max_notify.providers.updates_service.set_last_incoming_message_id"
+    ):
+        await async_process_incoming_update_impl(hass, entry, update)
+
+
+_MSG = {
+    "update_type": "message_created",
+    "timestamp": 1761400000000,
+    "message": {
+        "recipient": {"chat_id": -5},
+        "sender": {"user_id": 7},
+        "body": {"mid": "mid.abc", "text": "hi"},
+    },
+}
+
+
+class TestDedupeOfficialUnchanged:
+    """official: окна 15 с / 3 с, как до введения политики провайдера."""
+
+    @pytest.mark.asyncio
+    async def test_repeat_within_15s_deduped(self) -> None:
+        hass, entry = _dedupe_hass(), _official_entry()
+        await _process_at(hass, entry, _MSG, 1000.0)
+        await _process_at(hass, entry, _MSG, 1014.0)
+        assert hass.bus.async_fire.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_repeat_after_15s_fires_again(self) -> None:
+        hass, entry = _dedupe_hass(), _official_entry()
+        await _process_at(hass, entry, _MSG, 1000.0)
+        await _process_at(hass, entry, _MSG, 1016.0)
+        assert hass.bus.async_fire.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_callback_window_3s(self) -> None:
+        hass, entry = _dedupe_hass(), _official_entry()
+        press = {
+            "update_type": "message_callback",
+            "callback": {"payload": "btn", "user_id": 7},
+            "message": {"recipient": {"chat_id": -5}},
+        }
+        await _process_at(hass, entry, press, 1000.0)
+        await _process_at(hass, entry, press, 1002.0)
+        await _process_at(hass, entry, press, 1004.0)
+        assert hass.bus.async_fire.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_not_persisted(self) -> None:
+        from custom_components.max_notify.message_state import _build_persist_payload
+
+        hass, entry = _dedupe_hass(), _official_entry()
+        with patch(
+            "custom_components.max_notify.providers.updates_service.schedule_integration_persist"
+        ) as persist:
+            await _process_at(hass, entry, _MSG, 1000.0)
+        persist.assert_not_called()
+        with patch("custom_components.max_notify.message_state.time.time", return_value=1001.0):
+            assert _build_persist_payload(hass)["dedupe_seen"] == {}
+
+    @pytest.mark.asyncio
+    async def test_event_id_is_update_key(self) -> None:
+        hass, entry = _dedupe_hass(), _official_entry()
+        await _process_at(hass, entry, _MSG, 1000.0)
+        event_data = hass.bus.async_fire.call_args.args[1]
+        assert event_data["event_id"] == "message_created_1761400000000_abc"
+        assert event_data["config_entry_id"] == "official-entry"
+
+
+class TestDedupeKeyContent:
+    """Ключ без timestamp и id — по содержимому, вид KIND_CONTENT."""
+
+    def test_content_key_stable_and_text_sensitive(self) -> None:
+        from custom_components.max_notify.providers.updates_service import (
+            _update_dedup_key_and_kind,
+        )
+        from custom_components.max_notify.update_dedupe import KIND_CONTENT
+
+        def upd(text: str, received_at: int) -> dict:
+            return {
+                "update_type": "message_created",
+                "received_at": received_at,
+                "message": {
+                    "body": {"text": text},
+                    "sender": {"user_id": 7},
+                    "recipient": {"user_id": 7},
+                },
+            }
+
+        k1, kind = _update_dedup_key_and_kind(upd("hi", 1))
+        k2, _ = _update_dedup_key_and_kind(upd("hi", 2))
+        k3, _ = _update_dedup_key_and_kind(upd("bye", 1))
+        assert kind == KIND_CONTENT
+        assert k1 == k2
+        assert k1 != k3
+
+    def test_received_at_used_as_event_timestamp(self, mock_entry) -> None:
+        data = _extract_event_data(
+            mock_entry,
+            {"update_type": "message_created", "received_at": 5, "message": {"body": {"text": "x"}}},
+        )
+        assert data["timestamp"] == 5
+
+
+class TestSeenKeysStore:
+    """Хранилище ключей: TTL, LRU-лимит, сохранение/восстановление."""
+
+    def test_lru_limit(self) -> None:
+        from custom_components.max_notify.update_dedupe import SeenKeys
+
+        seen = SeenKeys()
+        for i in range(5):
+            seen.add(f"k{i}", 100.0 + i, 1000.0, 3)
+        assert list(seen.items) == ["k2", "k3", "k4"]
+        assert seen.hit("k2", 200.0) is not None  # k2 становится самым свежим
+        seen.add("k5", 201.0, 1000.0, 3)
+        assert list(seen.items) == ["k4", "k2", "k5"]
+
+    def test_ttl_expiry_and_age(self) -> None:
+        from custom_components.max_notify.update_dedupe import SeenKeys
+
+        seen = SeenKeys()
+        seen.add("k", 100.0, 10.0, None)
+        assert seen.hit("k", 105.0) == pytest.approx(5.0)
+        assert seen.hit("k", 110.0) is None
+        seen.prune(110.0)
+        assert not seen.items
+
+    @pytest.mark.asyncio
+    async def test_persist_and_restore_round_trip(self) -> None:
+        from custom_components.max_notify import message_state
+        from custom_components.max_notify.update_dedupe import (
+            UpdateDedupePolicy,
+            get_seen_keys,
+        )
+
+        src = _dedupe_hass()
+        policy = UpdateDedupePolicy(window_seconds=100.0, persist=True)
+        bucket = get_seen_keys(src, "e1", policy)
+        bucket.add("alive", 1000.0, 100.0, None)
+        bucket.add("dead", 1000.0, 1.0, None)
+        get_seen_keys(src, "e2", UpdateDedupePolicy()).add("mem", 1000.0, 100.0, None)
+        with patch.object(message_state.time, "time", return_value=1010.0):
+            payload = message_state._build_persist_payload(src)
+        assert payload["dedupe_seen"] == {"e1": [["alive", 1100.0, 1000.0]]}
+
+        dst = _dedupe_hass()
+        store = MagicMock()
+
+        async def _load():
+            return payload
+
+        store.async_load = _load
+        with patch.object(message_state, "Store", return_value=store), patch.object(
+            message_state.time, "time", return_value=1050.0
+        ), patch.object(message_state, "async_dispatcher_send"):
+            await message_state.async_load_integration_store(dst)
+        restored = get_seen_keys(dst, "e1", policy)
+        assert restored.hit("alive", 1050.0) == pytest.approx(50.0)
+        assert "e2" not in dst.data["max_notify"]["_dedupe_seen"]
+
+    def test_restore_skips_expired_and_garbage(self) -> None:
+        from custom_components.max_notify.update_dedupe import restore_seen_keys
+
+        hass = _dedupe_hass()
+        restore_seen_keys(
+            hass,
+            {"e1": [["old", 10.0, 1.0], ["ok", 500.0, 1.0], ["bad"], [1, 2, 3]], 5: []},
+            100.0,
+        )
+        assert list(hass.data["max_notify"]["_dedupe_seen"]["e1"].items) == ["ok"]

@@ -5,6 +5,8 @@ from __future__ import annotations
 import time
 from typing import Any
 
+from ...update_dedupe import RECEIVED_AT_FIELD
+
 
 def normalize_reply_update(item: Any) -> dict[str, Any] | None:
     """Преобразовать элемент ответа notify.a161.ru к общему формату обновления."""
@@ -17,7 +19,7 @@ def normalize_reply_update(item: Any) -> dict[str, Any] | None:
             return None
         return {
             "update_type": "message_created",
-            "timestamp": int(time.time() * 1000),
+            RECEIVED_AT_FIELD: int(time.time() * 1000),
             "message": {"body": {"text": text}},
         }
 
@@ -77,7 +79,9 @@ def normalize_reply_update(item: Any) -> dict[str, Any] | None:
         or item.get("messageId")
         or item.get("id")
     )
-    timestamp = item.get("timestamp") or reply.get("timestamp") or int(time.time() * 1000)
+    # Время получения не подставляем в timestamp: он входит в ключ дедупа,
+    # и повтор того же сообщения выглядел бы как новое.
+    timestamp = item.get("timestamp") or reply.get("timestamp")
 
     recipient: dict[str, Any] = {}
     if chat_id is not None:
@@ -95,9 +99,12 @@ def normalize_reply_update(item: Any) -> dict[str, Any] | None:
 
     normalized: dict[str, Any] = {
         "update_type": "message_created",
-        "timestamp": timestamp,
         "message": message,
     }
+    if timestamp is not None:
+        normalized["timestamp"] = timestamp
+    else:
+        normalized[RECEIVED_AT_FIELD] = int(time.time() * 1000)
     if message_id is not None:
         normalized["message_id"] = message_id
     return normalized

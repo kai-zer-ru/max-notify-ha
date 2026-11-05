@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from ..log import get_logger
 import asyncio
+import hashlib
 import json
 import logging
 import shlex
@@ -30,6 +31,14 @@ from ..const import (
 )
 from ..message_state import schedule_integration_persist, set_last_incoming_message_id
 from ..outbound_rate import async_acquire_outbound_api_slot
+from ..update_dedupe import (
+    KIND_CALLBACK_ID,
+    KIND_CALLBACK_PAYLOAD,
+    KIND_CONTENT,
+    KIND_DEFAULT,
+    RECEIVED_AT_FIELD,
+    get_seen_keys,
+)
 from .registry import get_provider
 
 _LOGGER = get_logger()
@@ -169,6 +178,8 @@ def _extract_event_data(entry: ConfigEntry, update: dict[str, Any]) -> dict[str,
     update_type = update.get("update_type") or ""
     message = update.get("message") or {}
     timestamp = update.get("timestamp")
+    if timestamp is None:
+        timestamp = update.get(RECEIVED_AT_FIELD)
 
     # user_id: кто написал (message_created) или нажал кнопку (message_callback)
     user_id = _extract_user_id(update, message, update_type)
@@ -404,26 +415,25 @@ def _should_fire_command_event(entry: ConfigEntry, command: str | None, update_t
     return nc in allowed if nc else False
 
 
-# Окно дедупликации для message_callback: одно нажатие = одно событие; повтор через N сек допустим
-CALLBACK_DEDUPE_WINDOW = 3.0
-DEDUPE_WINDOW_DEFAULT = 15.0
-
-
-def _update_dedup_key(update: dict[str, Any]) -> str:
-    """Ключ для дедупликации: один и тот же update от API — одно событие."""
+def _update_dedup_key_and_kind(update: dict[str, Any]) -> tuple[str, str]:
+    """Ключ дедупа и его вид (от вида зависит окно в ``UpdateDedupePolicy``)."""
     uid = update.get("update_id") or update.get("id")
     if uid is not None:
-        return str(uid)
+        return str(uid), KIND_DEFAULT
     msg = update.get("message") or {}
     body = msg.get("body") or {}
     msg_id = _extract_message_id(update, msg, body)
     utype = update.get("update_type") or ""
+    recipient = msg.get("recipient") or {}
+    chat_id = recipient.get("chat_id")
+    if chat_id is None:
+        chat_id = recipient.get("user_id")
     if utype == "message_callback":
         cb = update.get("callback")
         if isinstance(cb, dict):
             callback_id = cb.get("callback_id") or cb.get("callbackId")
             if callback_id:
-                return f"{utype}_cbid_{callback_id}"
+                return f"{utype}_cbid_{callback_id}", KIND_CALLBACK_ID
             payload = str(cb.get("payload") or cb.get("data") or cb.get("callback_data") or "")
             uid_cb = cb.get("user_id") or cb.get("userId")
             if uid_cb is None:
@@ -433,13 +443,20 @@ def _update_dedup_key(update: dict[str, Any]) -> str:
         else:
             payload = str(cb) if cb else ""
             uid_cb = None
-        recipient = msg.get("recipient") or {}
-        chat_id = recipient.get("chat_id")
-        if chat_id is None:
-            chat_id = recipient.get("user_id")
-        return f"{utype}_{chat_id}_{uid_cb}_{payload}"
+        return f"{utype}_{chat_id}_{uid_cb}_{payload}", KIND_CALLBACK_PAYLOAD
     ts = update.get("timestamp")
-    return f"{utype}_{ts}_{msg_id}"
+    if ts is None and msg_id is None and isinstance(body.get("text"), str):
+        # Нет ни времени отправки, ни id: опознаём повтор по содержимому, окно короткое.
+        sender = msg.get("sender") or {}
+        sender_id = sender.get("user_id") or sender.get("userId")
+        digest = hashlib.sha1(body["text"].strip().encode("utf-8")).hexdigest()[:16]
+        return f"{utype}_content_{chat_id}_{sender_id}_{digest}", KIND_CONTENT
+    return f"{utype}_{ts}_{msg_id}", KIND_DEFAULT
+
+
+def _update_dedup_key(update: dict[str, Any]) -> str:
+    """Ключ для дедупликации: один и тот же update от API — одно событие."""
+    return _update_dedup_key_and_kind(update)[0]
 
 
 async def async_process_incoming_update_impl(
@@ -449,7 +466,7 @@ async def async_process_incoming_update_impl(
 ) -> None:
     """Parse one Update and fire EVENT_MAX_NOTIFY_RECEIVED (subject to commands allowlist)."""
     try:
-        dedupe_key = _update_dedup_key(update)
+        dedupe_key, dedupe_kind = _update_dedup_key_and_kind(update)
         _LOGGER.debug(
             "async_process_update: запись=%s тип_update=%s ключ_дедуп=%s",
             entry.entry_id,
@@ -460,21 +477,28 @@ async def async_process_incoming_update_impl(
             hass.data[DOMAIN] = {}
         if "_dedupe_lock" not in hass.data[DOMAIN]:
             hass.data[DOMAIN]["_dedupe_lock"] = asyncio.Lock()
-        recent = hass.data[DOMAIN].setdefault("_dedupe_recent", {})
-        now = time.monotonic()
+        policy = get_provider(entry).update_dedupe_policy(entry)
+        now = time.time()
         async with hass.data[DOMAIN]["_dedupe_lock"]:
-            for k, expiry in list(recent.items()):
-                if expiry <= now:
-                    del recent[k]
-            if dedupe_key and recent.get(dedupe_key, 0) > now:
-                _LOGGER.debug("Пропуск дубликата update (недавний): %s", dedupe_key[:80])
+            seen = get_seen_keys(hass, entry.entry_id, policy)
+            seen.prune(now)
+            age = seen.hit(dedupe_key, now) if dedupe_key else None
+            if age is not None:
+                _LOGGER.debug(
+                    "Пропуск дубликата update: запись=%s ключ=%s возраст=%.1fs",
+                    entry.entry_id,
+                    dedupe_key[:120],
+                    age,
+                )
                 return
-            window = (
-                CALLBACK_DEDUPE_WINDOW
-                if (update.get("update_type") == "message_callback")
-                else DEDUPE_WINDOW_DEFAULT
+            seen.add(
+                dedupe_key,
+                now,
+                policy.window_for(dedupe_kind),
+                policy.max_keys_per_entry,
             )
-            recent[dedupe_key] = now + window
+        if policy.persist:
+            schedule_integration_persist(hass)
 
         if _LOGGER.isEnabledFor(logging.DEBUG):
             try:
