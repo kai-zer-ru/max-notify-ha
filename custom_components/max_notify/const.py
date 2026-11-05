@@ -3,7 +3,7 @@
 DOMAIN = "max_notify"
 
 # Минимальная версия Home Assistant Core (дублируется в hacs.json → homeassistant).
-MINIMUM_HA_VERSION = "2026.2.0"
+MINIMUM_HA_VERSION = "2026.8.0"
 
 # Плейсхолдеры для строк config/options (hassfest запрещает сырые URL в переводах).
 DOCS_HA_NETWORK_URL = "https://www.home-assistant.io/docs/configuration/basic/"

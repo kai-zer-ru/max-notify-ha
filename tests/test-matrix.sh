@@ -20,9 +20,9 @@ run_for_env() {
   "${python_bin}" -m pytest -q
 }
 
-run_for_env ".venv-ha-2026.02" "Home Assistant 2026.02"
-run_for_env ".venv-ha-2026.03" "Home Assistant 2026.03"
-run_for_env ".venv-ha-2026.04" "Home Assistant 2026.04"
+run_for_env ".venv-ha-2026.08" "Home Assistant 2026.08"
+run_for_env ".venv-ha-2026.09" "Home Assistant 2026.09"
+run_for_env ".venv-ha-2026.10" "Home Assistant 2026.10"
 
 echo
 echo "OK: все окружения прошли тесты."

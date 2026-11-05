@@ -27,7 +27,7 @@ def test_async_get_supported_subentry_types_respects_flag(monkeypatch) -> None:
         "homeassistant.config_entries", reason="homeassistant not installed"
     )
     if not hasattr(ce, "ConfigSubentryFlow"):
-        pytest.skip("HA Core without ConfigSubentryFlow (need 2026.2+)")
+        pytest.skip("HA Core without ConfigSubentryFlow (need 2026.8+)")
 
     from custom_components.max_notify import config_flow as cf
 
@@ -52,7 +52,7 @@ def test_async_get_supported_subentry_types_legacy_a161_title(monkeypatch) -> No
         "homeassistant.config_entries", reason="homeassistant not installed"
     )
     if not hasattr(ce, "ConfigSubentryFlow"):
-        pytest.skip("HA Core without ConfigSubentryFlow (need 2026.2+)")
+        pytest.skip("HA Core without ConfigSubentryFlow (need 2026.8+)")
 
     from custom_components.max_notify import config_flow as cf
 
@@ -75,7 +75,7 @@ async def test_recipient_subentry_flow_blocks_provider_without_add_chat(monkeypa
         "homeassistant.config_entries", reason="homeassistant not installed"
     )
     if not hasattr(ce, "ConfigSubentryFlow"):
-        pytest.skip("HA Core without ConfigSubentryFlow (need 2026.2+)")
+        pytest.skip("HA Core without ConfigSubentryFlow (need 2026.8+)")
 
     from custom_components.max_notify import config_subentry_flow as csf
     from custom_components.max_notify.providers.registry import OFFICIAL_PROVIDER

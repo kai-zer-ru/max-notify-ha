@@ -51,16 +51,6 @@ def test_recipient_device_info_prefers_via_device_id() -> None:
     assert "via_device" not in info
 
 
-def test_recipient_device_info_falls_back_when_helper_missing() -> None:
-    """На HA без async_get_device_id_by_identifier — via_device."""
-    hass = MagicMock()
-    entry = SimpleNamespace(entry_id="e1", title="Bot")
-    subentry = SimpleNamespace(subentry_id="s1", title="Chat A")
-    info = recipient_device_info(hass, entry, subentry)
-    assert info["via_device"] == (DOMAIN, "e1")
-    assert "via_device_id" not in info
-
-
 def test_recipient_device_info_falls_back_when_parent_unresolved() -> None:
     hass = MagicMock()
     entry = SimpleNamespace(entry_id="e1", title="Bot")
@@ -129,16 +119,6 @@ def test_subentry_views_accepts_dict_and_objects() -> None:
     }
 
 
-def test_linked_subentry_ids_from_legacy_multi_link() -> None:
-    device = SimpleNamespace(
-        config_subentry_id=None,
-        config_entries_subentries={
-            "e1": [None, "s1", "s2"],
-        },
-    )
-    assert _linked_subentry_ids(device, "e1") == {"s1", "s2"}
-
-
 def test_linked_subentry_ids_modern_singular_fields() -> None:
     """HA 2026.8+: config_entry_id / config_subentry_id, как у соседей через SimpleNamespace."""
     device = SimpleNamespace(config_entry_id="e1", config_subentry_id="s1")
@@ -164,29 +144,25 @@ def test_linked_subentry_ids_modern_does_not_read_deprecated_mapping() -> None:
     assert _linked_subentry_ids(_Ha20268Device(), "other_entry") == set()
 
 
-def test_detach_removes_legacy_entry_then_readds_without_subentry() -> None:
+def test_detach_clears_subentry_on_modern_registry() -> None:
     registry = MagicMock()
     device = SimpleNamespace(
         id="dev1",
-        config_subentry_id=None,
-        config_entries_subentries={"e1": [None, "s1", "s2"]},
+        config_entry_id="e1",
+        config_subentry_id="s1",
     )
-    registry.async_get.return_value = device
-    registry.async_update_device.side_effect = lambda device_id, **kwargs: device
+    cleared = SimpleNamespace(
+        id="dev1",
+        config_entry_id="e1",
+        config_subentry_id=None,
+    )
+    registry.async_get.return_value = cleared
+    registry.async_update_device.return_value = cleared
 
     _async_detach_subentries_from_device(registry, device, "e1")
 
     kwargs_list = [c.kwargs for c in registry.async_update_device.call_args_list]
-    assert any(
-        k.get("remove_config_entry_id") == "e1"
-        and "remove_config_subentry_id" not in k
-        for k in kwargs_list
-    )
-    assert any(
-        k.get("add_config_entry_id") == "e1"
-        and k.get("add_config_subentry_id") is None
-        for k in kwargs_list
-    )
+    assert any(k.get("new_config_subentry_id") is None for k in kwargs_list)
 
 
 def test_migrate_creates_per_chat_devices_and_moves_entities() -> None:

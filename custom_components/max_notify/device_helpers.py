@@ -1,4 +1,4 @@
-"""Device helpers: один device на recipient-subentry и совместимость со старыми Core."""
+"""Device helpers: один device на recipient-subentry (HA 2026.8+)."""
 
 from __future__ import annotations
 
@@ -89,7 +89,7 @@ def recipient_device_info(
             info["via_device_id"] = via_id
             return DeviceInfo(**info)
 
-    # HA < 2026.8; на 2026.8+ — если реестр не готов или родителя ещё нет.
+    # Реестр не готов или родительский device ещё не создан.
     info["via_device"] = parent_ident
     return DeviceInfo(**info)
 
@@ -144,31 +144,14 @@ def _subentry_views(
 
 
 def _linked_subentry_ids(device: dr.DeviceEntry, entry_id: str) -> set[str]:
-    """Subentry id, к которым привязан device (старый и новый формат реестра)."""
+    """Subentry id, к которому привязан device (HA 2026.8+: одно устройство — одна запись)."""
     linked: set[str] = set()
-
-    # HA 2026.8+: одна запись на устройство. Не читаем deprecated
-    # config_entries_subentries (предупреждение, с 2027.10 свойство уберут).
-    device_entry_id = getattr(device, "config_entry_id", None)
-    if isinstance(device_entry_id, str):
-        if device_entry_id == entry_id:
-            single = getattr(device, "config_subentry_id", None)
-            if isinstance(single, str) and single:
-                linked.add(single)
+    # Не читаем deprecated config_entries_subentries (предупреждение, с 2027.10 уберут).
+    if getattr(device, "config_entry_id", None) != entry_id:
         return linked
-
     single = getattr(device, "config_subentry_id", None)
-    if single:
-        linked.add(str(single))
-
-    ces = getattr(device, "config_entries_subentries", None) or {}
-    bucket = ces.get(entry_id) if isinstance(ces, dict) else None
-    if bucket is None and hasattr(ces, "get"):
-        bucket = ces.get(entry_id)
-    if bucket:
-        for sid in bucket:
-            if sid is not None:
-                linked.add(str(sid))
+    if isinstance(single, str) and single:
+        linked.add(single)
     return linked
 
 
