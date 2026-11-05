@@ -504,13 +504,18 @@ def test_resolve_delete_period_swaps_reversed_bounds() -> None:
 
 
 def test_resolve_delete_period_date_only_sets_day_bounds() -> None:
-    from custom_components.max_notify.services import _resolve_delete_period
+    from custom_components.max_notify.services import _local_tz, _resolve_delete_period
 
     ts_from, ts_to = _resolve_delete_period(
         {"from": "2026-04-21", "to": "2026-04-22"}
     )
-    expected_from = int(datetime.fromisoformat("2026-04-21T00:00:00+08:00").timestamp() * 1000)
-    expected_to = int(datetime.fromisoformat("2026-04-22T23:59:59+08:00").timestamp() * 1000)
+    local_tz = _local_tz()
+    expected_from = int(
+        datetime(2026, 4, 21, 0, 0, 0, tzinfo=local_tz).timestamp() * 1000
+    )
+    expected_to = int(
+        datetime(2026, 4, 22, 23, 59, 59, tzinfo=local_tz).timestamp() * 1000
+    )
     assert ts_from == expected_from
     assert ts_to == expected_to
 
