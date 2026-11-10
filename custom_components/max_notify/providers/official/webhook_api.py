@@ -145,6 +145,12 @@ async def async_delete_subscription_url(
                 data = await resp.json()
                 if data.get("success") is True:
                     return True
+                _LOGGER.debug(
+                    "DELETE /subscriptions: HTTP %s success=false code=%s",
+                    resp.status,
+                    data.get("code") or "-",
+                )
+                return False
             _LOGGER.debug("DELETE /subscriptions: код ответа %s", resp.status)
     except Exception as e:
         _LOGGER.warning("Ошибка удаления подписки WebHook (DELETE /subscriptions): %s", e)
@@ -238,6 +244,14 @@ async def async_register_platform_webhook(
                         webhook_public_url,
                     )
                     return True
+                _LOGGER.warning(
+                    "Регистрация WebHook в Max API не удалась (POST /subscriptions): "
+                    "HTTP %s, code=%s, ответ: %s",
+                    resp.status,
+                    data.get("code") or "-",
+                    str(data)[:200],
+                )
+                return False
             text = await resp.text()
             _LOGGER.warning(
                 "Регистрация WebHook в Max API не удалась (POST /subscriptions): "

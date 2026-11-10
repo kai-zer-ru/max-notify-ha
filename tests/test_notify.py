@@ -325,6 +325,55 @@ class TestDeleteMessage:
                 await delete_message(hass, mock_config_entry, "mid-1")
             assert exc.value.translation_key == "delete_message_permission_denied"
 
+    async def test_http_200_success_false_permission_raises(
+        self, hass, mock_config_entry
+    ) -> None:
+        mock_config_entry.data = {"access_token": "token", "message_format": "text"}
+        with patch(
+            "custom_components.max_notify.providers.notify_outbound.async_get_clientsession"
+        ) as mock_session:
+            mock_resp = AsyncMock()
+            mock_resp.status = 200
+            mock_resp.text = AsyncMock(
+                return_value=(
+                    '{"success":false,"code":"access.denied",'
+                    '"message":"Insufficient permissions to delete message"}'
+                )
+            )
+            mock_resp.__aenter__ = AsyncMock(return_value=mock_resp)
+            mock_resp.__aexit__ = AsyncMock(return_value=None)
+
+            mock_ctx = MagicMock()
+            mock_ctx.delete = MagicMock(return_value=mock_resp)
+            mock_session.return_value = mock_ctx
+
+            with pytest.raises(ServiceValidationError) as exc:
+                await delete_message(hass, mock_config_entry, "mid-1")
+            assert exc.value.translation_key == "delete_message_permission_denied"
+
+    async def test_http_200_success_false_not_found_raises(
+        self, hass, mock_config_entry
+    ) -> None:
+        mock_config_entry.data = {"access_token": "token", "message_format": "text"}
+        with patch(
+            "custom_components.max_notify.providers.notify_outbound.async_get_clientsession"
+        ) as mock_session:
+            mock_resp = AsyncMock()
+            mock_resp.status = 200
+            mock_resp.text = AsyncMock(
+                return_value='{"success":false,"code":"not.found","message":"Resource not found"}'
+            )
+            mock_resp.__aenter__ = AsyncMock(return_value=mock_resp)
+            mock_resp.__aexit__ = AsyncMock(return_value=None)
+
+            mock_ctx = MagicMock()
+            mock_ctx.delete = MagicMock(return_value=mock_resp)
+            mock_session.return_value = mock_ctx
+
+            with pytest.raises(ServiceValidationError) as exc:
+                await delete_message(hass, mock_config_entry, "mid-1")
+            assert exc.value.translation_key == "delete_message_not_found"
+
 
 @pytest.mark.asyncio
 class TestDeleteMessages:
@@ -589,6 +638,30 @@ class TestEditMessage:
             assert result is True
             called_url = mock_ctx.put.call_args[0][0]
             assert "message_id=mid.abc" in called_url
+
+    async def test_http_200_success_false_returns_false(
+        self, hass, mock_config_entry
+    ) -> None:
+        mock_config_entry.data = {"access_token": "t", "message_format": "text"}
+        with patch(
+            "custom_components.max_notify.providers.notify_outbound.async_get_clientsession"
+        ) as mock_session:
+            mock_resp = AsyncMock()
+            mock_resp.status = 200
+            mock_resp.text = AsyncMock(
+                return_value='{"success":false,"code":"proto.payload","message":"Bad request"}'
+            )
+            mock_resp.__aenter__ = AsyncMock(return_value=mock_resp)
+            mock_resp.__aexit__ = AsyncMock(return_value=None)
+
+            mock_ctx = MagicMock()
+            mock_ctx.put = MagicMock(return_value=mock_resp)
+            mock_session.return_value = mock_ctx
+
+            result = await edit_message(
+                hass, mock_config_entry, "msg-1", text="New text"
+            )
+            assert result is False
 
 
 @pytest.mark.asyncio

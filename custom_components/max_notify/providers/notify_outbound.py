@@ -48,6 +48,7 @@ from ..const import (
     MAX_INLINE_KEYBOARD_TOTAL_BUTTONS,
     MAX_ATTACHMENTS_PER_MESSAGE,
     MAX_MESSAGE_LENGTH,
+    MAX_UPLOAD_FILENAME_LENGTH,
     URL_AUTH_TYPE_BASIC,
     URL_AUTH_TYPE_BEARER,
     URL_AUTH_TYPE_DIGEST,
@@ -301,6 +302,18 @@ def _ext_from_content_type(content_type: str) -> str:
         if mime == ct:
             return ext.lstrip(".")
     return "jpg"
+
+
+def _sanitize_upload_filename(filename: str | None, *, default: str = "file") -> str:
+    """Имя файла для multipart POST /uploads: без пути, не длиннее лимита Max."""
+    name = (filename or "").rsplit("/", 1)[-1].rsplit("\\", 1)[-1].strip() or default
+    if len(name) <= MAX_UPLOAD_FILENAME_LENGTH:
+        return name
+    base, dot, ext = name.rpartition(".")
+    if dot and ext and len(ext) + 1 < MAX_UPLOAD_FILENAME_LENGTH:
+        keep_ext = f".{ext}"
+        return f"{base[: MAX_UPLOAD_FILENAME_LENGTH - len(keep_ext)]}{keep_ext}"
+    return name[:MAX_UPLOAD_FILENAME_LENGTH]
 
 
 def _filename_from_url(url: str) -> str | None:
@@ -1230,23 +1243,42 @@ async def _post_message_with_retry(
     return await _run_with_send_pace_lock(hass, entry, _inner)
 
 
+def _parse_max_api_json_dict(body: str) -> dict[str, Any]:
+    """Разобрать JSON-тело ответа Max; при ошибке разбора — пустой dict."""
+    try:
+        parsed = json.loads(body) if (body or "").strip() else {}
+    except (json.JSONDecodeError, TypeError):
+        return {}
+    return parsed if isinstance(parsed, dict) else {}
+
+
+def _max_api_error_code_and_message(data: dict[str, Any]) -> tuple[str, str]:
+    """Код ошибки (поле code) и текст (message) из тела ответа Max."""
+    return str(data.get("code") or "").strip(), str(data.get("message") or "").strip()
+
+
+def _max_api_http_ok_is_failure(status: int, data: dict[str, Any]) -> bool:
+    """HTTP 2xx с success: false — ошибка для PUT/DELETE /messages и подписок."""
+    return status < 400 and data.get("success") is False
+
+
+def _max_api_error_detail(code: str, api_message: str, body: str) -> str:
+    if code and api_message:
+        return f"{code}: {api_message}"
+    return code or api_message or body
+
+
 def _raise_delete_api_error(status: int, body: str) -> None:
     """Перевести отказ API DELETE /messages в ServiceValidationError для UI."""
-    code = ""
-    api_message = ""
-    try:
-        data = json.loads(body) if (body or "").strip() else {}
-        if isinstance(data, dict):
-            code = str(data.get("code") or "")
-            api_message = str(data.get("message") or "")
-    except (json.JSONDecodeError, TypeError):
-        pass
+    data = _parse_max_api_json_dict(body)
+    code, api_message = _max_api_error_code_and_message(data)
     combined = f"{code} {api_message} {body}".lower()
-    if status == 403 and (
-        code == "access.denied"
-        or "insufficient permissions" in combined
+    permission_by_code = code in {"access.denied", "chat.denied"}
+    permission_by_text = (
+        "insufficient permissions" in combined
         or ("permission" in combined and "delete" in combined)
-    ):
+    )
+    if permission_by_code or (status == 403 and permission_by_text):
         raise ServiceValidationError(
             translation_domain=DOMAIN,
             translation_key="delete_message_permission_denied",
@@ -1256,12 +1288,13 @@ def _raise_delete_api_error(status: int, body: str) -> None:
             translation_domain=DOMAIN,
             translation_key="delete_message_unauthorized",
         )
-    if status == 404:
+    if status == 404 or code == "not.found":
         raise ServiceValidationError(
             translation_domain=DOMAIN,
             translation_key="delete_message_not_found",
             translation_placeholders={
-                "detail": (api_message or body)[:300] or str(status),
+                "detail": _max_api_error_detail(code, api_message, body)[:300]
+                or str(status),
             },
         )
     raise ServiceValidationError(
@@ -1269,7 +1302,7 @@ def _raise_delete_api_error(status: int, body: str) -> None:
         translation_key="delete_message_api_error",
         translation_placeholders={
             "status": str(status),
-            "detail": (api_message or body)[:300] or "-",
+            "detail": _max_api_error_detail(code, api_message, body)[:300] or "-",
         },
     )
 
@@ -1301,11 +1334,15 @@ async def delete_message(
             url, headers=headers, timeout=aiohttp.ClientTimeout(total=15)
         ) as resp:
             body = await resp.text()
-            if resp.status < 400:
+            data = _parse_max_api_json_dict(body)
+            if resp.status < 400 and not _max_api_http_ok_is_failure(resp.status, data):
                 _LOGGER.debug("delete_message успешно message_id=%s", mid)
                 return True
             _LOGGER.debug(
-                "delete_message ошибка код=%s тело=%s", resp.status, body[:500]
+                "delete_message ошибка HTTP=%s code=%s тело=%s",
+                resp.status,
+                data.get("code") or "",
+                body[:500],
             )
             _raise_delete_api_error(resp.status, body)
     except ServiceValidationError:
@@ -1390,15 +1427,23 @@ async def edit_message(
                 url, json=payload, headers=headers, timeout=aiohttp.ClientTimeout(total=15)
             ) as resp:
                 body = await resp.text()
+                data = _parse_max_api_json_dict(body)
+                code, _api_message = _max_api_error_code_and_message(data)
                 _LOGGER.info(
-                    "edit_message HTTP: код=%s тело=%s", resp.status, body
+                    "edit_message HTTP: код=%s api_code=%s тело=%s",
+                    resp.status,
+                    code or "-",
+                    body,
                 )
-                if resp.status < 400:
+                if resp.status < 400 and not _max_api_http_ok_is_failure(
+                    resp.status, data
+                ):
                     _LOGGER.info("Сообщение %s успешно изменено", mid)
                     return True
                 _LOGGER.error(
-                    "Изменение сообщения в Max API не удалось: код=%s тело=%s",
+                    "Изменение сообщения в Max API не удалось: HTTP=%s code=%s тело=%s",
                     resp.status,
+                    code or "-",
                     body,
                 )
                 return False
@@ -2163,7 +2208,12 @@ async def _upload_media_and_send(
                 )
             try:
                 form = aiohttp.FormData()
-                form.add_field("data", body, filename=filename, content_type=content_type)
+                form.add_field(
+                    "data",
+                    body,
+                    filename=_sanitize_upload_filename(filename),
+                    content_type=content_type,
+                )
                 await async_acquire_outbound_api_slot(hass)
                 async with session.post(
                     upload_url,
@@ -2309,7 +2359,12 @@ async def _upload_media_and_send(
 
         try:
             form = aiohttp.FormData()
-            form.add_field("data", body, filename=filename, content_type=content_type)
+            form.add_field(
+                "data",
+                body,
+                filename=_sanitize_upload_filename(filename),
+                content_type=content_type,
+            )
             await async_acquire_outbound_api_slot(hass)
             async with session.post(
                 upload_url,
@@ -2676,7 +2731,12 @@ async def upload_video_and_send(
 
         try:
             form = aiohttp.FormData()
-            form.add_field("data", body, filename=filename, content_type=content_type)
+            form.add_field(
+                "data",
+                body,
+                filename=_sanitize_upload_filename(filename),
+                content_type=content_type,
+            )
             await async_acquire_outbound_api_slot(hass)
             async with session.post(
                 upload_url,

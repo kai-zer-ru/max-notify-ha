@@ -8,6 +8,7 @@ from custom_components.max_notify.const import (
     SERVICE_EDIT_MESSAGE,
     SERVICE_SEND_MESSAGE,
     MAX_MESSAGE_LENGTH,
+    MAX_UPLOAD_FILENAME_LENGTH,
 )
 from custom_components.max_notify.providers.official.const import API_BASE_URL
 
@@ -28,3 +29,4 @@ def test_api_base_url() -> None:
 
 def test_max_message_length() -> None:
     assert MAX_MESSAGE_LENGTH == 4000
+    assert MAX_UPLOAD_FILENAME_LENGTH == 200
